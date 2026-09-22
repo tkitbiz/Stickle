@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────
+# 비공개: 개발 협의·검토 자료 — 절대 커밋하지 않는다
+# (pre-commit 훅이 강제 추가(git add -f)까지 한 번 더 막는다)
+# ─────────────────────────────────────────────────────────────
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.private/
+
+# ── 개발 중 생기는 개인 데이터 ──
+# 포터블 모드로 실행하면 실제 메모가 여기에 저장된다
+stickle-data/
+.env
+.env.*
+
+# ── 서명·자격 증명 ──
+*.pfx
+*.p12
+*.pem
+*.key
+*.snk
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.hypothesis/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# ── Nuitka 빌드 산출물 ──
+*.build/
+*.dist/
+*.onefile-build/
+
+# ── Qt 번역 컴파일 결과 (.ts에서 생성) ──
+*.qm
+
+# ── 패키징 산출물 ──
+*.AppImage
+*.msix
+*.msixbundle
+*.flatpak
+*.deb
+*.dmg
+
+# ── OS·에디터 ──
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
