@@ -93,7 +93,14 @@ jobs:
         run: |
           # A tag with a suffix (v0.0.1-test.1) is a pre-release.
           flags=""
-          case "$GITHUB_REF_NAME" in *-*) flags="--prerelease" ;; esac
+          notes="Built and checked by the Build workflow (run $GITHUB_RUN_ID). Verify downloads against SHA256SUMS.txt."
+          case "$GITHUB_REF_NAME" in
+            *-*)
+              flags="--prerelease"
+              notes="Test build for installation checks. Not for everyday use: notes are not saved yet.
+
+          $notes"
+              ;;
+          esac
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" $flags \
-            --title "Stickle $GITHUB_REF_NAME" \
-            --notes "Built and checked by the Build workflow (run $GITHUB_RUN_ID). Verify downloads against SHA256SUMS.txt."
+            --title "Stickle $GITHUB_REF_NAME" --notes "$notes"
