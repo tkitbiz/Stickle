@@ -58,7 +58,7 @@ class NoteManager(QObject):
             self.last_note_closed.emit()
 
 
-def run(argv: list[str], perf_notes: int | None = None) -> int:
+def run(argv: list[str], perf_notes: int | None = None, perf_blur: bool = False) -> int:
     """Run the app. perf_notes (measurement mode) opens that many notes and prints READY."""
     if sys.platform == "linux" and (platform := preferred_qt_platform(os.environ)):
         # An argument rather than QT_QPA_PLATFORM, so programs we open do not inherit it.
@@ -83,6 +83,9 @@ def run(argv: list[str], perf_notes: int | None = None) -> int:
     if perf_notes is not None:
         # Runs once the queued show and paint events have been handled.
         QTimer.singleShot(0, lambda: print(f"READY {storage}", flush=True))
+    if perf_blur:
+        # Idle as when the user works elsewhere: no text cursor blinking.
+        QTimer.singleShot(0, lambda: [window.editor.clearFocus() for window in manager.windows])
     # Ctrl+C in a terminal, logout and shutdown all end the app through quit().
     watcher = SignalWatcher(app.quit)
     try:

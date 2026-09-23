@@ -31,7 +31,9 @@ class Sample:
     rss_mb: float  # working set (Windows) / resident set (Linux): the generous figure
     own_mb: float  # private commit (Windows) / proportional set (Linux): the app's own share
     cpu_s: float
-    wakeups: int | None  # context switches of all threads (Linux only)
+    # Context switches per thread id (Linux only). Compared thread by thread,
+    # because threads start and exit between samples.
+    switches: dict[int, int] | None
 
 
 # ---- per-platform process inspection -------------------------------------------------
@@ -45,12 +47,30 @@ def linux_sample(pid: int) -> Sample:
     fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
     ticks: int = getattr(os, "sysconf")("SC_CLK_TCK")  # noqa: B009 - Unix only
     cpu = (int(fields[11]) + int(fields[12])) / ticks  # utime + stime
-    wakeups = 0
+    switches: dict[int, int] = {}
     for task in Path(f"/proc/{pid}/task").iterdir():
-        for line in (task / "status").read_text().splitlines():
-            if line.startswith(("voluntary_ctxt_switches", "nonvoluntary_ctxt_switches")):
-                wakeups += int(line.split()[1])
-    return Sample(rss_kb / 1024, pss_kb / 1024, cpu, wakeups)
+        try:
+            lines = (task / "status").read_text().splitlines()
+        except OSError:  # the thread exited while being read
+            continue
+        switches[int(task.name)] = sum(
+            int(line.split()[1])
+            for line in lines
+            if line.startswith(("voluntary_ctxt_switches", "nonvoluntary_ctxt_switches"))
+        )
+    return Sample(rss_kb / 1024, pss_kb / 1024, cpu, switches)
+
+
+@dataclass
+class Wakeups:
+    count: int  # context switches of threads alive at the end (new threads count fully)
+    started: int
+    exited: int
+
+
+def wakeups_between(before: dict[int, int], after: dict[int, int]) -> Wakeups:
+    count = sum(value - before.get(tid, 0) for tid, value in after.items())
+    return Wakeups(count, len(after.keys() - before.keys()), len(before.keys() - after.keys()))
 
 
 def linux_app_pid(launcher: int) -> int:
@@ -117,12 +137,12 @@ class Run:
     storage: str
     memory: Sample
     idle_cpu_s: float | None = None
-    idle_wakeups: int | None = None
+    idle_wakeups: Wakeups | None = None
 
 
-def run_once(app: Path, notes: int, idle_s: float = 0) -> Run:
+def run_once(app: Path, notes: int, idle_s: float = 0, blur: bool = False) -> Run:
     start = time.perf_counter()
-    command = [str(app), "--perf-notes", str(notes)]
+    command = [str(app), "--perf-notes", str(notes), *(["--perf-blur"] if blur else [])]
     process = subprocess.Popen(command, stdout=subprocess.PIPE, text=True)
     try:
         assert process.stdout is not None
@@ -140,8 +160,8 @@ def run_once(app: Path, notes: int, idle_s: float = 0) -> Run:
             time.sleep(idle_s)
             after = sample(pid)
             result.idle_cpu_s = after.cpu_s - before.cpu_s
-            if after.wakeups is not None and before.wakeups is not None:
-                result.idle_wakeups = after.wakeups - before.wakeups
+            if after.switches is not None and before.switches is not None:
+                result.idle_wakeups = wakeups_between(before.switches, after.switches)
         return result
     finally:
         stop(process)
@@ -160,6 +180,15 @@ def stop(process: subprocess.Popen[str]) -> None:
 
 
 # ---- report --------------------------------------------------------------------------
+
+
+def report_idle(label: str, run: Run, seconds: float) -> None:
+    cpu = run.idle_cpu_s or 0.0
+    line = f"{label}, {seconds:.0f} s, 20 notes: CPU {cpu:.3f} s ({100 * cpu / seconds:.2f} %)"
+    if (wake := run.idle_wakeups) is not None:
+        line += f", {wake.count} wake-ups ({wake.count / seconds:.1f}/s)"
+        line += f", threads +{wake.started} -{wake.exited}"
+    print(line)
 
 
 def main(argv: list[str]) -> int:
@@ -189,10 +218,9 @@ def main(argv: list[str]) -> int:
         print(f"{notes:5d}   {m.rss_mb:7.1f} / {m.own_mb:6.1f}")
 
     idle_run = by_notes[20]
-    idle_cpu = idle_run.idle_cpu_s or 0.0
-    share = 100 * idle_cpu / options.idle
-    wakeups = f", {idle_run.idle_wakeups} wake-ups" if idle_run.idle_wakeups is not None else ""
-    print(f"idle {options.idle:.0f} s with 20 notes: CPU {idle_cpu:.3f} s ({share:.2f} %){wakeups}")
+    report_idle("idle, a note focused (caret blinks)", idle_run, options.idle)
+    blurred = run_once(app, 20, options.idle, blur=True)
+    report_idle("idle, no note focused", blurred, options.idle)
 
     memory_ok = idle_run.memory.rss_mb <= MEMORY_LIMIT_MB
     startup_ok = median <= STARTUP_LIMIT_S
