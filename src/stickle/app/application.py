@@ -3,13 +3,14 @@
 import os
 import sys
 
-from PySide6.QtCore import QObject, QPoint, Signal
+from PySide6.QtCore import QObject, QPoint, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from stickle.app.fonts import ensure_korean_font
 from stickle.app.i18n import Translations
 from stickle.app.note_window import NoteWindow
+from stickle.app.perf import open_storage_like_startup
 from stickle.app.signals import SignalWatcher
 from stickle.app.tray import Tray
 from stickle.platform.linux.display import preferred_qt_platform
@@ -57,7 +58,8 @@ class NoteManager(QObject):
             self.last_note_closed.emit()
 
 
-def run(argv: list[str]) -> int:
+def run(argv: list[str], perf_notes: int | None = None) -> int:
+    """Run the app. perf_notes (measurement mode) opens that many notes and prints READY."""
     if sys.platform == "linux" and (platform := preferred_qt_platform(os.environ)):
         # An argument rather than QT_QPA_PLATFORM, so programs we open do not inherit it.
         argv = [argv[0], "-platform", platform, *argv[1:]]
@@ -68,6 +70,7 @@ def run(argv: list[str]) -> int:
     ensure_korean_font()
     translations = Translations()
     translations.apply(None)
+    storage = open_storage_like_startup() if perf_notes is not None else ""
 
     manager = NoteManager()
     # Without a tray there would be no way back to a hidden app, so quit with the last note.
@@ -75,7 +78,11 @@ def run(argv: list[str]) -> int:
         manager.last_note_closed.connect(app.quit)
     tray = Tray(manager.new_note, app.quit, translations)
     tray.show()
-    manager.new_note()
+    for _ in range(max(1, perf_notes or 1)):
+        manager.new_note()
+    if perf_notes is not None:
+        # Runs once the queued show and paint events have been handled.
+        QTimer.singleShot(0, lambda: print(f"READY {storage}", flush=True))
     # Ctrl+C in a terminal, logout and shutdown all end the app through quit().
     watcher = SignalWatcher(app.quit)
     try:

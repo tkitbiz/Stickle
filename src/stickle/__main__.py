@@ -9,6 +9,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="stickle")
     parser.add_argument("--version", action="version", version=f"Stickle {__version__}")
     parser.add_argument("--self-test", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--perf-notes", type=int, help=argparse.SUPPRESS)
     # Unknown options are left for Qt (for example -platform).
     options, _ = parser.parse_known_args(args[1:])
     if options.self_test:
@@ -18,7 +19,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from stickle.app.application import run
 
-    return run(args)
+    return run(args, perf_notes=options.perf_notes)
 
 
 if __name__ == "__main__":
