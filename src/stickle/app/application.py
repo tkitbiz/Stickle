@@ -7,6 +7,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from stickle.app.note_window import NoteWindow
+from stickle.app.signals import SignalWatcher
 from stickle.app.tray import Tray
 
 APP_ID = "co.linkro.stickle"
@@ -75,4 +76,9 @@ def run(argv: list[str]) -> int:
     tray = Tray(manager.new_note, app.quit)
     tray.show()
     manager.new_note()
-    return app.exec()
+    # Ctrl+C in a terminal, logout and shutdown all end the app through quit().
+    watcher = SignalWatcher(app.quit)
+    try:
+        return app.exec()
+    finally:
+        watcher.close()
