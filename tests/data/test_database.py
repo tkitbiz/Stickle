@@ -1,6 +1,7 @@
 import secrets
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import apsw
@@ -169,51 +170,58 @@ def test_nul_is_refused_in_notes_and_matches_nothing(db: apsw.Connection) -> Non
 # Properties over arbitrary text (without NUL, which notes cannot contain).
 
 PROPERTY = settings(max_examples=60, deadline=None)
-NOTE_TEXT = st.text(alphabet=st.characters(exclude_characters="\x00"))
+# Valid UTF-8 (no lone surrogates, which Python cannot even encode) without NUL.
+NOTE_CHARS = st.characters(codec="utf-8", exclude_characters="\x00")
+NOTE_TEXT = st.text(alphabet=NOTE_CHARS)
+
+
+@contextmanager
+def fresh_database() -> Generator[tuple[apsw.Connection, Path]]:
+    """A new database in its own folder, closed before the folder goes, even on failure.
+
+    (On Windows an open database file would block the folder's removal and hide the
+    real failure behind a PermissionError.)
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp)
+        connection = open_database(folder / "notes.db", KEY)
+        try:
+            create_schema(connection)
+            yield connection, folder
+        finally:
+            connection.close()
 
 
 @PROPERTY
 @given(NOTE_TEXT)
 def test_any_text_round_trips(body: str) -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "notes.db"
-        connection = open_database(path, KEY)
-        create_schema(connection)
+    with fresh_database() as (connection, folder):
         add(connection, "a", body)
         connection.close()
-        connection = open_database(path, KEY)
-        assert bodies(connection) == {"a": body}
-        connection.close()
+        reopened = open_database(folder / "notes.db", KEY)
+        try:
+            assert bodies(reopened) == {"a": body}
+        finally:
+            reopened.close()
 
 
 @PROPERTY
-@given(st.text(alphabet=st.characters(exclude_characters="\x00"), min_size=1), st.data())
+@given(st.text(alphabet=NOTE_CHARS, min_size=1), st.data())
 def test_every_substring_finds_its_note(body: str, data: st.DataObject) -> None:
     start = data.draw(st.integers(0, len(body) - 1))
     end = data.draw(st.integers(start + 1, len(body)))
-    with tempfile.TemporaryDirectory() as tmp:
-        connection = open_database(Path(tmp) / "notes.db", KEY)
-        create_schema(connection)
+    with fresh_database() as (connection, _):
         add(connection, "a", body)
         add(connection, "b", "unrelated")
         assert "a" in search(connection, body[start:end])
-        connection.close()
 
 
 @PROPERTY
-@given(
-    st.text(alphabet=st.characters(exclude_characters="\x00"), min_size=8).filter(
-        lambda text: len(text.encode()) >= 16
-    )
-)
+@given(st.text(alphabet=NOTE_CHARS, min_size=8).filter(lambda text: len(text.encode()) >= 16))
 def test_no_text_is_readable_on_disk(body: str) -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        connection = open_database(Path(tmp) / "notes.db", KEY)
-        create_schema(connection)
+    with fresh_database() as (connection, folder):
         add(connection, "a", body)
-        leaked = plaintext_on_disk(Path(tmp), [body])
-        connection.close()
-        assert leaked == []
+        assert plaintext_on_disk(folder, [body]) == []
 
 
 def ascii_fold(text: str) -> str:
@@ -221,15 +229,9 @@ def ascii_fold(text: str) -> str:
 
 
 @PROPERTY
-@given(
-    st.text(alphabet=st.characters(exclude_characters="\x00"), max_size=30),
-    st.text(min_size=1, max_size=5),
-)
+@given(st.text(alphabet=NOTE_CHARS, max_size=30), st.text(min_size=1, max_size=5))
 def test_search_returns_exactly_the_notes_containing_the_term(body: str, term: str) -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        connection = open_database(Path(tmp) / "notes.db", KEY)
-        create_schema(connection)
+    with fresh_database() as (connection, _):
         add(connection, "a", body)
         found = "a" in search(connection, term)
-        connection.close()
     assert found == (ascii_fold(term) in ascii_fold(body))
