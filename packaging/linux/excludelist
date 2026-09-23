@@ -53,3 +53,7 @@ libxcb.so.1
 libxcb-dri2.so.0
 libxcb-dri3.so.0
 libz.so.1
+
+# Stickle additions
+libxkbcommon.so.0 # Must match the system's keyboard and compose tables; an older bundled copy misreads newer ones ("unrecognized keysym"). Every Wayland/X11 desktop has it (GTK and Qt need it).
+libxkbcommon-x11.so.0 # Same as libxkbcommon; present wherever X11 or XWayland applications run.

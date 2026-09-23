@@ -52,3 +52,8 @@ def test_excludelist_keeps_glibc_and_graphics_drivers_on_the_host() -> None:
 
     assert {"libc.so.6", "libGL.so.1", "libEGL.so.1", "libfontconfig.so.1"} <= exclude
     assert "libxcb-cursor.so.0" not in exclude
+
+
+def test_keyboard_tables_library_comes_from_the_host() -> None:
+    # A bundled copy older than the host's compose files misreads them.
+    assert {"libxkbcommon.so.0", "libxkbcommon-x11.so.0"} <= load_excludelist()

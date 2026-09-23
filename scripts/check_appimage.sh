@@ -17,11 +17,13 @@ if command -v apt-get >/dev/null; then
     apt-get update -qq
     apt-get install -y -qq --no-install-recommends \
         libgl1 libegl1 libgbm1 libdrm2 libx11-6 libx11-xcb1 libxcb1 \
-        libwayland-client0 libfontconfig1 libfreetype6 libharfbuzz0b >/dev/null
+        libwayland-client0 libfontconfig1 libfreetype6 libharfbuzz0b \
+        libxkbcommon0 libxkbcommon-x11-0 >/dev/null
 elif command -v dnf >/dev/null; then
     dnf install -y -q \
         mesa-libGL mesa-libEGL mesa-libgbm libdrm libX11 libX11-xcb libxcb \
-        libwayland-client fontconfig freetype harfbuzz >/dev/null
+        libwayland-client fontconfig freetype harfbuzz \
+        libxkbcommon libxkbcommon-x11 >/dev/null
 fi
 
 WORK="$(mktemp -d)"
