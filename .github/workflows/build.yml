@@ -25,6 +25,8 @@ jobs:
           if ($version.Trim() -ne "Stickle $(uv run python -c 'import stickle; print(stickle.__version__)')") {
             throw "unexpected --version output: $version"
           }
+          & build\stickle.dist\stickle.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "self-test failed" }
           $env:QT_QPA_PLATFORM = "offscreen"
           $app = Start-Process build\stickle.dist\stickle.exe -PassThru
           Start-Sleep -Seconds 5

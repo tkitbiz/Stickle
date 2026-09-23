@@ -29,6 +29,9 @@ def nuitka_command() -> list[str]:
         # Needs Qt6Pdf, which is not shipped; notes never show PDFs.
         "--noinclude-dlls=PySide6/qt-plugins/imageformats/qpdf*",
         "--include-package-data=stickle",
+        # Optional SQLite extensions that ship with apsw; notes use none of them.
+        "--noinclude-dlls=apsw/sqlite_extra_binaries/*",
+        "--noinclude-data-files=apsw/sqlite_extra_binaries/*",
         f"--output-dir={BUILD_DIR}",
         "--assume-yes-for-downloads",
         "--remove-output",

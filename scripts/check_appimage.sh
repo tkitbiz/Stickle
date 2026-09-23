@@ -41,6 +41,9 @@ if [ -n "$EXPECTED_VERSION" ] && [ "$version" != "Stickle $EXPECTED_VERSION" ]; 
     exit 1
 fi
 
+echo "== encrypted storage and search"
+./Stickle.AppImage --self-test
+
 echo "== missing libraries"
 ./Stickle.AppImage --appimage-extract >/dev/null
 missing="$(find squashfs-root -type f \( -name '*.so*' -o -name 'stickle.bin' \) \
