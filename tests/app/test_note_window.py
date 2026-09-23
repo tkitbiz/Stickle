@@ -95,3 +95,13 @@ def test_typed_text_stays_in_the_note(qtbot: QtBot, manager: NoteManager) -> Non
     QTest.keyClicks(window.editor, "Buy milk")
 
     assert window.editor.toPlainText() == "Buy milk"
+
+
+def test_closing_the_last_note_is_announced(qtbot: QtBot, manager: NoteManager) -> None:
+    first = manager.new_note()
+    second = manager.new_note()
+
+    with qtbot.assertNotEmitted(manager.last_note_closed):
+        first.close()
+    with qtbot.waitSignal(manager.last_note_closed):
+        second.close()

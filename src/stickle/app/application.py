@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QLocale, QObject, QPoint, QTranslator
+from PySide6.QtCore import QLocale, QObject, QPoint, QTranslator, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
@@ -19,6 +19,9 @@ CASCADE_LENGTH = 10
 
 
 class NoteManager(QObject):
+    # Qt's own "quit on last window closed" ignores tool windows, which notes are.
+    last_note_closed = Signal()
+
     def __init__(self) -> None:
         super().__init__()
         self._windows: list[NoteWindow] = []
@@ -31,7 +34,7 @@ class NoteManager(QObject):
     def new_note(self) -> NoteWindow:
         window = NoteWindow()
         window.new_note_requested.connect(self.new_note)
-        window.closed.connect(lambda: self._windows.remove(window))
+        window.closed.connect(lambda: self._forget(window))
         self._windows.append(window)
 
         offset = CASCADE_ORIGIN + CASCADE_STEP * (self._created % CASCADE_LENGTH)
@@ -43,6 +46,11 @@ class NoteManager(QObject):
         window.activateWindow()
         window.setFocus()
         return window
+
+    def _forget(self, window: NoteWindow) -> None:
+        self._windows.remove(window)
+        if not self._windows:
+            self.last_note_closed.emit()
 
 
 def install_translators(app: QApplication, locale: QLocale) -> None:
@@ -57,11 +65,13 @@ def run(argv: list[str]) -> int:
     app = QApplication(argv)
     app.setApplicationName("Stickle")
     app.setDesktopFileName(APP_ID)
-    # Without a tray there would be no way back to a hidden app, so quit with the last note.
-    app.setQuitOnLastWindowClosed(not QSystemTrayIcon.isSystemTrayAvailable())
+    app.setQuitOnLastWindowClosed(False)
     install_translators(app, QLocale.system())
 
     manager = NoteManager()
+    # Without a tray there would be no way back to a hidden app, so quit with the last note.
+    if not QSystemTrayIcon.isSystemTrayAvailable():
+        manager.last_note_closed.connect(app.quit)
     tray = Tray(manager.new_note, app.quit)
     tray.show()
     manager.new_note()
