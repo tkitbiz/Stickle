@@ -1,5 +1,7 @@
 """Application start-up and the set of open note windows."""
 
+import os
+import sys
 from pathlib import Path
 
 from PySide6.QtCore import QLocale, QObject, QPoint, QTranslator, Signal
@@ -9,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from stickle.app.note_window import NoteWindow
 from stickle.app.signals import SignalWatcher
 from stickle.app.tray import Tray
+from stickle.platform.linux.display import preferred_qt_platform
 
 APP_ID = "co.linkro.stickle"
 TRANSLATIONS_DIR = Path(__file__).resolve().parent.parent / "translations"
@@ -63,6 +66,9 @@ def install_translators(app: QApplication, locale: QLocale) -> None:
 
 
 def run(argv: list[str]) -> int:
+    if sys.platform == "linux" and (platform := preferred_qt_platform(os.environ)):
+        # An argument rather than QT_QPA_PLATFORM, so programs we open do not inherit it.
+        argv = [argv[0], "-platform", platform, *argv[1:]]
     app = QApplication(argv)
     app.setApplicationName("Stickle")
     app.setDesktopFileName(APP_ID)
