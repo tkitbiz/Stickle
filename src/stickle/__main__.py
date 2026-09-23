@@ -20,13 +20,18 @@ def main(argv: list[str] | None = None) -> int:
 
         return self_test()
 
-    from stickle.app.application import run
-
     perf = None
     if options.perf_notes is not None:
+        from stickle.platform.credentials import KeyRequest
+
+        # Before Qt is loaded below, so that the two overlap.
+        key_request = KeyRequest()
         from stickle.app.perf import PerfMode
 
-        perf = PerfMode(options.perf_notes, options.perf_blur, started)
+        perf = PerfMode(options.perf_notes, options.perf_blur, started, key_request)
+
+    from stickle.app.application import run
+
     return run(args, perf)
 
 

@@ -14,6 +14,8 @@ import base64
 import binascii
 import secrets
 import sys
+import threading
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
@@ -129,3 +131,42 @@ class CredentialStore:
         if self.read(name) != key:
             raise CredentialStoreUnavailableError("the store did not keep the key")
         return key
+
+
+class KeyRequest:
+    """Fetch (or create) the database key in the background while the app starts.
+
+    Talking to the credential store can take a third of a second on a cold
+    start (loading its libraries, a D-Bus round trip on Linux). Started first
+    thing, it overlaps loading Qt instead of adding to it. The rules are those
+    of get_or_create_key; only the timing changes.
+    """
+
+    def __init__(
+        self,
+        name: str = DATABASE_KEY,
+        store: Callable[[], CredentialStore] = CredentialStore,
+    ) -> None:
+        self._key: bytes | None = None
+        self._error: BaseException | None = None
+        self._done = threading.Event()
+        self._thread = threading.Thread(
+            target=self._fetch, args=(name, store), name="stickle-key", daemon=True
+        )
+        self._thread.start()
+
+    def _fetch(self, name: str, store: Callable[[], CredentialStore]) -> None:
+        try:
+            self._key = store().get_or_create_key(name)
+        except BaseException as error:  # handed to whoever asks for the key
+            self._error = error
+        finally:
+            self._done.set()
+
+    def key(self) -> bytes:
+        """Wait for the key; raises what fetching it raised."""
+        self._done.wait()
+        if self._error is not None:
+            raise self._error
+        assert self._key is not None
+        return self._key

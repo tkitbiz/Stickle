@@ -15,7 +15,7 @@ from pathlib import Path
 
 from stickle.data.database import KEY_BYTES, open_database
 from stickle.data.search import create_schema
-from stickle.platform.credentials import CredentialStore, CredentialStoreUnavailableError
+from stickle.platform.credentials import CredentialStoreUnavailableError, KeyRequest
 
 
 @dataclass
@@ -23,6 +23,7 @@ class PerfMode:
     notes: int
     blur: bool
     started: float  # time.perf_counter() when our code started
+    key_request: KeyRequest  # started before Qt was loaded
     storage: str = ""
     phases: list[tuple[str, float]] = field(default_factory=list[tuple[str, float]])
 
@@ -37,7 +38,8 @@ class PerfMode:
 
 def open_storage_like_startup(perf: PerfMode) -> None:
     try:
-        key = CredentialStore().get_or_create_key()
+        # Only the time still spent waiting here counts: the request ran alongside start-up.
+        key = perf.key_request.key()
         perf.storage = "key-from-credential-store"
     except CredentialStoreUnavailableError:
         key = secrets.token_bytes(KEY_BYTES)

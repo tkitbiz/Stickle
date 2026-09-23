@@ -1,4 +1,5 @@
 import secrets
+import threading
 
 import pytest
 
@@ -8,6 +9,7 @@ from stickle.platform.credentials import (
     SERVICE,
     CredentialStore,
     CredentialStoreUnavailableError,
+    KeyRequest,
     platform_backend,
 )
 
@@ -91,3 +93,38 @@ def test_real_store_round_trip() -> None:
     finally:
         store.delete(name)
     assert store.read(name) is None
+
+
+class SlowBackend(FakeBackend):
+    """Answers only after a gate opens, like a keyring that takes its time."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.gate = threading.Event()
+
+    def get_password(self, service: str, username: str) -> str | None:
+        self.gate.wait(timeout=10)
+        return super().get_password(service, username)
+
+
+def test_key_request_runs_in_the_background() -> None:
+    backend = SlowBackend()
+
+    request = KeyRequest(store=lambda: CredentialStore(backend))  # returns at once
+    assert (SERVICE, DATABASE_KEY) not in backend.items
+    backend.gate.set()
+
+    assert request.key() == CredentialStore(backend).get_or_create_key()
+
+
+def test_key_request_hands_over_the_failure() -> None:
+    backend = FakeBackend()
+    CredentialStore(backend).get_or_create_key()
+    backend.fail_reads = True
+    writes_before = backend.writes
+
+    request = KeyRequest(store=lambda: CredentialStore(backend))
+
+    with pytest.raises(CredentialStoreUnavailableError):
+        request.key()
+    assert backend.writes == writes_before  # still never overwritten
