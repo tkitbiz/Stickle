@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QLibraryInfo, QLocale, QObject, QPoint, QTranslator
+from PySide6.QtCore import QLocale, QObject, QPoint, QTranslator
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
@@ -47,13 +47,9 @@ class NoteManager(QObject):
 
 def install_translators(app: QApplication, locale: QLocale) -> None:
     """Load Qt's own strings (context menus, dialogs) and ours; English is the fallback."""
-    sources = [
-        ("qtbase", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)),
-        ("stickle", str(TRANSLATIONS_DIR)),
-    ]
-    for name, directory in sources:
+    for name in ("qtbase", "stickle"):
         translator = QTranslator(app)
-        if translator.load(locale, name, "_", directory):
+        if translator.load(locale, name, "_", str(TRANSLATIONS_DIR)):
             app.installTranslator(translator)
 
 

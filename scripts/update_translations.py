@@ -1,5 +1,8 @@
 """Extract UI strings into i18n/*.ts and compile them into the package.
 
+Qt's own translations (context menus, standard dialogs) are copied next to
+ours, only for the languages we ship.
+
 uv run python scripts/update_translations.py            # extract, then compile
 uv run python scripts/update_translations.py --compile  # compile only (builds)
 """
@@ -9,11 +12,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import PySide6
+
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / "src" / "stickle"
 TS_DIR = ROOT / "i18n"
 QM_DIR = SOURCES / "translations"
 LANGUAGES = ("ko",)
+QT_TRANSLATIONS = Path(PySide6.__file__).parent / "translations"
 
 
 def tool(name: str) -> str:
@@ -55,6 +61,7 @@ def main(argv: list[str]) -> int:
         if "--compile" not in argv:
             extract(ts_file)
         compile_to(ts_file, QM_DIR / f"stickle_{language}.qm")
+        shutil.copy2(QT_TRANSLATIONS / f"qtbase_{language}.qm", QM_DIR)
     return 0
 
 

@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
+      - run: uv sync --locked
+      - run: uv run python scripts/build.py
+      - name: Check that nothing else needs installing
+        run: uv run python scripts/check_bundle.py build/stickle.dist
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $version = & build\stickle.dist\stickle.exe --version | Out-String
+          if ($version.Trim() -ne "Stickle $(uv run python -c 'import stickle; print(stickle.__version__)')") {
+            throw "unexpected --version output: $version"
+          }
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $app = Start-Process build\stickle.dist\stickle.exe -PassThru
+          Start-Sleep -Seconds 5
+          if ($app.HasExited) { throw "stickle.exe exited early with code $($app.ExitCode)" }
+          Stop-Process -Id $app.Id
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path build\stickle.dist\* -DestinationPath stickle-windows-x64.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stickle-windows-x64
+          path: stickle-windows-x64.zip
+          if-no-files-found: error

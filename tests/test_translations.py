@@ -49,12 +49,17 @@ def test_compiled_korean_translation_is_used(qtbot: QtBot, tmp_path: Path) -> No
     project = copy_project(tmp_path)
     run_script("--compile", root=project)
 
-    translator = QTranslator()
-    assert translator.load(
-        QLocale(QLocale.Language.Korean), "stickle", "_", str(project / "src/stickle/translations")
-    )
-    QCoreApplication.installTranslator(translator)
+    translations = str(project / "src/stickle/translations")
+    korean = QLocale(QLocale.Language.Korean)
+    translators: list[QTranslator] = []
+    for name in ("qtbase", "stickle"):
+        translator = QTranslator()
+        assert translator.load(korean, name, "_", translations)
+        QCoreApplication.installTranslator(translator)
+        translators.append(translator)
     try:
         assert QCoreApplication.translate("Tray", "New note") == "새 메모"
+        assert QCoreApplication.translate("QWidgetTextControl", "&Copy") != "&Copy"
     finally:
-        QCoreApplication.removeTranslator(translator)
+        for translator in translators:
+            QCoreApplication.removeTranslator(translator)
