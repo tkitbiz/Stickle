@@ -1,4 +1,4 @@
-"""Check that encrypted storage, search and the credential store work here.
+"""Check that storage, search, the credential store and Korean fonts work here.
 
     stickle --self-test
 
@@ -11,6 +11,7 @@ failure: build containers have none, and the app will ask for a password.
 
 import hashlib
 import importlib
+import os
 import secrets
 import tempfile
 from collections.abc import Callable
@@ -68,7 +69,25 @@ def run_checks() -> list[tuple[str, str]]:
         check("wrong key is rejected", wrong_key_rejected)
 
     results += credential_checks()
+    results += font_checks()
     return results
+
+
+def font_checks() -> list[tuple[str, str]]:
+    """Korean must be drawn with a real font, not the empty-box "missing glyph"."""
+    # No window is shown; this also works without a display.
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+
+    from stickle.app.fonts import ensure_korean_font, korean_is_drawable
+
+    _app = QApplication.instance() or QApplication([])
+    bundled = ensure_korean_font()
+    source = f"the bundled {bundled}" if bundled else "a system font"
+    return [
+        ("PASS" if korean_is_drawable() else "FAIL", "Korean text has a font"),
+        ("INFO", f"Korean drawn with {source}"),
+    ]
 
 
 def credential_checks() -> list[tuple[str, str]]:

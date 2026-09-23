@@ -2,7 +2,7 @@
 
 from typing import override
 
-from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, Qt, Signal
 from PySide6.QtGui import (
     QAction,
     QCloseEvent,
@@ -40,8 +40,6 @@ class TitleBar(QWidget):
         self.close_button = QToolButton(self)
         self.close_button.setText("✕")
         self.close_button.setAutoRaise(True)
-        self.close_button.setAccessibleName(self.tr("Close note"))
-        self.close_button.setToolTip(self.tr("Close note"))
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 2, 2, 2)
@@ -91,8 +89,6 @@ class NoteWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         # macOS hides tool windows while the app is inactive unless told otherwise.
         self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)
-        self.setWindowTitle(self.tr("Note"))
-        self.setAccessibleName(self.tr("Note"))
         self.resize(*DEFAULT_SIZE)
 
         # Style sheets rather than a palette: native styles ignore palette text colours.
@@ -105,7 +101,6 @@ class NoteWindow(QWidget):
         self.title_bar.close_button.clicked.connect(self.close)
 
         self.editor = QPlainTextEdit(self)
-        self.editor.setAccessibleName(self.tr("Note text"))
         self.editor.setFrameShape(QPlainTextEdit.Shape.NoFrame)
 
         grip_row = QHBoxLayout()
@@ -120,15 +115,33 @@ class NoteWindow(QWidget):
         layout.addWidget(self.editor)
         layout.addLayout(grip_row)
 
-        self.new_note_action = self._add_action(self.tr("New note"), QKeySequence.StandardKey.New)
+        self.new_note_action = self._add_action(QKeySequence.StandardKey.New)
         self.new_note_action.triggered.connect(self.new_note_requested)
-        self.close_action = self._add_action(self.tr("Close note"), QKeySequence.StandardKey.Close)
+        self.close_action = self._add_action(QKeySequence.StandardKey.Close)
         self.close_action.triggered.connect(self.close)
 
         self.setFocusProxy(self.editor)
+        self.retranslate()
 
-    def _add_action(self, text: str, key: QKeySequence.StandardKey) -> QAction:
-        action = QAction(text, self)
+    def retranslate(self) -> None:
+        """Apply every visible text; runs again when the UI language changes."""
+        self.setWindowTitle(self.tr("Note"))
+        self.setAccessibleName(self.tr("Note"))
+        self.editor.setAccessibleName(self.tr("Note text"))
+        close_note = self.tr("Close note")
+        self.title_bar.close_button.setAccessibleName(close_note)
+        self.title_bar.close_button.setToolTip(close_note)
+        self.close_action.setText(close_note)
+        self.new_note_action.setText(self.tr("New note"))
+
+    @override
+    def changeEvent(self, event: QEvent) -> None:
+        if event.type() == QEvent.Type.LanguageChange:
+            self.retranslate()
+        super().changeEvent(event)
+
+    def _add_action(self, key: QKeySequence.StandardKey) -> QAction:
+        action = QAction(self)
         action.setShortcuts(key)
         action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.addAction(action)

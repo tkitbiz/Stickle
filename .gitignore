@@ -55,3 +55,6 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# ── 빌드 때 받아 오는 글꼴 (고정 버전·체크섬, scripts/build.py) ──
+src/stickle/fonts/

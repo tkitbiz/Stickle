@@ -21,17 +21,18 @@
     </message>
 </context>
 <context>
-    <name>TitleBar</name>
-    <message>
-        <source>Close note</source>
-        <translation>메모 닫기</translation>
-    </message>
-</context>
-<context>
     <name>Tray</name>
     <message>
         <source>New note</source>
         <translation>새 메모</translation>
+    </message>
+    <message>
+        <source>Language</source>
+        <translation>언어</translation>
+    </message>
+    <message>
+        <source>System language</source>
+        <translation>시스템 설정 따르기</translation>
     </message>
     <message>
         <source>Quit Stickle</source>

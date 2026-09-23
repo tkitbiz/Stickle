@@ -8,15 +8,41 @@ executable packing, both of which make antivirus products suspicious of
 Python applications.
 """
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+from build_appimage import fetch
 
 from stickle import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD_DIR = ROOT / "build"
 DIST_DIR = BUILD_DIR / "stickle.dist"
+FONTS_DIR = ROOT / "src" / "stickle" / "fonts"
+
+# Fallback font for Linux systems without a Korean font (SIL Open Font License,
+# which must ship next to it). Pinned release, checked against its digest.
+NOTO_CJK = "https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004"
+LINUX_FONT_FILES = [
+    (
+        f"{NOTO_CJK}/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf",
+        "6bcb2a0703aa137e874fc2dffa85f6c21ba9a67fa329e81b8c801663af7e992a",
+        "NotoSansCJKkr-Regular.otf",
+    ),
+    (
+        f"{NOTO_CJK}/LICENSE",
+        "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+        "NotoSansCJK-OFL.txt",
+    ),
+]
+
+
+def fetch_linux_fonts() -> None:
+    FONTS_DIR.mkdir(exist_ok=True)
+    for url, sha256, name in LINUX_FONT_FILES:
+        shutil.copy2(fetch(url, sha256), FONTS_DIR / name)
 
 
 def nuitka_command() -> list[str]:
@@ -79,6 +105,8 @@ def main() -> int:
     subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "update_translations.py"), "--compile"], check=True
     )
+    if sys.platform == "linux":
+        fetch_linux_fonts()
     subprocess.run(nuitka_command(), check=True, cwd=ROOT)
     print(f"Built {DIST_DIR}")
     if sys.platform == "linux":

@@ -2,19 +2,19 @@
 
 import os
 import sys
-from pathlib import Path
 
-from PySide6.QtCore import QLocale, QObject, QPoint, QTranslator, Signal
+from PySide6.QtCore import QObject, QPoint, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
+from stickle.app.fonts import ensure_korean_font
+from stickle.app.i18n import Translations
 from stickle.app.note_window import NoteWindow
 from stickle.app.signals import SignalWatcher
 from stickle.app.tray import Tray
 from stickle.platform.linux.display import preferred_qt_platform
 
 APP_ID = "co.linkro.stickle"
-TRANSLATIONS_DIR = Path(__file__).resolve().parent.parent / "translations"
 
 # New notes cascade from the top-left of the screen so they never land exactly on top of each other.
 CASCADE_ORIGIN = 80
@@ -57,14 +57,6 @@ class NoteManager(QObject):
             self.last_note_closed.emit()
 
 
-def install_translators(app: QApplication, locale: QLocale) -> None:
-    """Load Qt's own strings (context menus, dialogs) and ours; English is the fallback."""
-    for name in ("qtbase", "stickle"):
-        translator = QTranslator(app)
-        if translator.load(locale, name, "_", str(TRANSLATIONS_DIR)):
-            app.installTranslator(translator)
-
-
 def run(argv: list[str]) -> int:
     if sys.platform == "linux" and (platform := preferred_qt_platform(os.environ)):
         # An argument rather than QT_QPA_PLATFORM, so programs we open do not inherit it.
@@ -73,13 +65,15 @@ def run(argv: list[str]) -> int:
     app.setApplicationName("Stickle")
     app.setDesktopFileName(APP_ID)
     app.setQuitOnLastWindowClosed(False)
-    install_translators(app, QLocale.system())
+    ensure_korean_font()
+    translations = Translations()
+    translations.apply(None)
 
     manager = NoteManager()
     # Without a tray there would be no way back to a hidden app, so quit with the last note.
     if not QSystemTrayIcon.isSystemTrayAvailable():
         manager.last_note_closed.connect(app.quit)
-    tray = Tray(manager.new_note, app.quit)
+    tray = Tray(manager.new_note, app.quit, translations)
     tray.show()
     manager.new_note()
     # Ctrl+C in a terminal, logout and shutdown all end the app through quit().
