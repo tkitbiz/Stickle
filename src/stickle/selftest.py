@@ -77,15 +77,19 @@ def font_checks() -> list[tuple[str, str]]:
     """Korean must be drawn with a real font, not the empty-box "missing glyph"."""
     # No window is shown; this also works without a display.
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PySide6.QtWidgets import QApplication
+    try:
+        from PySide6.QtWidgets import QApplication
 
-    from stickle.app.fonts import ensure_korean_font, korean_is_drawable
+        from stickle.app.fonts import ensure_korean_font, korean_is_drawable
 
-    _app = QApplication.instance() or QApplication([])
-    bundled = ensure_korean_font()
+        _app = QApplication.instance() or QApplication([])
+        bundled = ensure_korean_font()
+        drawable = korean_is_drawable()
+    except Exception as error:
+        return [("FAIL", f"Korean font check could not run ({type(error).__name__}: {error})")]
     source = f"the bundled {bundled}" if bundled else "a system font"
     return [
-        ("PASS" if korean_is_drawable() else "FAIL", "Korean text has a font"),
+        ("PASS" if drawable else "FAIL", "Korean text has a font"),
         ("INFO", f"Korean drawn with {source}"),
     ]
 

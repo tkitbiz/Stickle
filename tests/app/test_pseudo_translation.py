@@ -20,7 +20,7 @@ from stickle.app.tray import Tray
 
 ACCENTED = str.maketrans("aeiouAEIOUcnst", "åëïöüÅËÏÖÜçñşŧ")
 # Texts that are not translated on purpose.
-UNTRANSLATED = {"", "Stickle", "✕", "English", "한국어"}
+UNTRANSLATED = {"", "Stickle", "English", "한국어"}
 
 
 def pseudo(text: str) -> str:

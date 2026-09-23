@@ -1,10 +1,12 @@
 import argparse
 import sys
+import time
 
 from stickle import __version__
 
 
 def main(argv: list[str] | None = None) -> int:
+    started = time.perf_counter()
     args = sys.argv if argv is None else argv
     parser = argparse.ArgumentParser(prog="stickle")
     parser.add_argument("--version", action="version", version=f"Stickle {__version__}")
@@ -20,7 +22,12 @@ def main(argv: list[str] | None = None) -> int:
 
     from stickle.app.application import run
 
-    return run(args, perf_notes=options.perf_notes, perf_blur=options.perf_blur)
+    perf = None
+    if options.perf_notes is not None:
+        from stickle.app.perf import PerfMode
+
+        perf = PerfMode(options.perf_notes, options.perf_blur, started)
+    return run(args, perf)
 
 
 if __name__ == "__main__":

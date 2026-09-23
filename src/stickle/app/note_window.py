@@ -2,15 +2,18 @@
 
 from typing import override
 
-from PySide6.QtCore import QEvent, QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt, Signal
 from PySide6.QtGui import (
     QAction,
     QCloseEvent,
     QColor,
+    QIcon,
     QKeySequence,
     QMouseEvent,
     QPainter,
     QPaintEvent,
+    QPen,
+    QPixmap,
 )
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -27,6 +30,27 @@ BACKGROUND = QColor(255, 236, 140, 235)
 FOREGROUND = QColor(32, 32, 32)
 CORNER_RADIUS = 6
 DEFAULT_SIZE = (260, 240)
+CLOSE_ICON_SIZE = 10
+
+
+def make_close_icon() -> QIcon:
+    """A thin cross in the text colour, drawn at 1x and 2x for high-DPI screens."""
+    icon = QIcon()
+    for scale in (1, 2):
+        size = CLOSE_ICON_SIZE * scale
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(FOREGROUND, 1.4 * scale)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        inset = 1.5 * scale
+        painter.drawLine(QPointF(inset, inset), QPointF(size - inset, size - inset))
+        painter.drawLine(QPointF(size - inset, inset), QPointF(inset, size - inset))
+        painter.end()
+        icon.addPixmap(pixmap)
+    return icon
 
 
 class TitleBar(QWidget):
@@ -38,7 +62,9 @@ class TitleBar(QWidget):
         self._drag_offset: QPoint | None = None
 
         self.close_button = QToolButton(self)
-        self.close_button.setText("✕")
+        # Drawn rather than the ✕ character: finding a font with that glyph
+        # made showing the first note take a third of a second longer.
+        self.close_button.setIcon(make_close_icon())
         self.close_button.setAutoRaise(True)
 
         layout = QHBoxLayout(self)

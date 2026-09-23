@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from stickle.app.fonts import ensure_korean_font
 from stickle.app.i18n import Translations
 from stickle.app.note_window import NoteWindow
-from stickle.app.perf import open_storage_like_startup
+from stickle.app.perf import PerfMode, open_storage_like_startup
 from stickle.app.signals import SignalWatcher
 from stickle.app.tray import Tray
 from stickle.platform.linux.display import preferred_qt_platform
@@ -58,8 +58,23 @@ class NoteManager(QObject):
             self.last_note_closed.emit()
 
 
-def run(argv: list[str], perf_notes: int | None = None, perf_blur: bool = False) -> int:
-    """Run the app. perf_notes (measurement mode) opens that many notes and prints READY."""
+def report_ready(perf: PerfMode, manager: NoteManager) -> None:
+    perf.mark("drawn")
+    print(perf.ready_line(), flush=True)
+    if perf.blur:
+        # Idle as when the user works elsewhere: no text cursor blinking.
+        for window in manager.windows:
+            window.editor.clearFocus()
+
+
+def run(argv: list[str], perf: PerfMode | None = None) -> int:
+    """Run the app. In measurement mode, open perf.notes notes and print READY."""
+
+    def mark(phase: str) -> None:
+        if perf is not None:
+            perf.mark(phase)
+
+    mark("imports")
     if sys.platform == "linux" and (platform := preferred_qt_platform(os.environ)):
         # An argument rather than QT_QPA_PLATFORM, so programs we open do not inherit it.
         argv = [argv[0], "-platform", platform, *argv[1:]]
@@ -67,10 +82,14 @@ def run(argv: list[str], perf_notes: int | None = None, perf_blur: bool = False)
     app.setApplicationName("Stickle")
     app.setDesktopFileName(APP_ID)
     app.setQuitOnLastWindowClosed(False)
+    mark("qt")
     ensure_korean_font()
+    mark("fonts")
     translations = Translations()
     translations.apply(None)
-    storage = open_storage_like_startup() if perf_notes is not None else ""
+    mark("translations")
+    if perf is not None:
+        open_storage_like_startup(perf)
 
     manager = NoteManager()
     # Without a tray there would be no way back to a hidden app, so quit with the last note.
@@ -78,14 +97,12 @@ def run(argv: list[str], perf_notes: int | None = None, perf_blur: bool = False)
         manager.last_note_closed.connect(app.quit)
     tray = Tray(manager.new_note, app.quit, translations)
     tray.show()
-    for _ in range(max(1, perf_notes or 1)):
+    for _ in range(max(1, perf.notes if perf else 1)):
         manager.new_note()
-    if perf_notes is not None:
+    mark("notes")
+    if perf is not None:
         # Runs once the queued show and paint events have been handled.
-        QTimer.singleShot(0, lambda: print(f"READY {storage}", flush=True))
-    if perf_blur:
-        # Idle as when the user works elsewhere: no text cursor blinking.
-        QTimer.singleShot(0, lambda: [window.editor.clearFocus() for window in manager.windows])
+        QTimer.singleShot(0, lambda: report_ready(perf, manager))
     # Ctrl+C in a terminal, logout and shutdown all end the app through quit().
     watcher = SignalWatcher(app.quit)
     try:

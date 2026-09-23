@@ -135,6 +135,7 @@ def sample(pid: int) -> Sample:
 class Run:
     startup_s: float
     storage: str
+    phases: dict[str, float]
     memory: Sample
     idle_cpu_s: float | None = None
     idle_wakeups: Wakeups | None = None
@@ -155,7 +156,11 @@ def run_once(app: Path, notes: int, idle_s: float = 0, blur: bool = False) -> Ru
         pid = process.pid if sys.platform == "win32" else linux_app_pid(process.pid)
         time.sleep(SETTLE_S)
         before = sample(pid)
-        result = Run(startup, line.split()[1] if len(line.split()) > 1 else "", before)
+        words = line.split()
+        storage = words[1] if len(words) > 1 else ""
+        items = words[2].split(",") if len(words) > 2 else []
+        phases = {name: float(value) for name, value in (item.split("=") for item in items)}
+        result = Run(startup, storage, phases, before)
         if idle_s:
             time.sleep(idle_s)
             after = sample(pid)
@@ -182,6 +187,17 @@ def stop(process: subprocess.Popen[str]) -> None:
 # ---- report --------------------------------------------------------------------------
 
 
+def phase_breakdown(run: Run) -> str:
+    """Seconds spent in each phase; "launch" is everything before our code ran."""
+    parts: list[str] = []
+    previous = 0.0
+    for name, at in run.phases.items():
+        parts.append(f"{name} {at - previous:.2f}")
+        previous = at
+    ours = run.phases.get("drawn", previous)
+    return f"launch {run.startup_s - ours:.2f} | " + ", ".join(parts)
+
+
 def report_idle(label: str, run: Run, seconds: float) -> None:
     cpu = run.idle_cpu_s or 0.0
     line = f"{label}, {seconds:.0f} s, 20 notes: CPU {cpu:.3f} s ({100 * cpu / seconds:.2f} %)"
@@ -203,11 +219,14 @@ def main(argv: list[str]) -> int:
     first = run_once(app, 1)
     print(f"first run start-up    {first.startup_s:5.2f} s   (cold if right after a reboot)")
     print(f"storage at start-up   {first.storage}")
+    print(f"first run phases      {phase_breakdown(first)}")
 
-    warm = [run_once(app, 1).startup_s for _ in range(options.runs)]
+    warm_runs = [run_once(app, 1) for _ in range(options.runs)]
+    warm = [run.startup_s for run in warm_runs]
     median = statistics.median(warm)
     runs = ", ".join(f"{s:.2f}" for s in warm)
     print(f"start-up, median of {options.runs}  {median:5.2f} s   (runs: {runs})")
+    print(f"warm run phases       {phase_breakdown(warm_runs[-1])}")
 
     print("notes   memory MB (generous / own)")
     by_notes: dict[int, Run] = {}
