@@ -38,3 +38,35 @@ jobs:
           name: stickle-windows-x64
           path: stickle-windows-x64.zip
           if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    # glibc 2.34: the oldest glibc the Qt libraries support, so the widest reach.
+    container: quay.io/pypa/manylinux_2_34_x86_64
+    steps:
+      - uses: actions/checkout@v7
+      - run: sh scripts/build_linux.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stickle-linux-x86_64
+          path: build/Stickle-x86_64.AppImage
+          if-no-files-found: error
+
+  linux-check:
+    needs: linux
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["ubuntu:22.04", "debian:12-slim", "fedora:latest"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: stickle-linux-x86_64
+          path: build
+      - name: Run on a clean ${{ matrix.image }}
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)
+          docker run --rm -v "$PWD:/src:ro" "${{ matrix.image }}" \
+            sh /src/scripts/check_appimage.sh /src/build/Stickle-x86_64.AppImage "$version"

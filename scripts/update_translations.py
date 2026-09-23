@@ -12,14 +12,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-import PySide6
+from PySide6.QtCore import QLibraryInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / "src" / "stickle"
 TS_DIR = ROOT / "i18n"
 QM_DIR = SOURCES / "translations"
 LANGUAGES = ("ko",)
-QT_TRANSLATIONS = Path(PySide6.__file__).parent / "translations"
+QT_TRANSLATIONS = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))
 
 
 def tool(name: str) -> str:

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Stickle
+Comment=Sticky notes that follow you through your own cloud storage
+Comment[ko]=내 클라우드로 따라오는 스티키 메모
+Exec=stickle
+Icon=co.linkro.stickle
+Terminal=false
+Categories=Utility;
+Keywords=notes;sticky;memo;
+Keywords[ko]=메모;포스트잇;스티키;
