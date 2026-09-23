@@ -36,8 +36,11 @@ def test_self_test_option_exits_cleanly_without_starting_the_ui() -> None:
 
 def test_database_key_is_never_written_to_a_file(tmp_path: Path) -> None:
     # Every place the app could write to is redirected into tmp_path, then searched.
-    folders = ["HOME", "APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME", "XDG_CONFIG_HOME"]
+    folders = ["APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME", "XDG_CONFIG_HOME"]
     folders += ["XDG_CACHE_HOME", "XDG_STATE_HOME", "TMP", "TEMP", "TMPDIR"]
+    # macOS finds the user's Keychain through HOME; moving it makes the lookup hang.
+    if sys.platform != "darwin":
+        folders.append("HOME")
     env = {**os.environ, **{name: str(tmp_path / name) for name in folders}}
     for name in folders:
         (tmp_path / name).mkdir()
