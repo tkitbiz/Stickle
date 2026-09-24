@@ -13,12 +13,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--self-test", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--perf-notes", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--perf-blur", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--screens", action="store_true", help=argparse.SUPPRESS)
     # Unknown options are left for Qt (for example -platform).
     options, _ = parser.parse_known_args(args[1:])
     if options.self_test:
         from stickle.selftest import main as self_test
 
         return self_test()
+    if options.screens:
+        from stickle.app.screens import report
+
+        return report(args)
 
     perf = None
     if options.perf_notes is not None:
