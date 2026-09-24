@@ -13,6 +13,7 @@ import hashlib
 import importlib
 import os
 import secrets
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -75,8 +76,13 @@ def run_checks() -> list[tuple[str, str]]:
 
 def font_checks() -> list[tuple[str, str]]:
     """Korean must be drawn with a real font, not the empty-box "missing glyph"."""
-    # No window is shown; this also works without a display.
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    # No window is shown. Without a display (Linux servers, build containers) Qt needs its
+    # display-less mode; elsewhere the normal platform finds the system's fonts, whereas
+    # the display-less mode on Windows looks for fonts in its own folder.
+    if sys.platform == "linux" and not (
+        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
+    ):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     try:
         from PySide6.QtWidgets import QApplication
 
