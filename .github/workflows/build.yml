@@ -10,7 +10,15 @@ permissions:
 
 jobs:
   windows:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: x64
+          - runner: windows-11-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v9.0.0
@@ -34,11 +42,11 @@ jobs:
           Stop-Process -Id $app.Id
       - name: Package
         shell: pwsh
-        run: Compress-Archive -Path build\stickle.dist\* -DestinationPath stickle-windows-x64.zip
+        run: Compress-Archive -Path build\stickle.dist\* -DestinationPath stickle-windows-${{ matrix.arch }}.zip
       - uses: actions/upload-artifact@v7
         with:
-          name: stickle-windows-x64
-          path: stickle-windows-x64.zip
+          name: stickle-windows-${{ matrix.arch }}
+          path: stickle-windows-${{ matrix.arch }}.zip
           if-no-files-found: error
 
   linux:
