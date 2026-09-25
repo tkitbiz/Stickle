@@ -10,14 +10,20 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from stickle.data.database import KEY_BYTES, WrongKeyError, open_database
-from stickle.data.search import create_schema, search
+from stickle.data.schema import open_store
+from stickle.data.search import search
 
 KEY = secrets.token_bytes(KEY_BYTES)
 
 
 def add(connection: apsw.Connection, note_id: str, body: str) -> None:
+    """A note with a fixed id, so the search scenarios can name it."""
     with connection:
-        connection.execute("INSERT INTO notes(id, body) VALUES (?, ?)", (note_id, body))
+        connection.execute(
+            "INSERT INTO notes (id, body, color, created_at, updated_at, content_hash,"
+            " change_seq) VALUES (?, ?, 'yellow', '', '', '', 0)",
+            (note_id, body),
+        )
 
 
 def bodies(connection: apsw.Connection) -> dict[str, str]:
@@ -41,8 +47,7 @@ def folder(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def db(folder: Path) -> Iterator[apsw.Connection]:
-    connection = open_database(folder / "notes.db", KEY)
-    create_schema(connection)
+    connection = open_store(folder / "notes.db", KEY)
     yield connection
     connection.close()
 
@@ -184,9 +189,8 @@ def fresh_database() -> Generator[tuple[apsw.Connection, Path]]:
     """
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp)
-        connection = open_database(folder / "notes.db", KEY)
+        connection = open_store(folder / "notes.db", KEY)
         try:
-            create_schema(connection)
             yield connection, folder
         finally:
             connection.close()

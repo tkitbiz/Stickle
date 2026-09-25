@@ -19,7 +19,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 from stickle.data.database import KEY_BYTES, WrongKeyError, open_database
-from stickle.data.search import create_schema, search
+from stickle.data.notes import NoteRepository
+from stickle.data.schema import open_store
+from stickle.data.search import search
 from stickle.platform.credentials import (
     CredentialStore,
     CredentialStoreUnavailableError,
@@ -44,15 +46,13 @@ def run_checks() -> list[tuple[str, str]]:
         folder = Path(tmp)
         path = folder / "selftest.db"
         key = secrets.token_bytes(KEY_BYTES)
-        connection = open_database(path, key)
-        create_schema(connection)
-        with connection:
-            connection.execute("INSERT INTO notes(id, body) VALUES ('a', ?)", (SAMPLE,))
+        connection = open_store(path, key)
+        note_id = NoteRepository(connection).create(SAMPLE).id
 
         check("encrypted database opens and stores text", lambda: True)
         # A particle attached (회의록을) and a term below the trigram length (회의).
-        check("trigram search", lambda: search(connection, "회의록") == ["a"])
-        check("short-term search", lambda: search(connection, "회의") == ["a"])
+        check("trigram search", lambda: search(connection, "회의록") == [note_id])
+        check("short-term search", lambda: search(connection, "회의") == [note_id])
 
         def no_plaintext() -> bool:
             return all(SAMPLE.encode() not in f.read_bytes() for f in folder.iterdir())

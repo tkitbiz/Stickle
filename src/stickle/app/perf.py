@@ -13,8 +13,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from stickle.data.database import KEY_BYTES, open_database
-from stickle.data.search import create_schema
+from stickle.data.database import KEY_BYTES
+from stickle.data.schema import open_store
 from stickle.platform.credentials import CredentialStoreUnavailableError, KeyRequest
 
 
@@ -47,9 +47,7 @@ def open_storage_like_startup(perf: PerfMode) -> None:
     perf.mark("key")
     folder = Path(tempfile.mkdtemp(prefix="stickle-perf-"))
     try:
-        connection = open_database(folder / "perf.db", key)
-        create_schema(connection)
-        connection.close()
+        open_store(folder / "perf.db", key).close()
     finally:
         shutil.rmtree(folder, ignore_errors=True)
     perf.mark("database")
