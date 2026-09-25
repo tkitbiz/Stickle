@@ -30,6 +30,10 @@ class CredentialStoreUnavailableError(Exception):
     """No usable credential store: none installed, locked, or access refused."""
 
 
+class KeyMissingError(Exception):
+    """The store answered, and it holds no key, but creating one was not allowed."""
+
+
 class Backend(Protocol):
     """The part of a keyring backend this module uses."""
 
@@ -115,17 +119,20 @@ class CredentialStore:
         except Exception as error:
             raise CredentialStoreUnavailableError(type(error).__name__) from error
 
-    def get_or_create_key(self, name: str = DATABASE_KEY) -> bytes:
+    def get_or_create_key(self, name: str = DATABASE_KEY, create: bool = True) -> bytes:
         """Return the key, creating it only when the store confirms there is none.
 
         An existing key is never replaced: that would make the database it
-        encrypts unreadable for good.
+        encrypts unreadable for good. Callers pass create=False once a database
+        exists: a new key could never open it, so a missing key is an error.
         """
         existing = self.read(name)
         if existing is not None:
             if len(existing) != KEY_BYTES:
                 raise CredentialStoreUnavailableError("stored key has the wrong length")
             return existing
+        if not create:
+            raise KeyMissingError(name)
         key = secrets.token_bytes(KEY_BYTES)
         self.write(name, key)
         if self.read(name) != key:
@@ -146,18 +153,19 @@ class KeyRequest:
         self,
         name: str = DATABASE_KEY,
         store: Callable[[], CredentialStore] = CredentialStore,
+        create: bool = True,
     ) -> None:
         self._key: bytes | None = None
         self._error: BaseException | None = None
         self._done = threading.Event()
         self._thread = threading.Thread(
-            target=self._fetch, args=(name, store), name="stickle-key", daemon=True
+            target=self._fetch, args=(name, store, create), name="stickle-key", daemon=True
         )
         self._thread.start()
 
-    def _fetch(self, name: str, store: Callable[[], CredentialStore]) -> None:
+    def _fetch(self, name: str, store: Callable[[], CredentialStore], create: bool) -> None:
         try:
-            self._key = store().get_or_create_key(name)
+            self._key = store().get_or_create_key(name, create)
         except BaseException as error:  # handed to whoever asks for the key
             self._error = error
         finally:

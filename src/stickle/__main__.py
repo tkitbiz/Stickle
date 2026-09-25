@@ -25,19 +25,38 @@ def main(argv: list[str] | None = None) -> int:
 
         return report(args)
 
-    perf = None
     if options.perf_notes is not None:
         from stickle.platform.credentials import KeyRequest
 
-        # Before Qt is loaded below, so that the two overlap.
-        key_request = KeyRequest()
+        # Before Qt is loaded below, so that the two overlap. A key of its own, so
+        # measuring never creates or touches the key of the real notes.
+        key_request = KeyRequest("perf-database-key")
         from stickle.app.perf import PerfMode
 
         perf = PerfMode(options.perf_notes, options.perf_blur, started, key_request)
+        from stickle.app.application import run
+
+        return run(args, perf)
+
+    import logging
+
+    from stickle.logs import setup_logging
+    from stickle.platform.paths import data_dir, ensure_private_dir
+    from stickle.unlock import Unlock
+
+    folder = data_dir()
+    warnings = ensure_private_dir(folder)
+    setup_logging(folder / "logs", data=folder)
+    log = logging.getLogger("stickle")
+    log.info("Stickle %s starting", __version__)
+    for warning in warnings:
+        log.warning(warning)
+    # Before Qt is loaded below, so that a credential store lookup overlaps it.
+    unlock = Unlock(folder)
 
     from stickle.app.application import run
 
-    return run(args, perf)
+    return run(args, unlock=unlock, started=started)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,9 @@ from stickle.data.schema import (
     backup,
     open_store,
     schema_version,
+    search_index_is_consistent,
 )
+from stickle.data.search import search
 
 KEY = secrets.token_bytes(KEY_BYTES)
 
@@ -129,24 +131,87 @@ def test_fixed_app_continues_from_the_last_good_version(
 
 
 def test_migration_that_loses_notes_is_refused(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    make_v1(path, ["회의록", "장보기"])
+    make_v1(path, ["회의록\n내일까지", "장보기"])
     before = bodies(path)
     monkeypatch.setattr(schema, "MIGRATIONS", [V1, "DELETE FROM notes WHERE body = '장보기'"])
 
-    with pytest.raises(MigrationError):
+    with pytest.raises(MigrationError) as failure:
         open_store(path, KEY)
 
     assert version_of(path) == 1
     assert bodies(path) == before
+    diff = failure.value.diff
+    assert diff is not None
+    assert diff.missing == ["장보기"] and diff.changed == [] and diff.added == []
 
 
 def test_migration_that_alters_text_is_refused(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    make_v1(path, ["회의록"])
-    monkeypatch.setattr(schema, "MIGRATIONS", [V1, "UPDATE notes SET body = trim(body, '록')"])
+    original = "  \n회의록\n둘째 줄"
+    make_v1(path, [original, "그대로"])
+    step = (
+        "UPDATE notes SET body = 'x' WHERE body <> '그대로';"
+        " INSERT INTO notes (id, body, color, created_at, updated_at, content_hash, change_seq)"
+        " VALUES ('new', '새 메모', 'yellow', '', '', '', 0)"
+    )
+    monkeypatch.setattr(schema, "MIGRATIONS", [V1, step])
 
-    with pytest.raises(MigrationError):
+    with pytest.raises(MigrationError) as failure:
         open_store(path, KEY)
-    assert list(bodies(path).values()) == ["회의록"]
+    assert sorted(bodies(path).values()) == sorted([original, "그대로"])
+    diff = failure.value.diff
+    assert diff is not None
+    # Shown by their first non-empty line, so the user can tell which notes they are.
+    assert diff.changed == ["회의록"] and diff.added == ["새 메모"] and diff.missing == []
+
+
+def break_search_index(path: Path) -> None:
+    """Drop one note from the search index behind the triggers' back."""
+    connection = open_database(path, KEY)
+    seq, body = connection.execute("SELECT seq, body FROM notes LIMIT 1").fetchall()[0]
+    with connection:
+        connection.execute(
+            "INSERT INTO notes_fts(notes_fts, rowid, body) VALUES ('delete', ?, ?)", (seq, body)
+        )
+    assert not search_index_is_consistent(connection)
+    connection.close()
+
+
+def test_the_index_check_notices_a_missing_entry(path: Path) -> None:
+    # Regression: the default FTS5 check only looks at the index's own structure.
+    make_v1(path, ["회의록"])
+    break_search_index(path)
+
+
+def test_a_damaged_search_index_is_rebuilt_on_opening(
+    path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    ids = make_v1(path, ["회의록을 내일까지"])
+    break_search_index(path)
+
+    connection = open_store(path, KEY)
+    assert search_index_is_consistent(connection)
+    assert search(connection, "회의록") == ids
+    connection.close()
+    assert "search index" in caplog.text
+    assert "회의록" not in caplog.text
+
+
+def test_an_upgrade_that_only_upsets_the_index_is_repaired(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    make_v1(path, ["회의록", "장보기"])
+    before = bodies(path)
+    breaks_index = (
+        "INSERT INTO notes_fts(notes_fts, rowid, body)"
+        " SELECT 'delete', seq, body FROM notes WHERE body = '장보기'"
+    )
+    monkeypatch.setattr(schema, "MIGRATIONS", [V1, breaks_index])
+
+    connection = open_store(path, KEY)
+    assert schema_version(connection) == 2
+    assert search_index_is_consistent(connection)
+    connection.close()
+    assert bodies(path) == before
 
 
 def test_several_steps_run_in_order(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

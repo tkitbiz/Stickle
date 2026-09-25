@@ -10,7 +10,9 @@ refuses a database newer than itself.
 """
 
 import hashlib
+import logging
 import shutil
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import apsw
@@ -97,8 +99,29 @@ class NewerSchemaError(Exception):
     """The database was written by a newer version of the app."""
 
 
+log = logging.getLogger(__name__)
+
+TITLE_LENGTH = 60
+
+
+@dataclass(frozen=True)
+class NotesDiff:
+    """Notes a failed step would have lost, altered or added, by their first line."""
+
+    missing: list[str] = field(default_factory=list[str])
+    changed: list[str] = field(default_factory=list[str])
+    added: list[str] = field(default_factory=list[str])
+
+    def __bool__(self) -> bool:
+        return bool(self.missing or self.changed or self.added)
+
+
 class MigrationError(Exception):
     """A step failed; the database stays at the last good version."""
+
+    def __init__(self, message: str, diff: NotesDiff | None = None) -> None:
+        super().__init__(message)
+        self.diff = diff
 
 
 def latest_version() -> int:
@@ -117,6 +140,7 @@ def open_store(path: Path, key: bytes, clock: Clock = utc_now) -> apsw.Connectio
         connection.close()
         raise NewerSchemaError(f"database version {version}, app knows {latest_version()}")
     if version == latest_version():
+        repair_search_index(connection)
         return connection
     connection.pragma("wal_checkpoint", "TRUNCATE")
     connection.close()
@@ -151,26 +175,77 @@ def _remove(path: Path) -> None:
         file.unlink(missing_ok=True)
 
 
-def _notes_fingerprint(connection: apsw.Connection) -> tuple[int, str] | None:
+type Snapshot = dict[str, tuple[str, str]]  # note id -> (body hash, first line)
+
+
+def first_line(body: str) -> str:
+    line = next((line.strip() for line in body.splitlines() if line.strip()), "")
+    return line[:TITLE_LENGTH]
+
+
+def _snapshot(connection: apsw.Connection) -> Snapshot | None:
     tables = {str(row[0]) for row in connection.execute("SELECT name FROM sqlite_schema")}
     if "notes" not in tables:
         return None
-    digest = hashlib.sha256()
-    count = 0
-    for note_id, body in connection.execute("SELECT id, body FROM notes ORDER BY id"):
-        digest.update(f"{note_id}\0{body}\0".encode())
-        count += 1
-    return count, digest.hexdigest()
+    return {
+        str(note_id): (hashlib.sha256(str(body).encode()).hexdigest(), first_line(str(body)))
+        for note_id, body in connection.execute("SELECT id, body FROM notes")
+    }
 
 
-def _verify(connection: apsw.Connection, before: tuple[int, str] | None) -> None:
+def compare(before: Snapshot, after: Snapshot) -> NotesDiff:
+    return NotesDiff(
+        missing=sorted(before[i][1] for i in before.keys() - after.keys()),
+        changed=sorted(
+            before[i][1] for i in before.keys() & after.keys() if before[i][0] != after[i][0]
+        ),
+        added=sorted(after[i][1] for i in after.keys() - before.keys()),
+    )
+
+
+# rank = 1 also compares the index with the notes; without it only the index's
+# own structure is checked, and a missing entry goes unnoticed.
+_CHECK_INDEX = "INSERT INTO notes_fts(notes_fts, rank) VALUES ('integrity-check', 1)"
+
+
+def search_index_is_consistent(connection: apsw.Connection) -> bool:
+    try:
+        connection.execute(_CHECK_INDEX)
+    except apsw.CorruptError:
+        return False
+    return True
+
+
+def repair_search_index(connection: apsw.Connection) -> bool:
+    """Rebuild the search index from the notes if it disagrees with them.
+
+    The index is derived data, so rebuilding it loses nothing. Returns whether
+    it was rebuilt.
+    """
+    if search_index_is_consistent(connection):
+        return False
+    with connection:
+        connection.execute("INSERT INTO notes_fts(notes_fts) VALUES ('rebuild')")
+    log.warning("search index did not match the notes and was rebuilt")
+    return True
+
+
+def _verify(connection: apsw.Connection, before: Snapshot | None) -> None:
     result = connection.execute("PRAGMA integrity_check").fetchall()
     if result != [("ok",)]:
         raise MigrationError(f"integrity check failed: {result[:3]}")
-    if before is not None and _notes_fingerprint(connection) != before:
-        raise MigrationError("notes changed during the migration")
-    # Raises if the search index no longer matches the notes.
-    connection.execute("INSERT INTO notes_fts(notes_fts) VALUES ('integrity-check')")
+    after = _snapshot(connection)
+    if before is not None:
+        diff = compare(before, after or {})
+        if diff:
+            raise MigrationError(
+                f"notes differ after the upgrade: {len(diff.missing)} missing,"
+                f" {len(diff.changed)} changed, {len(diff.added)} added",
+                diff,
+            )
+    repair_search_index(connection)
+    if not search_index_is_consistent(connection):
+        raise MigrationError("search index could not be rebuilt")
 
 
 def _migrate_step(path: Path, key: bytes, target: int) -> None:
@@ -180,7 +255,7 @@ def _migrate_step(path: Path, key: bytes, target: int) -> None:
     try:
         connection = open_database(work, key)
         try:
-            before = _notes_fingerprint(connection)
+            before = _snapshot(connection)
             with connection:
                 connection.execute(MIGRATIONS[target - 1])
                 connection.pragma("user_version", target)
@@ -188,6 +263,9 @@ def _migrate_step(path: Path, key: bytes, target: int) -> None:
             connection.pragma("wal_checkpoint", "TRUNCATE")
         finally:
             connection.close()
+    except MigrationError:
+        _remove(work)
+        raise
     except Exception as error:
         _remove(work)
         raise MigrationError(f"upgrade to version {target} failed") from error

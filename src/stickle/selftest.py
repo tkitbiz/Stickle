@@ -23,6 +23,7 @@ from stickle.data.notes import NoteRepository
 from stickle.data.schema import open_store
 from stickle.data.search import search
 from stickle.platform.credentials import (
+    DATABASE_KEY,
     CredentialStore,
     CredentialStoreUnavailableError,
     bundled_support_modules,
@@ -69,6 +70,7 @@ def run_checks() -> list[tuple[str, str]]:
 
         check("wrong key is rejected", wrong_key_rejected)
 
+    results.append(password_check())
     results += credential_checks()
     results += font_checks()
     return results
@@ -122,16 +124,34 @@ def credential_checks() -> list[tuple[str, str]]:
         round_trip = store.read(name) == secret
         store.delete(name)
         gone = store.read(name) is None
-        key = store.get_or_create_key()
+        # Only read: creating the key is the app's decision (never while notes exist).
+        key = store.read(DATABASE_KEY)
     except CredentialStoreUnavailableError as error:
         return [*results, ("UNAVAILABLE", f"credential store ({error})")]
     # The first bytes of a hash identify the key across runs without revealing it.
-    fingerprint = hashlib.sha256(key).hexdigest()[:8]
+    fingerprint = hashlib.sha256(key).hexdigest()[:8] if key else "none yet"
     return [
         *results,
         ("PASS" if round_trip and gone else "FAIL", "credential store round trip"),
         ("INFO", f"database key fingerprint {fingerprint}"),
     ]
+
+
+def password_check() -> tuple[str, str]:
+    """The password mode needs libsodium, a native library that must be in the package."""
+    from stickle.crypto.keyfile import unwrap_with_password, wrap_with_password
+
+    def works() -> bool:
+        key = secrets.token_bytes(KEY_BYTES)
+        # The lowest strength libsodium allows: this checks the library, not the setting.
+        slot = wrap_with_password(key, "비밀번호 test", opslimit=1, memlimit=8192)
+        return unwrap_with_password(slot, "비밀번호 test") == key
+
+    try:
+        ok = works()
+    except Exception:
+        ok = False
+    return ("PASS" if ok else "FAIL", "password protection (libsodium)")
 
 
 def main() -> int:

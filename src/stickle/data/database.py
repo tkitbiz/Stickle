@@ -2,7 +2,7 @@
 
 The whole file is encrypted with SQLite3 Multiple Ciphers (ChaCha20-Poly1305,
 every page authenticated), including the write-ahead log. The key is 32
-random bytes kept by the operating system's credential store, not a password,
+random bytes (kept by the credential store, or wrapped with a password), not a password,
 so the password key derivation is reduced to a single round: stretching a
 random 256-bit key adds no security but would slow down every start.
 """

@@ -33,7 +33,8 @@ def test_every_ui_string_has_a_korean_translation(tmp_path: Path) -> None:
         for message in messages
         if (translation := message.find("translation")) is None
         or translation.get("type") is not None
-        or not (translation.text or "").strip()
+        # Plural messages keep their text in one or more numerusform elements.
+        or not "".join(translation.itertext()).strip()
     ]
     assert missing == []
 

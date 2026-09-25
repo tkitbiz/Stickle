@@ -9,6 +9,7 @@ from stickle.platform.credentials import (
     SERVICE,
     CredentialStore,
     CredentialStoreUnavailableError,
+    KeyMissingError,
     KeyRequest,
     platform_backend,
 )
@@ -128,3 +129,28 @@ def test_key_request_hands_over_the_failure() -> None:
     with pytest.raises(CredentialStoreUnavailableError):
         request.key()
     assert backend.writes == writes_before  # still never overwritten
+
+
+def test_missing_key_is_not_created_when_creation_is_not_allowed() -> None:
+    backend = FakeBackend()
+
+    with pytest.raises(KeyMissingError):
+        CredentialStore(backend).get_or_create_key(create=False)
+    assert backend.writes == 0
+
+
+def test_existing_key_is_returned_even_when_creation_is_not_allowed() -> None:
+    backend = FakeBackend()
+    key = CredentialStore(backend).get_or_create_key()
+
+    assert CredentialStore(backend).get_or_create_key(create=False) == key
+
+
+def test_key_request_passes_on_that_creation_is_not_allowed() -> None:
+    backend = FakeBackend()
+
+    request = KeyRequest(store=lambda: CredentialStore(backend), create=False)
+
+    with pytest.raises(KeyMissingError):
+        request.key()
+    assert backend.writes == 0

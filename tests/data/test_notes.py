@@ -12,7 +12,7 @@ from hypothesis.stateful import Bundle, RuleBasedStateMachine, invariant, rule
 from stickle.core.note import content_hash
 from stickle.data.database import KEY_BYTES
 from stickle.data.notes import NoteDeletedError, NoteNotFoundError, NoteRepository
-from stickle.data.schema import open_store
+from stickle.data.schema import open_store, search_index_is_consistent
 from stickle.data.search import search
 
 KEY = secrets.token_bytes(KEY_BYTES)
@@ -299,7 +299,7 @@ class NoteStore(RuleBasedStateMachine):
 
     @invariant()
     def search_index_is_consistent(self) -> None:
-        self.db.execute("INSERT INTO notes_fts(notes_fts) VALUES ('integrity-check')")
+        assert search_index_is_consistent(self.db)
 
 
 NoteStore.TestCase.settings = settings(  # pyright: ignore[reportUnknownMemberType]

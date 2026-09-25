@@ -6,17 +6,21 @@ run time, any visible text without the marker was either never passed through
 tr() or is not re-applied when the language changes.
 """
 
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from PySide6.QtCore import QLocale
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QAbstractButton, QLabel, QListWidget, QWidget
 from pytestqt.qtbot import QtBot
 from update_translations import compile_to, extract
 
 from stickle.app.application import NoteManager
 from stickle.app.i18n import Translations
+from stickle.app.password_dialog import PasswordDialog
+from stickle.app.recovery_dialog import KINDS, Problem, RecoveryDialog
 from stickle.app.tray import Tray
+from stickle.data.schema import NotesDiff
 
 ACCENTED = str.maketrans("aeiouAEIOUcnst", "åëïöüÅËÏÖÜçñşŧ")
 # Texts that are not translated on purpose.
@@ -24,7 +28,10 @@ UNTRANSLATED = {"", "Stickle", "English", "한국어"}
 
 
 def pseudo(text: str) -> str:
-    return f"[{text.translate(ACCENTED)}{'~' * (len(text) // 3 + 1)}]"
+    # Placeholders (%1, %n) stay as they are, or Qt could no longer fill them in.
+    parts = re.split(r"(%n|%\d)", text)
+    body = "".join(p if re.fullmatch(r"%n|%\d", p) else p.translate(ACCENTED) for p in parts)
+    return f"[{body}{'~' * (len(text) // 3 + 1)}]"
 
 
 def make_pseudo_translation(folder: Path) -> None:
@@ -35,7 +42,13 @@ def make_pseudo_translation(folder: Path) -> None:
         translation = message.find("translation")
         assert translation is not None
         translation.attrib.pop("type", None)
-        translation.text = pseudo(message.findtext("source") or "")
+        text = pseudo(message.findtext("source") or "")
+        if message.get("numerus") == "yes":
+            for form in translation.findall("numerusform"):
+                translation.remove(form)
+            ET.SubElement(translation, "numerusform").text = text
+        else:
+            translation.text = text
     tree.write(ts_file, encoding="utf-8", xml_declaration=True)
     compile_to(ts_file, folder / "stickle_fr.qm")
 
@@ -45,6 +58,10 @@ def visible_texts(widget: QWidget) -> list[str]:
     for item in [widget, *widget.findChildren(QWidget)]:
         texts += [item.windowTitle(), item.toolTip(), item.accessibleName()]
         texts += [action.text() for action in item.actions()]
+        if isinstance(item, QLabel | QAbstractButton):
+            texts.append(item.text())
+        if isinstance(item, QListWidget):
+            texts += [item.item(row).text() for row in range(item.count())]
     return texts
 
 
@@ -66,5 +83,27 @@ def test_every_visible_text_is_translated(qtbot: QtBot, tmp_path: Path) -> None:
         assert untranslated == []
     finally:
         note.close()
+        translations.apply("en")
+        QLocale.setDefault(QLocale.system())
+
+
+def test_every_startup_dialog_text_is_translated(qtbot: QtBot, tmp_path: Path) -> None:
+    make_pseudo_translation(tmp_path)
+    translations = Translations(tmp_path)
+    translations.apply("en")
+    dialogs: list[QWidget] = [PasswordDialog(create, lambda _: None) for create in (True, False)]
+    diff = NotesDiff(missing=["회의록"], changed=[""], added=["새 메모"])
+    dialogs += [
+        RecoveryDialog(Problem(kind, diff=diff), tmp_path, export=lambda _: None)  # pyright: ignore[reportArgumentType]
+        for kind in KINDS
+    ]
+    try:
+        translations.apply("fr")
+        for dialog in dialogs:
+            texts = [t for t in visible_texts(dialog) if t not in UNTRANSLATED]
+            # Note titles in the list are the user's own text around a translated label.
+            untranslated = [t for t in texts if "~]" not in t]
+            assert untranslated == [], type(dialog).__name__
+    finally:
         translations.apply("en")
         QLocale.setDefault(QLocale.system())
