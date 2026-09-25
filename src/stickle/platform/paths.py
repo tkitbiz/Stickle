@@ -11,8 +11,13 @@ def data_dir(
     platform: str = sys.platform,
     home: Path | None = None,
 ) -> Path:
-    """The per-user data folder (not created here)."""
+    """The per-user data folder (not created here).
+
+    STICKLE_DATA_DIR replaces it, for tests and development.
+    """
     env = os.environ if env is None else env
+    if override := env.get("STICKLE_DATA_DIR"):
+        return Path(override)
     home = Path.home() if home is None else home
     if platform == "win32":
         base = env.get("APPDATA")

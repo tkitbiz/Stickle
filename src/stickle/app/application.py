@@ -121,39 +121,50 @@ def run(
     app.setDesktopFileName(APP_ID)
     app.setQuitOnLastWindowClosed(False)
     mark("qt")
-    ensure_korean_font()
-    mark("fonts")
-    translations = Translations()
-    translations.apply(None)
-    mark("translations")
-    if perf is not None:
-        open_storage_like_startup(perf)
-    connection = None
-    if unlock is not None:
-        qInstallMessageHandler(log_qt_message)
-        connection = open_notes(unlock)
-        if connection is None:
-            return 0
-        mark("notes-database")
+    # Ctrl+C in a terminal, logout and shutdown all end the app, also while a start-up
+    # dialog is open. quit() only acts once the main loop runs; until then exit() ends
+    # the dialog's loop (and any later one) instead.
+    main_loop_running = False
 
-    manager = NoteManager()
-    # Without a tray there would be no way back to a hidden app, so quit with the last note.
-    if not QSystemTrayIcon.isSystemTrayAvailable():
-        manager.last_note_closed.connect(app.quit)
-    tray = Tray(manager.new_note, app.quit, translations)
-    tray.show()
-    for _ in range(max(1, perf.notes if perf else 1)):
-        manager.new_note()
-    mark("notes")
-    if perf is not None:
-        # Runs once the queued show and paint events have been handled.
-        QTimer.singleShot(0, lambda: report_ready(perf, manager))
-    elif started is not None:
-        # Includes any time spent at the password prompt.
-        QTimer.singleShot(0, lambda: log.info("started: %s", ", ".join(timings)))
-    # Ctrl+C in a terminal, logout and shutdown all end the app through quit().
-    watcher = SignalWatcher(app.quit)
+    def on_signal() -> None:
+        if main_loop_running:
+            app.quit()
+        else:
+            app.exit(0)
+
+    watcher = SignalWatcher(on_signal)
+    connection = None
     try:
+        ensure_korean_font()
+        mark("fonts")
+        translations = Translations()
+        translations.apply(None)
+        mark("translations")
+        if perf is not None:
+            open_storage_like_startup(perf)
+        if unlock is not None:
+            qInstallMessageHandler(log_qt_message)
+            connection = open_notes(unlock)
+            if connection is None:
+                return 0
+            mark("notes-database")
+
+        manager = NoteManager()
+        # Without a tray there would be no way back to a hidden app, so quit with the last note.
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            manager.last_note_closed.connect(app.quit)
+        tray = Tray(manager.new_note, app.quit, translations)
+        tray.show()
+        for _ in range(max(1, perf.notes if perf else 1)):
+            manager.new_note()
+        mark("notes")
+        if perf is not None:
+            # Runs once the queued show and paint events have been handled.
+            QTimer.singleShot(0, lambda: report_ready(perf, manager))
+        elif started is not None:
+            # Includes any time spent at the password prompt.
+            QTimer.singleShot(0, lambda: log.info("started: %s", ", ".join(timings)))
+        main_loop_running = True
         return app.exec()
     finally:
         watcher.close()

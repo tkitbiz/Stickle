@@ -29,6 +29,13 @@ def test_linux_follows_xdg_data_home() -> None:
     assert data_dir({}, "linux", HOME) == HOME / ".local/share/stickle"
 
 
+def test_an_explicit_data_folder_wins_everywhere() -> None:
+    for platform in ("win32", "darwin", "linux"):
+        assert data_dir({"STICKLE_DATA_DIR": "/tmp/x", "APPDATA": "C:/a"}, platform, HOME) == Path(
+            "/tmp/x"
+        )
+
+
 def test_private_dir_is_created_with_parents(tmp_path: Path) -> None:
     folder = tmp_path / "a" / "b"
     ensure_private_dir(folder)

@@ -3,8 +3,11 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import pytest
+
+from stickle.crypto.keyfile import KeyFile, wrap_with_password, write_key_file
 
 # Runs in a child process. The signal comes from another thread while the main
 # thread sits idle in Qt's event loop, which is exactly when Python cannot see it.
@@ -48,14 +51,28 @@ def test_without_the_watcher_ctrl_c_is_not_handled_while_idle() -> None:
     assert run_child(watch=False) != 0
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals from another process")
-def test_running_app_quits_on_sigterm() -> None:
-    env = {**os.environ, "QT_QPA_PLATFORM": "offscreen"}
+def sigterm_exit_code(data: Path) -> int:
+    env = {**os.environ, "QT_QPA_PLATFORM": "offscreen", "STICKLE_DATA_DIR": str(data)}
     app = subprocess.Popen([sys.executable, "-m", "stickle"], env=env)
     try:
         time.sleep(3)
         assert app.poll() is None, "the app should still be running"
         app.send_signal(signal.SIGTERM)
-        assert app.wait(timeout=10) == 0
+        return app.wait(timeout=10)
     finally:
         app.kill()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals from another process")
+def test_running_app_quits_on_sigterm(tmp_path: Path) -> None:
+    assert sigterm_exit_code(tmp_path) == 0
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals from another process")
+def test_app_quits_on_sigterm_at_the_password_prompt(tmp_path: Path) -> None:
+    # A password-protected key file makes the app ask for the password, on any system.
+    slot = wrap_with_password(bytes(32), "correct horse", opslimit=1, memlimit=8192)
+    write_key_file(tmp_path / "keys.json", KeyFile(slot, {}))
+
+    assert sigterm_exit_code(tmp_path) == 0
+    assert not (tmp_path / "notes.db").exists()
