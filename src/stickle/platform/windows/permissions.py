@@ -1,8 +1,11 @@
 """Read (never change) who may read a folder on Windows."""
 
 import ctypes
+import sys
 from ctypes import wintypes
 from pathlib import Path
+
+assert sys.platform == "win32"  # also tells the type checker the rest is Windows only
 
 SE_FILE_OBJECT = 1
 DACL_SECURITY_INFORMATION = 0x4
