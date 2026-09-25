@@ -1,73 +1,25 @@
-"""Application start-up and the set of open note windows."""
+"""Application start-up."""
 
 import logging
 import os
 import sys
 import time
 
-from PySide6.QtCore import (
-    QMessageLogContext,
-    QObject,
-    QPoint,
-    QTimer,
-    QtMsgType,
-    Signal,
-    qInstallMessageHandler,
-)
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QMessageLogContext, QTimer, QtMsgType, qInstallMessageHandler
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from stickle.app.fonts import ensure_korean_font
 from stickle.app.i18n import Translations
-from stickle.app.note_window import NoteWindow
+from stickle.app.notes import NoteManager
 from stickle.app.perf import PerfMode, open_storage_like_startup
 from stickle.app.signals import SignalWatcher
 from stickle.app.startup import open_notes
 from stickle.app.tray import Tray
+from stickle.data.notes import NoteRepository
 from stickle.platform.linux.display import preferred_qt_platform
 from stickle.unlock import Unlock
 
 APP_ID = "co.linkro.stickle"
-
-# New notes cascade from the top-left of the screen so they never land exactly on top of each other.
-CASCADE_ORIGIN = 80
-CASCADE_STEP = 32
-CASCADE_LENGTH = 10
-
-
-class NoteManager(QObject):
-    # Qt's own "quit on last window closed" ignores tool windows, which notes are.
-    last_note_closed = Signal()
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._windows: list[NoteWindow] = []
-        self._created = 0
-
-    @property
-    def windows(self) -> tuple[NoteWindow, ...]:
-        return tuple(self._windows)
-
-    def new_note(self) -> NoteWindow:
-        window = NoteWindow()
-        window.new_note_requested.connect(self.new_note)
-        window.closed.connect(lambda: self._forget(window))
-        self._windows.append(window)
-
-        offset = CASCADE_ORIGIN + CASCADE_STEP * (self._created % CASCADE_LENGTH)
-        self._created += 1
-        area = QGuiApplication.primaryScreen().availableGeometry()
-        window.move(area.topLeft() + QPoint(offset, offset))
-
-        window.show()
-        window.activateWindow()
-        window.setFocus()
-        return window
-
-    def _forget(self, window: NoteWindow) -> None:
-        self._windows.remove(window)
-        if not self._windows:
-            self.last_note_closed.emit()
 
 
 def report_ready(perf: PerfMode, manager: NoteManager) -> None:
@@ -149,14 +101,20 @@ def run(
                 return 0
             mark("notes-database")
 
-        manager = NoteManager()
+        manager = NoteManager(NoteRepository(connection) if connection else None)
+        manager.watch_quit(app)
+        app.aboutToQuit.connect(manager.save_all)
+        tray_available = QSystemTrayIcon.isSystemTrayAvailable()
         # Without a tray there would be no way back to a hidden app, so quit with the last note.
-        if not QSystemTrayIcon.isSystemTrayAvailable():
+        if not tray_available:
             manager.last_note_closed.connect(app.quit)
-        tray = Tray(manager.new_note, app.quit, translations)
+        tray = Tray(manager.new_note, app.quit, translations, manager)
         tray.show()
-        for _ in range(max(1, perf.notes if perf else 1)):
-            manager.new_note()
+        if perf is not None:
+            for _ in range(max(1, perf.notes)):
+                manager.new_note()
+        else:
+            manager.open_stored(tray_available)
         mark("notes")
         if perf is not None:
             # Runs once the queued show and paint events have been handled.

@@ -7,8 +7,20 @@ from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPen, 
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from stickle.app.i18n import LANGUAGES, Translations
+from stickle.app.notes import HIDDEN_LISTED, NoteManager
+from stickle.core.note import Note
+from stickle.data.schema import first_line
 
 ICON_SIZE = 64
+TITLE_LENGTH = 40
+
+
+def menu_title(note: Note) -> str:
+    """The note's first line, shortened, with & kept literal (Qt reads it as a shortcut mark)."""
+    title = first_line(note.body)
+    if len(title) > TITLE_LENGTH:
+        title = title[: TITLE_LENGTH - 1] + "…"
+    return title.replace("&", "&&")
 
 
 def make_icon() -> QIcon:
@@ -30,15 +42,21 @@ class Tray(QSystemTrayIcon):
         on_new_note: Callable[[], object],
         on_quit: Callable[[], object],
         translations: Translations,
+        notes: NoteManager | None = None,
     ) -> None:
         super().__init__(make_icon())
         self.setToolTip("Stickle")
         self._translations = translations
+        self._notes = notes
 
         # QSystemTrayIcon does not own its menu, so keep a reference.
         self._menu = QMenu()
         self.new_note_action = self._menu.addAction("")
         self.new_note_action.triggered.connect(on_new_note)
+        self.hidden_menu = self._menu.addMenu("")
+        self.restore_action = self._menu.addAction("")
+        self.restore_action.triggered.connect(self._restore)
+        self._menu.addSeparator()
 
         self.language_menu = self._menu.addMenu("")
         self.language_actions: dict[str | None, QAction] = {}
@@ -58,10 +76,49 @@ class Tray(QSystemTrayIcon):
 
         # Not a widget, so no LanguageChange event: follow the translations instead.
         translations.changed.connect(self.retranslate)
+        if notes is not None:
+            notes.changed.connect(self.refresh_notes)
         self.retranslate()
+
+    def refresh_notes(self) -> None:
+        """Rebuild the lists of hidden and deleted notes (they change only through the app)."""
+        self.hidden_menu.clear()
+        hidden = self._notes.hidden_notes() if self._notes else []
+        for note in hidden[:HIDDEN_LISTED]:
+            action = self.hidden_menu.addAction(menu_title(note) or self.tr("(empty note)"))
+            action.triggered.connect(lambda _=False, note_id=note.id: self._show(note_id))
+        if hidden:
+            self.hidden_menu.addSeparator()
+        show_all = self.hidden_menu.addAction(self.tr("Show all hidden notes"))
+        show_all.triggered.connect(self._show_all)
+        self.hidden_menu.setEnabled(bool(hidden))
+
+        deleted = self._notes.last_deleted() if self._notes else None
+        self.restore_action.setEnabled(deleted is not None)
+        if deleted is None:
+            self.restore_action.setText(self.tr("Restore the note just deleted"))
+        else:
+            title = menu_title(deleted) or self.tr("(empty note)")
+            self.restore_action.setText(
+                self.tr("Restore the note just deleted: %1").replace("%1", title)
+            )
+
+    def _show(self, note_id: str) -> None:
+        if self._notes:
+            self._notes.show_hidden(note_id)
+
+    def _show_all(self) -> None:
+        if self._notes:
+            self._notes.show_all_hidden()
+
+    def _restore(self) -> None:
+        if self._notes:
+            self._notes.restore_last_deleted()
 
     def retranslate(self) -> None:
         self.new_note_action.setText(self.tr("New note"))
+        self.hidden_menu.setTitle(self.tr("Hidden notes"))
+        self.refresh_notes()
         self.language_menu.setTitle(self.tr("Language"))
         self.language_actions[None].setText(self.tr("System language"))
         if chosen := self.language_actions.get(self._translations.language):

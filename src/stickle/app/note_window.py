@@ -1,8 +1,9 @@
 """A single sticky note window."""
 
+from collections.abc import Callable
 from typing import override
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QAction,
     QCloseEvent,
@@ -17,6 +18,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QMenu,
     QPlainTextEdit,
     QSizeGrip,
     QToolButton,
@@ -33,8 +35,12 @@ DEFAULT_SIZE = (260, 240)
 CLOSE_ICON_SIZE = 10
 
 
-def make_close_icon() -> QIcon:
-    """A thin cross in the text colour, drawn at 1x and 2x for high-DPI screens."""
+def drawn_icon(draw: Callable[[QPainter, float], None]) -> QIcon:
+    """An icon drawn in the text colour at 1x and 2x for high-DPI screens.
+
+    Drawn rather than symbol characters: finding a font with such a glyph
+    made showing the first note take a third of a second longer.
+    """
     icon = QIcon()
     for scale in (1, 2):
         size = CLOSE_ICON_SIZE * scale
@@ -45,31 +51,63 @@ def make_close_icon() -> QIcon:
         pen = QPen(FOREGROUND, 1.4 * scale)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
-        inset = 1.5 * scale
-        painter.drawLine(QPointF(inset, inset), QPointF(size - inset, size - inset))
-        painter.drawLine(QPointF(size - inset, inset), QPointF(inset, size - inset))
+        draw(painter, size)
         painter.end()
         icon.addPixmap(pixmap)
     return icon
 
 
+def _cross(painter: QPainter, size: float) -> None:
+    inset = size * 0.15
+    painter.drawLine(QPointF(inset, inset), QPointF(size - inset, size - inset))
+    painter.drawLine(QPointF(size - inset, inset), QPointF(inset, size - inset))
+
+
+def _bars(painter: QPainter, size: float) -> None:
+    for y in (0.2, 0.5, 0.8):
+        painter.drawLine(QPointF(size * 0.1, size * y), QPointF(size * 0.9, size * y))
+
+
+def _bin(painter: QPainter, size: float) -> None:
+    painter.drawLine(QPointF(size * 0.1, size * 0.22), QPointF(size * 0.9, size * 0.22))
+    painter.drawLine(QPointF(size * 0.38, size * 0.08), QPointF(size * 0.62, size * 0.08))
+    painter.drawRoundedRect(QRectF(size * 0.2, size * 0.22, size * 0.6, size * 0.7), 1, 1)
+
+
+def make_close_icon() -> QIcon:
+    return drawn_icon(_cross)
+
+
+def make_menu_icon() -> QIcon:
+    return drawn_icon(_bars)
+
+
+def make_delete_icon() -> QIcon:
+    return drawn_icon(_bin)
+
+
 class TitleBar(QWidget):
-    """Drag handle with the close button."""
+    """Drag handle with the menu and hide buttons."""
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.setFixedHeight(28)
         self._drag_offset: QPoint | None = None
 
+        self.menu_button = QToolButton(self)
+        self.menu_button.setIcon(make_menu_icon())
+        self.menu_button.setAutoRaise(True)
+        self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        # The menu arrow would crowd the small title bar; the icon says it is a menu.
+        self.menu_button.setStyleSheet("QToolButton::menu-indicator { image: none; }")
         self.close_button = QToolButton(self)
-        # Drawn rather than the ✕ character: finding a font with that glyph
-        # made showing the first note take a third of a second longer.
         self.close_button.setIcon(make_close_icon())
         self.close_button.setAutoRaise(True)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 2, 2, 2)
         layout.addStretch()
+        layout.addWidget(self.menu_button)
         layout.addWidget(self.close_button)
 
     @override
@@ -99,12 +137,20 @@ class TitleBar(QWidget):
 
 
 class NoteWindow(QWidget):
-    """Frameless, always-on-top, translucent note that stays off the taskbar."""
+    """Frameless, always-on-top, translucent note that stays off the taskbar.
+
+    The window only asks: hiding and deleting are decided (and stored) by its
+    owner, which then closes it with release(). Any other close, such as Alt+F4,
+    asks to hide too, so a note never leaves the screen without being stored.
+    """
 
     closed = Signal()
     new_note_requested = Signal()
+    hide_requested = Signal()
+    delete_requested = Signal()
+    editing_finished = Signal()  # the text lost focus: a moment to save
 
-    def __init__(self) -> None:
+    def __init__(self, note_id: str | None = None, text: str = "") -> None:
         super().__init__(
             None,
             Qt.WindowType.Tool
@@ -123,11 +169,20 @@ class NoteWindow(QWidget):
             f"QToolButton {{ color: {FOREGROUND.name()}; }}"
         )
 
+        self.note_id = note_id  # None until the note is first stored
+        self._released = False
+
         self.title_bar = TitleBar(self)
-        self.title_bar.close_button.clicked.connect(self.close)
+        self.title_bar.close_button.clicked.connect(self.hide_requested)
+        self.menu = QMenu(self)
+        self.delete_action = self.menu.addAction(make_delete_icon(), "")
+        self.delete_action.triggered.connect(self.delete_requested)
+        self.title_bar.menu_button.setMenu(self.menu)
 
         self.editor = QPlainTextEdit(self)
         self.editor.setFrameShape(QPlainTextEdit.Shape.NoFrame)
+        self.editor.setPlainText(text)
+        self.editor.installEventFilter(self)
 
         grip_row = QHBoxLayout()
         grip_row.setContentsMargins(0, 0, 0, 0)
@@ -144,7 +199,13 @@ class NoteWindow(QWidget):
         self.new_note_action = self._add_action(QKeySequence.StandardKey.New)
         self.new_note_action.triggered.connect(self.new_note_requested)
         self.close_action = self._add_action(QKeySequence.StandardKey.Close)
-        self.close_action.triggered.connect(self.close)
+        self.close_action.triggered.connect(self.hide_requested)
+        # Tab types a tab in the text, so the menu has a key of its own.
+        self.menu_action = QAction(self)
+        self.menu_action.setShortcut(QKeySequence(Qt.Key.Key_F10))
+        self.menu_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.menu_action.triggered.connect(self.open_menu)
+        self.addAction(self.menu_action)
 
         self.setFocusProxy(self.editor)
         self.retranslate()
@@ -154,10 +215,15 @@ class NoteWindow(QWidget):
         self.setWindowTitle(self.tr("Note"))
         self.setAccessibleName(self.tr("Note"))
         self.editor.setAccessibleName(self.tr("Note text"))
-        close_note = self.tr("Close note")
-        self.title_bar.close_button.setAccessibleName(close_note)
-        self.title_bar.close_button.setToolTip(close_note)
-        self.close_action.setText(close_note)
+        hide_note = self.tr("Hide note")
+        self.title_bar.close_button.setAccessibleName(hide_note)
+        self.title_bar.close_button.setToolTip(hide_note)
+        self.close_action.setText(hide_note)
+        note_menu = self.tr("Note menu")
+        self.title_bar.menu_button.setAccessibleName(note_menu)
+        self.title_bar.menu_button.setToolTip(note_menu)
+        self.menu_action.setText(note_menu)
+        self.delete_action.setText(self.tr("Delete note"))
         self.new_note_action.setText(self.tr("New note"))
 
     @override
@@ -181,7 +247,38 @@ class NoteWindow(QWidget):
         painter.setBrush(BACKGROUND)
         painter.drawRoundedRect(self.rect(), CORNER_RADIUS, CORNER_RADIUS)
 
+    @property
+    def text(self) -> str:
+        return self.editor.toPlainText()
+
+    def open_menu(self) -> None:
+        button = self.title_bar.menu_button
+        self.menu.popup(button.mapToGlobal(button.rect().bottomLeft()))
+        self.menu.setActiveAction(self.delete_action)
+
+    def allow_close(self) -> None:
+        """Let the next close through without asking to hide (the app is quitting)."""
+        self._released = True
+
+    def release(self) -> None:
+        """Close for real: the owner has stored what it needed."""
+        self.allow_close()
+        self.close()
+
+    @override
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        # Once released the note has been stored (or deleted): closing moves the focus
+        # away, and that must not store it again.
+        if watched is self.editor and event.type() == QEvent.Type.FocusOut and not self._released:
+            self.editing_finished.emit()
+        return super().eventFilter(watched, event)
+
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
+        if not self._released:
+            event.ignore()
+            # After this close has finished: Qt ignores a close started during another.
+            QTimer.singleShot(0, self.hide_requested.emit)
+            return
         self.closed.emit()
         super().closeEvent(event)

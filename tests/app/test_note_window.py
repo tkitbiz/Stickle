@@ -44,7 +44,8 @@ def test_every_control_has_an_accessible_name(qtbot: QtBot) -> None:
     window = NoteWindow()
     qtbot.addWidget(window)
 
-    controls: list[QWidget] = [window, window.editor, window.title_bar.close_button]
+    bar = window.title_bar
+    controls: list[QWidget] = [window, window.editor, bar.close_button, bar.menu_button]
     assert all(control.accessibleName() for control in controls)
 
 
@@ -70,7 +71,7 @@ def test_ctrl_n_opens_another_note(qtbot: QtBot, manager: NoteManager) -> None:
     assert len(manager.windows) == 2
 
 
-def test_ctrl_w_closes_the_note(qtbot: QtBot, manager: NoteManager) -> None:
+def test_ctrl_w_hides_the_note(qtbot: QtBot, manager: NoteManager) -> None:
     window = manager.new_note()
     qtbot.waitActive(window)
 
@@ -80,7 +81,7 @@ def test_ctrl_w_closes_the_note(qtbot: QtBot, manager: NoteManager) -> None:
     assert manager.windows == ()
 
 
-def test_close_button_closes_the_note(qtbot: QtBot, manager: NoteManager) -> None:
+def test_hide_button_hides_the_note(qtbot: QtBot, manager: NoteManager) -> None:
     window = manager.new_note()
 
     with qtbot.waitSignal(window.closed):

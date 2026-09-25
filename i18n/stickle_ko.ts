@@ -12,12 +12,20 @@
         <translation>메모 내용</translation>
     </message>
     <message>
-        <source>New note</source>
-        <translation>새 메모</translation>
+        <source>Hide note</source>
+        <translation>메모 숨기기</translation>
     </message>
     <message>
-        <source>Close note</source>
-        <translation>메모 닫기</translation>
+        <source>Note menu</source>
+        <translation>메모 메뉴</translation>
+    </message>
+    <message>
+        <source>Delete note</source>
+        <translation>메모 삭제</translation>
+    </message>
+    <message>
+        <source>New note</source>
+        <translation>새 메모</translation>
     </message>
 </context>
 <context>
@@ -233,8 +241,28 @@
 <context>
     <name>Tray</name>
     <message>
+        <source>(empty note)</source>
+        <translation>(빈 메모)</translation>
+    </message>
+    <message>
+        <source>Show all hidden notes</source>
+        <translation>숨긴 메모 모두 보이기</translation>
+    </message>
+    <message>
+        <source>Restore the note just deleted</source>
+        <translation>방금 지운 메모 되살리기</translation>
+    </message>
+    <message>
+        <source>Restore the note just deleted: %1</source>
+        <translation>방금 지운 메모 되살리기: %1</translation>
+    </message>
+    <message>
         <source>New note</source>
         <translation>새 메모</translation>
+    </message>
+    <message>
+        <source>Hidden notes</source>
+        <translation>숨긴 메모</translation>
     </message>
     <message>
         <source>Language</source>

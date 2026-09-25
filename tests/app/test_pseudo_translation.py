@@ -70,14 +70,15 @@ def test_every_visible_text_is_translated(qtbot: QtBot, tmp_path: Path) -> None:
     translations = Translations(tmp_path)
     translations.apply("en")
     manager = NoteManager()
-    tray = Tray(manager.new_note, lambda: None, translations)
+    tray = Tray(manager.new_note, lambda: None, translations, manager)
     note = manager.new_note()
     try:
         # Switched after the windows exist, so re-application is covered too.
         translations.apply("fr")
         menu = tray.contextMenu()
         assert menu is not None
-        texts = visible_texts(note) + visible_texts(menu) + visible_texts(tray.language_menu)
+        texts = visible_texts(note) + visible_texts(note.menu) + visible_texts(menu)
+        texts += visible_texts(tray.language_menu) + visible_texts(tray.hidden_menu)
 
         untranslated = [text for text in texts if text not in UNTRANSLATED and "~]" not in text]
         assert untranslated == []
