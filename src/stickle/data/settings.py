@@ -40,6 +40,14 @@ def _flag(value: object) -> TypeGuard[bool]:
     return isinstance(value, bool)
 
 
+THIS_DEVICE = "this_device"
+SEVERAL_DEVICES = "several_devices"
+
+
+def _usage(value: object) -> TypeGuard[str | None]:
+    return value in (None, THIS_DEVICE, SEVERAL_DEVICES)
+
+
 def _color_key(value: object) -> TypeGuard[str]:
     return isinstance(value, str) and value.isidentifier()
 
@@ -59,10 +67,23 @@ DEVICE_ID = Setting[str | None]("device_id", "device", None, _uuid_or_none)
 DEFAULT_NOTE_COLOR = Setting[str]("default_color", "shared", DEFAULT_COLOR, _color_key)
 # Asked once whether to add the AppImage to the application list (whatever the answer).
 APP_MENU_ASKED = Setting[bool]("app_menu_asked", "device", False, _flag)
+# Asked at first start: notes on this computer only, or on several (sync comes later).
+USAGE = Setting[str | None]("usage", "device", None, _usage)
+# The user said they kept the recovery key (Done, not Later).
+RECOVERY_KEY_KEPT = Setting[bool]("recovery_key_kept", "device", False, _flag)
+# Skipped at first start, the recovery key is offered once more, never again after.
+RECOVERY_KEY_OFFERED_AGAIN = Setting[bool]("recovery_key_offered_again", "device", False, _flag)
 
 SETTINGS: dict[str, Setting[object]] = {
     s.key: s  # pyright: ignore[reportAssignmentType]
-    for s in (DEVICE_ID, DEFAULT_NOTE_COLOR, APP_MENU_ASKED)
+    for s in (
+        DEVICE_ID,
+        DEFAULT_NOTE_COLOR,
+        APP_MENU_ASKED,
+        USAGE,
+        RECOVERY_KEY_KEPT,
+        RECOVERY_KEY_OFFERED_AGAIN,
+    )
 }
 
 

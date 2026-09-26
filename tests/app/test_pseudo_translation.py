@@ -16,6 +16,7 @@ from pytestqt.qtbot import QtBot
 from update_translations import compile_to, extract
 
 from stickle.app.application import NoteManager
+from stickle.app.first_run import FirstRunDialog
 from stickle.app.i18n import Translations
 from stickle.app.password_dialog import PasswordDialog
 from stickle.app.recovery_dialog import KINDS, Problem, RecoveryDialog
@@ -111,6 +112,7 @@ def test_every_startup_dialog_text_is_translated(qtbot: QtBot, tmp_path: Path) -
         PasswordDialog(False, lambda _: None, can_recover=True),
         EnterRecoveryKeyDialog(lambda _: None),
         RecoveryKeyDialog(RECOVERY_KEY),
+        FirstRunDialog(RECOVERY_KEY, True, True),
     ]
     try:
         translations.apply("fr")

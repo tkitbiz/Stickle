@@ -17,6 +17,7 @@ from PySide6.QtCore import (
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from stickle.app.app_list import icon_png, offer_app_list
+from stickle.app.first_run import welcome
 from stickle.app.fonts import ensure_korean_font
 from stickle.app.i18n import Translations
 from stickle.app.instance_server import InstanceServer
@@ -260,10 +261,23 @@ def run(
             for _ in range(max(1, perf.notes)):
                 manager.open_unstored(SAMPLE_NOTE)
         else:
+            first_start = unlock is not None and unlock.first_start and connection is not None
+            if first_start and unlock is not None and connection is not None:
+                opened = unlock
+                key = opened.opened_key
+                assert key is not None
+                welcome(
+                    NoteRepository(connection),
+                    Settings(connection),
+                    lambda: opened.make_recovery_key(key),
+                    autostart,
+                    app_list,
+                )
             open_at_start(manager, stickle_window, tray_available, at_login)
             if instance_server is not None and instance_server.requested:
                 stickle_window.open()  # started again while this one was still starting
-            if app_list is not None and connection is not None and not at_login:
+            # At first start the welcome asked already.
+            if app_list is not None and connection is not None and not (at_login or first_start):
                 entry, settings = app_list, Settings(connection)
                 # Once the notes are up: the first run of this AppImage.
                 QTimer.singleShot(0, lambda: offer_app_list(entry, settings))

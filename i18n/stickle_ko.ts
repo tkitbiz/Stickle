@@ -48,6 +48,76 @@
     </message>
 </context>
 <context>
+    <name>FirstRun</name>
+    <message>
+        <source># Welcome to Stickle
+Click this note to edit it; click elsewhere to see it formatted again.
+
+- [ ] Tick a box like this one
+- [ ] Double-click the title bar to fold the note
+- [ ] Use the pin to keep a note above other windows, or not
+- [ ] Change its colour from the menu with three dots
+
+The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a new note.</source>
+        <translation># Stickle에 오신 것을 환영합니다
+이 메모를 클릭하면 편집할 수 있고, 다른 곳을 클릭하면 다시 서식이 입혀진 모습으로 보입니다.
+
+- [ ] 이렇게 체크박스를 눌러 보세요
+- [ ] 제목줄을 더블클릭하면 메모가 접힙니다
+- [ ] 핀으로 메모를 다른 창 위에 둘지 정합니다
+- [ ] 점 세 개 메뉴에서 색을 바꿉니다
+
+**X**는 메모를 숨깁니다. Stickle 아이콘에서 다시 꺼낼 수 있습니다. **Ctrl+N**으로 새 메모를 만듭니다.</translation>
+    </message>
+</context>
+<context>
+    <name>FirstRunDialog</name>
+    <message>
+        <source>Welcome to Stickle</source>
+        <translation>Stickle에 오신 것을 환영합니다</translation>
+    </message>
+    <message>
+        <source>Your recovery key</source>
+        <translation>복구 키</translation>
+    </message>
+    <message>
+        <source>Stickle keeps sticky notes on your desktop. They are saved as you type, encrypted on this computer, and nothing is sent anywhere.</source>
+        <translation>Stickle은 바탕화면에 포스트잇 메모를 띄웁니다. 메모는 입력하는 대로 저장되고, 이 컴퓨터 안에서 암호화되며, 어디로도 보내지지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Where will you use your notes?</source>
+        <translation>메모를 어디에서 쓸 건가요?</translation>
+    </message>
+    <message>
+        <source>On this &amp;computer only</source>
+        <translation>이 컴퓨터에서만(&amp;C)</translation>
+    </message>
+    <message>
+        <source>On &amp;several devices (syncing through your own cloud comes later)</source>
+        <translation>여러 기기에서(&amp;S) (내 클라우드를 통한 동기화는 나중에 설정)</translation>
+    </message>
+    <message>
+        <source>&amp;Start Stickle when I log in</source>
+        <translation>로그인할 때 Stickle 시작(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Show Stickle in the &amp;app list</source>
+        <translation>앱 목록에 Stickle 표시(&amp;A)</translation>
+    </message>
+    <message>
+        <source>&amp;Next</source>
+        <translation>다음(&amp;N)</translation>
+    </message>
+    <message>
+        <source>Done</source>
+        <translation>완료</translation>
+    </message>
+    <message>
+        <source>Later</source>
+        <translation>나중에</translation>
+    </message>
+</context>
+<context>
     <name>NoteColor</name>
     <message>
         <source>Yellow</source>
