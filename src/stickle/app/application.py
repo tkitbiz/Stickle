@@ -108,11 +108,17 @@ def run(
 
         # Logging out or shutting down: save first. No quitting yet, since another
         # program may still cancel the logout.
-        def save_everything(*_: object) -> None:
+        def before_session_end(*_: object) -> None:
+            log.info("saving before the session ends")
             manager.save_all(commit=True)
 
-        app.commitDataRequest.connect(save_everything)
-        sleep_watch = watch_sleep(save_everything)
+        def before_sleep() -> None:
+            log.info("saving before sleep")
+            manager.save_all(commit=True)
+
+        app.commitDataRequest.connect(before_session_end)
+        sleep_watch = watch_sleep(before_sleep)
+        log.info("sleep %s", "watched" if sleep_watch is not None else "not watched")
         tray_available = QSystemTrayIcon.isSystemTrayAvailable()
         # Without a tray there would be no way back to a hidden app, so quit with the last note.
         if not tray_available:
