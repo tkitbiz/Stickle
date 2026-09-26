@@ -1,8 +1,13 @@
 """The open note windows, and keeping them in step with the stored notes.
 
 A new note is stored once it has text: an untouched note that is closed
-leaves nothing behind. Text is saved when it loses focus, when the note is
-hidden or deleted, and when the app quits. Hiding keeps the note for later;
+leaves nothing behind. Text is saved a second after typing stops, at least
+every five seconds while typing goes on, when it loses focus, when the note
+is hidden or deleted, and before the app quits, the session ends or the
+computer sleeps. A character still being composed by an input method is
+saved once it is committed; hiding, quitting and sleeping ask the input
+method to commit it first. If saving fails, the text stays in the window, a
+mark in its title bar says so, and saving is tried again. Hiding keeps the note for later;
 hiding a note whose text was all erased deletes it instead (it can still be
 restored), so the hidden list never fills up with empty notes. Deleting only
 marks the note.
@@ -12,9 +17,11 @@ not stored.
 """
 
 import logging
+from collections.abc import Callable
 from typing import override
 
-from PySide6.QtCore import QEvent, QObject, QPoint, Signal
+import apsw
+from PySide6.QtCore import QEvent, QObject, QPoint, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 
 from stickle.app.note_window import NoteWindow
@@ -26,8 +33,56 @@ CASCADE_ORIGIN = 80
 CASCADE_STEP = 32
 CASCADE_LENGTH = 10
 HIDDEN_LISTED = 15
+IDLE_MS = 1000  # save this long after typing stops
+MAX_MS = 5000  # and at least this often while typing goes on
+RETRY_FIRST_MS = 1000
+RETRY_MAX_MS = 30_000
 
 log = logging.getLogger(__name__)
+
+
+def _single_shot(parent: QObject, interval: int, action: Callable[[], object]) -> QTimer:
+    timer = QTimer(parent)
+    timer.setSingleShot(True)
+    timer.setInterval(interval)
+    timer.timeout.connect(action)
+    return timer
+
+
+class AutoSave(QObject):
+    """When to save one note. No timer runs while nothing is waiting to be saved."""
+
+    def __init__(
+        self, save: Callable[[], bool], idle_ms: int, max_ms: int, parent: QObject
+    ) -> None:
+        super().__init__(parent)
+        self._save = save
+        self._idle = _single_shot(self, idle_ms, self.save_now)
+        self._max = _single_shot(self, max_ms, self.save_now)
+        self._retry = _single_shot(self, RETRY_FIRST_MS, self.save_now)
+        self._backoff = RETRY_FIRST_MS
+
+    def changed(self) -> None:
+        if not self._max.isActive():
+            self._max.start()
+        self._idle.start()
+
+    def save_now(self) -> bool:
+        self.stop()
+        if self._save():
+            self._backoff = RETRY_FIRST_MS
+            return True
+        self._retry.start(self._backoff)
+        self._backoff = min(self._backoff * 2, RETRY_MAX_MS)
+        return False
+
+    def stop(self) -> None:
+        for timer in (self._idle, self._max, self._retry):
+            timer.stop()
+
+    @property
+    def waiting(self) -> bool:
+        return any(timer.isActive() for timer in (self._idle, self._max, self._retry))
 
 
 class NoteManager(QObject):
@@ -36,10 +91,18 @@ class NoteManager(QObject):
     # Hidden or deleted notes changed: menus listing them should refresh.
     changed = Signal()
 
-    def __init__(self, repository: NoteRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: NoteRepository | None = None,
+        idle_ms: int = IDLE_MS,
+        max_ms: int = MAX_MS,
+    ) -> None:
         super().__init__()
         self._repository = repository
+        self._idle_ms = idle_ms
+        self._max_ms = max_ms
         self._windows: list[NoteWindow] = []
+        self._autosaves: dict[NoteWindow, AutoSave] = {}
         self._created = 0
         self._quitting = False
 
@@ -63,7 +126,7 @@ class NoteManager(QObject):
 
     def prepare_to_quit(self) -> None:
         self._quitting = True
-        self.save_all()
+        self.save_all(commit=True)
         for window in self._windows:
             window.allow_close()
 
@@ -93,7 +156,11 @@ class NoteManager(QObject):
         window.new_note_requested.connect(self.new_note)
         window.hide_requested.connect(lambda: self.hide(window))
         window.delete_requested.connect(lambda: self.delete(window))
-        window.editing_finished.connect(lambda: self.save(window))
+        autosave = AutoSave(lambda: self.save(window), self._idle_ms, self._max_ms, window)
+        self._autosaves[window] = autosave
+        window.text_changed.connect(autosave.changed)
+        window.editing_finished.connect(autosave.save_now)
+        window.retry_requested.connect(autosave.save_now)
         window.closed.connect(lambda: self._forget(window))
         self._windows.append(window)
 
@@ -109,24 +176,39 @@ class NoteManager(QObject):
 
     def _forget(self, window: NoteWindow) -> None:
         self._windows.remove(window)
+        self._autosaves.pop(window).stop()
         if not self._windows and not self._quitting:
             self.last_note_closed.emit()
 
     # Saving
 
-    def save(self, window: NoteWindow) -> None:
+    def save(self, window: NoteWindow) -> bool:
+        """Store the window's text; False (and the window says so) if that failed."""
         if self._repository is None:
-            return
+            return True
         text = window.text
-        if window.note_id is None:
-            if text:
-                window.note_id = self._repository.create(text).id
-        else:
-            self._repository.update_body(window.note_id, text)
+        try:
+            if window.note_id is None:
+                if text:
+                    window.note_id = self._repository.create(text).id
+            else:
+                self._repository.update_body(window.note_id, text)
+        except (apsw.Error, OSError) as error:
+            log.error("could not save a note: %s", type(error).__name__)
+            window.set_unsaved(True)
+            return False
+        window.set_unsaved(False)
+        return True
 
-    def save_all(self) -> None:
+    def flush(self, window: NoteWindow, commit: bool = True) -> bool:
+        """Save now, with the character being composed if commit is set."""
+        if commit:
+            window.commit_composition()
+        return self._autosaves[window].save_now()
+
+    def save_all(self, commit: bool = False) -> None:
         for window in self._windows:
-            self.save(window)
+            self.flush(window, commit)
 
     # Hiding, deleting, bringing back
 
@@ -134,21 +216,37 @@ class NoteManager(QObject):
         if self._quitting:
             window.release()
             return
-        self.save(window)
+        # A note that could not be saved stays open: closing it would lose the text.
+        if not self.flush(window):
+            return
         if self._repository is not None and window.note_id is not None:
-            if window.text.strip():
-                self._repository.set_hidden(window.note_id, True)
-            else:
-                self._repository.delete(window.note_id)
+            try:
+                if window.text.strip():
+                    self._repository.set_hidden(window.note_id, True)
+                else:
+                    self._repository.delete(window.note_id)
+            except apsw.Error as error:
+                log.error("could not hide a note: %s", type(error).__name__)
+                return
             self.changed.emit()
+        self._autosaves[window].stop()
         window.release()
 
     def delete(self, window: NoteWindow) -> None:
-        self.save(window)
+        if not self.flush(window):
+            return
         if self._repository is not None and window.note_id is not None:
-            self._repository.delete(window.note_id)
+            try:
+                self._repository.delete(window.note_id)
+            except apsw.Error as error:
+                log.error("could not delete a note: %s", type(error).__name__)
+                return
             self.changed.emit()
+        self._autosaves[window].stop()
         window.release()
+
+    def waiting_to_save(self) -> bool:
+        return any(autosave.waiting for autosave in self._autosaves.values())
 
     def hidden_notes(self) -> list[Note]:
         """Most recently hidden first."""

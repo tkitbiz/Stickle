@@ -32,6 +32,9 @@ def open_database(path: Path, key: bytes) -> apsw.Connection:
         connection.close()
         raise WrongKeyError(str(path.name)) from error
     connection.pragma("journal_mode", "wal")
+    # Every committed save reaches the disk before the commit returns, so a power
+    # loss keeps the last save. (SQLite's default today, pinned so it stays.)
+    connection.pragma("synchronous", "FULL")
     # Sorting and temporary tables stay in memory instead of unencrypted temp files.
     connection.pragma("temp_store", "memory")
     return connection

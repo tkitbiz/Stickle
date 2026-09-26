@@ -27,6 +27,14 @@
         <source>New note</source>
         <translation>새 메모</translation>
     </message>
+    <message>
+        <source>Not saved</source>
+        <translation>저장 안 됨</translation>
+    </message>
+    <message>
+        <source>This note could not be saved. Trying again; click to try now.</source>
+        <translation>이 메모를 저장하지 못했습니다. 다시 시도하는 중이며, 누르면 바로 시도합니다.</translation>
+    </message>
 </context>
 <context>
     <name>PasswordDialog</name>

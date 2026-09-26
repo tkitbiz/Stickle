@@ -8,7 +8,9 @@ from PySide6.QtGui import (
     QAction,
     QCloseEvent,
     QColor,
+    QGuiApplication,
     QIcon,
+    QInputMethodEvent,
     QKeySequence,
     QMouseEvent,
     QPainter,
@@ -74,6 +76,12 @@ def _bin(painter: QPainter, size: float) -> None:
     painter.drawRoundedRect(QRectF(size * 0.2, size * 0.22, size * 0.6, size * 0.7), 1, 1)
 
 
+def _warning(painter: QPainter, size: float) -> None:
+    painter.drawEllipse(QRectF(size * 0.08, size * 0.08, size * 0.84, size * 0.84))
+    painter.drawLine(QPointF(size * 0.5, size * 0.28), QPointF(size * 0.5, size * 0.55))
+    painter.drawPoint(QPointF(size * 0.5, size * 0.72))
+
+
 def make_close_icon() -> QIcon:
     return drawn_icon(_cross)
 
@@ -84,6 +92,10 @@ def make_menu_icon() -> QIcon:
 
 def make_delete_icon() -> QIcon:
     return drawn_icon(_bin)
+
+
+def make_unsaved_icon() -> QIcon:
+    return drawn_icon(_warning)
 
 
 class TitleBar(QWidget):
@@ -103,9 +115,15 @@ class TitleBar(QWidget):
         self.close_button = QToolButton(self)
         self.close_button.setIcon(make_close_icon())
         self.close_button.setAutoRaise(True)
+        # Shown only while the note could not be saved; clicking tries again at once.
+        self.unsaved_button = QToolButton(self)
+        self.unsaved_button.setIcon(make_unsaved_icon())
+        self.unsaved_button.setAutoRaise(True)
+        self.unsaved_button.hide()
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 2, 2, 2)
+        layout.addWidget(self.unsaved_button)
         layout.addStretch()
         layout.addWidget(self.menu_button)
         layout.addWidget(self.close_button)
@@ -149,6 +167,8 @@ class NoteWindow(QWidget):
     hide_requested = Signal()
     delete_requested = Signal()
     editing_finished = Signal()  # the text lost focus: a moment to save
+    text_changed = Signal()
+    retry_requested = Signal()
 
     def __init__(self, note_id: str | None = None, text: str = "") -> None:
         super().__init__(
@@ -171,6 +191,10 @@ class NoteWindow(QWidget):
 
         self.note_id = note_id  # None until the note is first stored
         self._released = False
+        # An input method is composing a character (Hangul syllables, for example).
+        # The editor's text holds only what is committed, so saving never catches
+        # half a character.
+        self.composing = False
 
         self.title_bar = TitleBar(self)
         self.title_bar.close_button.clicked.connect(self.hide_requested)
@@ -183,6 +207,8 @@ class NoteWindow(QWidget):
         self.editor.setFrameShape(QPlainTextEdit.Shape.NoFrame)
         self.editor.setPlainText(text)
         self.editor.installEventFilter(self)
+        self.editor.textChanged.connect(self.text_changed)
+        self.title_bar.unsaved_button.clicked.connect(self.retry_requested)
 
         grip_row = QHBoxLayout()
         grip_row.setContentsMargins(0, 0, 0, 0)
@@ -225,6 +251,10 @@ class NoteWindow(QWidget):
         self.menu_action.setText(note_menu)
         self.delete_action.setText(self.tr("Delete note"))
         self.new_note_action.setText(self.tr("New note"))
+        self.title_bar.unsaved_button.setAccessibleName(self.tr("Not saved"))
+        self.title_bar.unsaved_button.setToolTip(
+            self.tr("This note could not be saved. Trying again; click to try now.")
+        )
 
     @override
     def changeEvent(self, event: QEvent) -> None:
@@ -251,6 +281,18 @@ class NoteWindow(QWidget):
     def text(self) -> str:
         return self.editor.toPlainText()
 
+    def commit_composition(self) -> None:
+        """Ask the input method to finish the character being composed, so it is kept."""
+        if self.composing and self.editor.hasFocus():
+            QGuiApplication.inputMethod().commit()
+
+    def set_unsaved(self, unsaved: bool) -> None:
+        self.title_bar.unsaved_button.setVisible(unsaved)
+
+    @property
+    def unsaved(self) -> bool:
+        return self.title_bar.unsaved_button.isVisibleTo(self)
+
     def open_menu(self) -> None:
         button = self.title_bar.menu_button
         self.menu.popup(button.mapToGlobal(button.rect().bottomLeft()))
@@ -271,6 +313,8 @@ class NoteWindow(QWidget):
         # away, and that must not store it again.
         if watched is self.editor and event.type() == QEvent.Type.FocusOut and not self._released:
             self.editing_finished.emit()
+        if watched is self.editor and isinstance(event, QInputMethodEvent):
+            self.composing = bool(event.preeditString())
         return super().eventFilter(watched, event)
 
     @override

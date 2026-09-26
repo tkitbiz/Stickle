@@ -98,6 +98,10 @@ def test_uses_write_ahead_logging(db: apsw.Connection) -> None:
     assert db.pragma("journal_mode") == "wal"
 
 
+def test_every_commit_reaches_the_disk(db: apsw.Connection) -> None:
+    assert db.pragma("synchronous") == 2  # FULL
+
+
 # Invariant 3: what is stored comes back unchanged.
 
 

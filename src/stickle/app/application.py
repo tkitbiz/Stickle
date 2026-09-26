@@ -17,6 +17,7 @@ from stickle.app.startup import open_notes
 from stickle.app.tray import Tray
 from stickle.data.notes import NoteRepository
 from stickle.platform.linux.display import preferred_qt_platform
+from stickle.platform.power import watch_sleep
 from stickle.unlock import Unlock
 
 APP_ID = "co.linkro.stickle"
@@ -104,6 +105,14 @@ def run(
         manager = NoteManager(NoteRepository(connection) if connection else None)
         manager.watch_quit(app)
         app.aboutToQuit.connect(manager.save_all)
+
+        # Logging out or shutting down: save first. No quitting yet, since another
+        # program may still cancel the logout.
+        def save_everything(*_: object) -> None:
+            manager.save_all(commit=True)
+
+        app.commitDataRequest.connect(save_everything)
+        sleep_watch = watch_sleep(save_everything)
         tray_available = QSystemTrayIcon.isSystemTrayAvailable()
         # Without a tray there would be no way back to a hidden app, so quit with the last note.
         if not tray_available:
@@ -123,7 +132,10 @@ def run(
             # Includes any time spent at the password prompt.
             QTimer.singleShot(0, lambda: log.info("started: %s", ", ".join(timings)))
         main_loop_running = True
-        return app.exec()
+        try:
+            return app.exec()
+        finally:
+            del sleep_watch
     finally:
         watcher.close()
         if connection is not None:
