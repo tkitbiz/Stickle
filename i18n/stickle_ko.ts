@@ -75,6 +75,10 @@
         <translation>메모 메뉴</translation>
     </message>
     <message>
+        <source>Always on top</source>
+        <translation>항상 위에 표시</translation>
+    </message>
+    <message>
         <source>Color</source>
         <translation>색</translation>
     </message>
@@ -350,6 +354,10 @@
     <message>
         <source>Hidden notes</source>
         <translation>숨긴 메모</translation>
+    </message>
+    <message>
+        <source>Bring all notes to front</source>
+        <translation>모든 메모 앞으로 가져오기</translation>
     </message>
     <message>
         <source>Language</source>

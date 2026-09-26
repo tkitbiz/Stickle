@@ -56,6 +56,8 @@ class Tray(QSystemTrayIcon):
         self.hidden_menu = self._menu.addMenu("")
         self.restore_action = self._menu.addAction("")
         self.restore_action.triggered.connect(self._restore)
+        self.raise_action = self._menu.addAction("")
+        self.raise_action.triggered.connect(self._raise_all)
         self._menu.addSeparator()
 
         self.language_menu = self._menu.addMenu("")
@@ -115,9 +117,14 @@ class Tray(QSystemTrayIcon):
         if self._notes:
             self._notes.restore_last_deleted()
 
+    def _raise_all(self) -> None:
+        if self._notes:
+            self._notes.raise_all()
+
     def retranslate(self) -> None:
         self.new_note_action.setText(self.tr("New note"))
         self.hidden_menu.setTitle(self.tr("Hidden notes"))
+        self.raise_action.setText(self.tr("Bring all notes to front"))
         self.refresh_notes()
         self.language_menu.setTitle(self.tr("Language"))
         self.language_actions[None].setText(self.tr("System language"))

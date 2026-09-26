@@ -114,6 +114,24 @@ def _warning(painter: QPainter, size: float) -> None:
     painter.drawPoint(QPointF(size * 0.5, size * 0.72))
 
 
+def _pin(painter: QPainter, size: float, filled: bool) -> None:
+    """A push pin: a round head on a plate, and its point below."""
+    if filled:
+        painter.setBrush(painter.pen().color())
+    painter.drawEllipse(QRectF(size * 0.28, size * 0.06, size * 0.44, size * 0.44))
+    painter.drawLine(QPointF(size * 0.2, size * 0.6), QPointF(size * 0.8, size * 0.6))
+    painter.drawLine(QPointF(size * 0.5, size * 0.6), QPointF(size * 0.5, size * 0.95))
+
+
+def make_pin_icon(color: QColor, pinned: bool) -> QIcon:
+    """Solid while the note stays on top; faint and hollow while it does not."""
+    if pinned:
+        return drawn_icon(lambda painter, size: _pin(painter, size, filled=True), color)
+    faint = QColor(color)
+    faint.setAlphaF(0.45)
+    return drawn_icon(lambda painter, size: _pin(painter, size, filled=False), faint)
+
+
 def make_close_icon(color: QColor) -> QIcon:
     return drawn_icon(_cross, color)
 
@@ -149,6 +167,17 @@ class TitleBar(QWidget):
         self.title.hide()
         self._full_title = ""
 
+        # Always on top: a pin that shows at a glance whether the note stays on top.
+        self.pin_button = QToolButton(self)
+        self.pin_button.setAutoRaise(True)
+        self.pin_button.setCheckable(True)
+        self.pin_button.setChecked(True)
+        # The icon itself shows the state; a pressed-in button on top of it looks heavy.
+        self.pin_button.setStyleSheet(
+            "QToolButton:checked { background: transparent; border: none; }"
+        )
+        self._icon_color = qcolor(DARK_TEXT)
+        self.pin_button.toggled.connect(self._show_pin)
         self.menu_button = QToolButton(self)
         self.menu_button.setAutoRaise(True)
         self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
@@ -167,13 +196,20 @@ class TitleBar(QWidget):
         layout.addWidget(self.unsaved_button)
         layout.addWidget(self.title, 1)
         layout.addStretch()
+        # Kept away from the hide button, so it is not hit by mistake.
+        layout.addWidget(self.pin_button)
         layout.addWidget(self.menu_button)
         layout.addWidget(self.close_button)
 
     def set_icon_color(self, color: QColor) -> None:
+        self._icon_color = color
         self.menu_button.setIcon(make_menu_icon(color))
         self.close_button.setIcon(make_close_icon(color))
         self.unsaved_button.setIcon(make_unsaved_icon(color))
+        self._show_pin(self.pin_button.isChecked())
+
+    def _show_pin(self, pinned: bool) -> None:
+        self.pin_button.setIcon(make_pin_icon(self._icon_color, pinned))
 
     def set_title(self, title: str) -> None:
         """Shown while the note is folded, shortened to the width it has."""
@@ -259,10 +295,15 @@ class NoteWindow(QWidget):
     retry_requested = Signal()
     color_requested = Signal(str)  # a palette key
     collapse_requested = Signal(bool)  # True: fold to the title bar, False: unfold
+    on_top_requested = Signal(bool)  # True: stay above other windows
     geometry_settled = Signal()  # moved or resized, and then left alone for a moment
 
     def __init__(
-        self, note_id: str | None = None, text: str = "", color: str = DEFAULT_COLOR
+        self,
+        note_id: str | None = None,
+        text: str = "",
+        color: str = DEFAULT_COLOR,
+        always_on_top: bool = True,
     ) -> None:
         super().__init__(
             None,
@@ -321,6 +362,12 @@ class NoteWindow(QWidget):
         self.collapse_action.triggered.connect(
             lambda: self.collapse_requested.emit(not self.collapsed)
         )
+        # The same as the pin, for the keyboard and screen readers.
+        self.on_top_action = self.menu.addAction("")
+        self.on_top_action.setCheckable(True)
+        self.on_top_action.setChecked(True)
+        self.on_top_action.triggered.connect(self.on_top_requested)
+        self.title_bar.pin_button.clicked.connect(self.on_top_requested)
         self.menu.addSeparator()
         # The menu has the system's colours, which are the note's only by chance.
         self.delete_action = self.menu.addAction(make_delete_icon(qcolor(DARK_TEXT)), "")
@@ -370,6 +417,7 @@ class NoteWindow(QWidget):
         self.addAction(self.menu_action)
 
         self.set_color(color)
+        self.set_always_on_top(always_on_top)
         self.retranslate()
         if text.strip():
             self.show_formatted()
@@ -390,6 +438,10 @@ class NoteWindow(QWidget):
         note_menu = self.tr("Note menu")
         self.title_bar.menu_button.setAccessibleName(note_menu)
         self.title_bar.menu_button.setToolTip(note_menu)
+        on_top = self.tr("Always on top")
+        self.on_top_action.setText(on_top)
+        self.title_bar.pin_button.setAccessibleName(on_top)
+        self.title_bar.pin_button.setToolTip(on_top)
         self.menu_action.setText(note_menu)
         self.color_menu.setTitle(self.tr("Color"))
         self.collapse_action.setText(
@@ -436,6 +488,26 @@ class NoteWindow(QWidget):
         if self.collapsed:
             geometry.setHeight(self._expanded_height)
         return geometry
+
+    @property
+    def always_on_top(self) -> bool:
+        return bool(self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint)
+
+    def set_always_on_top(self, on_top: bool) -> None:
+        """Keep the note above other windows, or let them cover it."""
+        self.title_bar.pin_button.setChecked(on_top)
+        self.on_top_action.setChecked(on_top)
+        if on_top == self.always_on_top:
+            return
+        was_visible = self.isVisible()
+        geometry = self.geometry()
+        # Qt hides a window whose flags change; it comes back where it was.
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on_top)
+        if was_visible:
+            self.setGeometry(geometry)
+            self.show()
+            self.raise_()
+            self.activateWindow()
 
     def set_collapsed(self, collapsed: bool) -> None:
         """Fold the note to its title bar, keeping its top edge where it is, or unfold it."""

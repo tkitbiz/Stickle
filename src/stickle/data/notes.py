@@ -133,6 +133,12 @@ class NoteRepository:
             return note
         return self._change(note_id, {"color": color})
 
+    def set_always_on_top(self, note_id: str, on_top: bool) -> Note:
+        note = self._require_live(note_id)
+        if note.always_on_top == on_top:
+            return note
+        return self._change(note_id, {"always_on_top": int(on_top)})
+
     def set_collapsed(self, note_id: str, collapsed: bool) -> Note:
         """Folded to its title bar; its size is kept with its place (note_layouts)."""
         note = self._require_live(note_id)

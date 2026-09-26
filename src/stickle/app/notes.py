@@ -173,7 +173,7 @@ class NoteManager(QObject):
 
     def _open(self, note: Note | None, text: str = "") -> NoteWindow:
         if note is not None:
-            window = NoteWindow(note.id, note.body, note.color)
+            window = NoteWindow(note.id, note.body, note.color, note.always_on_top)
         else:
             window = NoteWindow(None, text, self._new_note_color())
         window.new_note_requested.connect(self.new_note)
@@ -187,6 +187,11 @@ class NoteManager(QObject):
             self.set_collapsed(window, collapsed)
 
         window.collapse_requested.connect(collapse_requested)
+
+        def on_top_requested(on_top: bool) -> None:
+            self.set_always_on_top(window, on_top)
+
+        window.on_top_requested.connect(on_top_requested)
         window.hide_requested.connect(lambda: self.hide(window))
         window.delete_requested.connect(lambda: self.delete(window))
         autosave = AutoSave(lambda: self.save(window), self._idle_ms, self._max_ms, window)
@@ -232,6 +237,8 @@ class NoteManager(QObject):
                     self.save_layout(window, force=True)
                     if window.collapsed:
                         self._repository.set_collapsed(window.note_id, True)
+                    if not window.always_on_top:
+                        self._repository.set_always_on_top(window.note_id, False)
             else:
                 self._repository.update_body(window.note_id, text)
         except (apsw.Error, OSError) as error:
@@ -309,6 +316,29 @@ class NoteManager(QObject):
         """Save every note that stays open (logout, sleep)."""
         for window in self._windows:
             self.flush(window)
+
+    # Staying on top
+
+    def set_always_on_top(self, window: NoteWindow, on_top: bool) -> None:
+        """Keep a note above other windows or not. If that cannot be stored,
+        the note stays as it was (the pin shows so)."""
+        if self._repository is not None and window.note_id is not None:
+            try:
+                self._repository.set_always_on_top(window.note_id, on_top)
+            except apsw.Error as error:
+                log.error("could not store a note staying on top: %s", type(error).__name__)
+                window.set_always_on_top(window.always_on_top)
+                return
+        window.set_always_on_top(on_top)
+        window.mark_placed()  # the window system may have nudged it: not the user's move
+
+    def raise_all(self) -> None:
+        """Bring every open note in front of other windows (notes not on top get covered)."""
+        for window in self._windows:
+            window.show()
+            window.raise_()
+        if self._windows:
+            self._windows[-1].activateWindow()
 
     # Folding
 
