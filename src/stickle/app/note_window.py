@@ -59,47 +59,62 @@ from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
 from stickle.core.markdown import note_title, task_box
 
 CORNER_RADIUS = 6
-TITLE_BAR_HEIGHT = 28  # also the height of a folded note
+TITLE_BAR_HEIGHT = 22  # also the height of a folded note
+BUTTON_SIZE = 20
+ICON_SIZE = 12
+STROKE = 1.1  # line width of drawn icons, in logical pixels
+# Screen scales drawn for, so icons stay crisp at 125 %, 150 %, 175 % too.
+ICON_SCALES = (1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0)
 MAX_HEIGHT = 16_777_215  # Qt's QWIDGETSIZE_MAX: no limit
 DEFAULT_SIZE = (260, 240)
-CLOSE_ICON_SIZE = 10
 # How long an input method has to commit a character after the focus left.
 DROP_CHECK_MS = 150
 # Moving and resizing report a stream of positions: the place is kept once they stop.
 SETTLE_MS = 500
 
 
-def drawn_icon(draw: Callable[[QPainter, float], None], color: QColor) -> QIcon:
-    """An icon drawn in color at 1x and 2x for high-DPI screens.
+def drawn_icon(
+    draw: Callable[[QPainter, float], None], color: QColor, quiet: QColor | None = None
+) -> QIcon:
+    """An icon drawn in color, at every usual screen scale.
 
-    Drawn rather than symbol characters: finding a font with such a glyph
-    made showing the first note take a third of a second longer.
+    With quiet, the icon is drawn in that colour at rest and in color when
+    the pointer is on it. Drawn rather than symbol characters: finding a
+    font with such a glyph made showing the first note a third of a second
+    slower. Drawn per scale rather than scaled, so lines stay sharp.
     """
     icon = QIcon()
-    for scale in (1, 2):
-        size = CLOSE_ICON_SIZE * scale
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pen = QPen(color, 1.4 * scale)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
-        draw(painter, size)
-        painter.end()
-        icon.addPixmap(pixmap)
+    modes = [(QIcon.Mode.Normal, quiet or color), (QIcon.Mode.Active, color)]
+    for mode, ink in modes:
+        for scale in ICON_SCALES:
+            pixels = round(ICON_SIZE * scale)
+            pixmap = QPixmap(pixels, pixels)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            pen = QPen(ink, STROKE * scale)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+            draw(painter, pixels)
+            painter.end()
+            pixmap.setDevicePixelRatio(scale)
+            icon.addPixmap(pixmap, mode)
     return icon
 
 
 def _cross(painter: QPainter, size: float) -> None:
-    inset = size * 0.15
+    inset = size * 0.2
     painter.drawLine(QPointF(inset, inset), QPointF(size - inset, size - inset))
     painter.drawLine(QPointF(size - inset, inset), QPointF(inset, size - inset))
 
 
-def _bars(painter: QPainter, size: float) -> None:
-    for y in (0.2, 0.5, 0.8):
-        painter.drawLine(QPointF(size * 0.1, size * y), QPointF(size * 0.9, size * y))
+def _dots(painter: QPainter, size: float) -> None:
+    """Three dots in a row: the menu."""
+    painter.setBrush(painter.pen().color())
+    radius = size * 0.085
+    for x in (0.18, 0.5, 0.82):
+        painter.drawEllipse(QPointF(size * x, size * 0.5), radius, radius)
 
 
 def _bin(painter: QPainter, size: float) -> None:
@@ -114,30 +129,33 @@ def _warning(painter: QPainter, size: float) -> None:
     painter.drawPoint(QPointF(size * 0.5, size * 0.72))
 
 
-def _pin(painter: QPainter, size: float, filled: bool) -> None:
-    """A push pin: a round head on a plate, and its point below."""
-    if filled:
-        painter.setBrush(painter.pen().color())
-    painter.drawEllipse(QRectF(size * 0.28, size * 0.06, size * 0.44, size * 0.44))
-    painter.drawLine(QPointF(size * 0.2, size * 0.6), QPointF(size * 0.8, size * 0.6))
-    painter.drawLine(QPointF(size * 0.5, size * 0.6), QPointF(size * 0.5, size * 0.95))
-
-
-def make_pin_icon(color: QColor, pinned: bool) -> QIcon:
-    """Solid while the note stays on top; faint and hollow while it does not."""
+def _pin(painter: QPainter, size: float, pinned: bool) -> None:
+    """A push pin: a head, a collar and a point. Pushed in (upright, head
+    filled) while the note stays on top; lying on its side and hollow when not,
+    so the state shows in its shape, not only its colour."""
+    if not pinned:
+        painter.translate(size / 2, size / 2)
+        painter.rotate(45)
+        painter.translate(-size / 2, -size / 2)
     if pinned:
-        return drawn_icon(lambda painter, size: _pin(painter, size, filled=True), color)
-    faint = QColor(color)
-    faint.setAlphaF(0.45)
-    return drawn_icon(lambda painter, size: _pin(painter, size, filled=False), faint)
+        painter.setBrush(painter.pen().color())
+    painter.drawRoundedRect(
+        QRectF(size * 0.34, size * 0.08, size * 0.32, size * 0.34), size * 0.08, size * 0.08
+    )
+    painter.drawLine(QPointF(size * 0.24, size * 0.48), QPointF(size * 0.76, size * 0.48))
+    painter.drawLine(QPointF(size * 0.5, size * 0.48), QPointF(size * 0.5, size * 0.92))
 
 
-def make_close_icon(color: QColor) -> QIcon:
-    return drawn_icon(_cross, color)
+def make_pin_icon(color: QColor, pinned: bool, quiet: QColor | None = None) -> QIcon:
+    return drawn_icon(lambda painter, size: _pin(painter, size, pinned), color, quiet)
 
 
-def make_menu_icon(color: QColor) -> QIcon:
-    return drawn_icon(_bars, color)
+def make_close_icon(color: QColor, quiet: QColor | None = None) -> QIcon:
+    return drawn_icon(_cross, color, quiet)
+
+
+def make_menu_icon(color: QColor, quiet: QColor | None = None) -> QIcon:
+    return drawn_icon(_dots, color, quiet)
 
 
 def make_delete_icon(color: QColor) -> QIcon:
@@ -168,31 +186,23 @@ class TitleBar(QWidget):
         self._full_title = ""
 
         # Always on top: a pin that shows at a glance whether the note stays on top.
-        self.pin_button = QToolButton(self)
-        self.pin_button.setAutoRaise(True)
+        self.pin_button = self._button()
         self.pin_button.setCheckable(True)
         self.pin_button.setChecked(True)
-        # The icon itself shows the state; a pressed-in button on top of it looks heavy.
-        self.pin_button.setStyleSheet(
-            "QToolButton:checked { background: transparent; border: none; }"
-        )
         self._icon_color = qcolor(DARK_TEXT)
+        self._quiet_color = qcolor(DARK_TEXT)
         self.pin_button.toggled.connect(self._show_pin)
-        self.menu_button = QToolButton(self)
-        self.menu_button.setAutoRaise(True)
+        self.menu_button = self._button()
         self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        # The menu arrow would crowd the small title bar; the icon says it is a menu.
-        self.menu_button.setStyleSheet("QToolButton::menu-indicator { image: none; }")
-        self.close_button = QToolButton(self)
-        self.close_button.setAutoRaise(True)
+        self.close_button = self._button()
         # Shown only while the note could not be saved; clicking tries again at once.
-        self.unsaved_button = QToolButton(self)
-        self.unsaved_button.setAutoRaise(True)
+        self.unsaved_button = self._button()
         self.unsaved_button.hide()
         self.set_icon_color(qcolor(DARK_TEXT))
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 2, 2, 2)
+        layout.setContentsMargins(6, 1, 1, 1)
+        layout.setSpacing(1)
         layout.addWidget(self.unsaved_button)
         layout.addWidget(self.title, 1)
         layout.addStretch()
@@ -201,15 +211,26 @@ class TitleBar(QWidget):
         layout.addWidget(self.menu_button)
         layout.addWidget(self.close_button)
 
-    def set_icon_color(self, color: QColor) -> None:
+    def _button(self) -> QToolButton:
+        """A small flat button; its look comes from the note's style sheet."""
+        button = QToolButton(self)
+        button.setAutoRaise(True)
+        button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
+        button.setIconSize(QSize(ICON_SIZE, ICON_SIZE))
+        return button
+
+    def set_icon_color(self, color: QColor, quiet: QColor | None = None) -> None:
+        """Icons in color when pointed at, and quiet (quieter) otherwise."""
         self._icon_color = color
-        self.menu_button.setIcon(make_menu_icon(color))
-        self.close_button.setIcon(make_close_icon(color))
+        self._quiet_color = quiet or color
+        self.menu_button.setIcon(make_menu_icon(color, self._quiet_color))
+        self.close_button.setIcon(make_close_icon(color, self._quiet_color))
+        # A warning should not be quiet.
         self.unsaved_button.setIcon(make_unsaved_icon(color))
         self._show_pin(self.pin_button.isChecked())
 
     def _show_pin(self, pinned: bool) -> None:
-        self.pin_button.setIcon(make_pin_icon(self._icon_color, pinned))
+        self.pin_button.setIcon(make_pin_icon(self._icon_color, pinned, self._quiet_color))
 
     def set_title(self, title: str) -> None:
         """Shown while the note is folded, shortened to the width it has."""
@@ -578,14 +599,21 @@ class NoteWindow(QWidget):
         self.color = color
         self.colors = note_colors(color)
         text = qcolor(self.colors.text).name()
-        title_text = qcolor(self.colors.title_text).name()
+        title = self.colors.title_text
+        shade = f"{title.red}, {title.green}, {title.blue}"
         # Style sheets rather than a palette: native styles ignore palette text colours.
         # Pinned so a dark system theme does not paint light text on a light note.
+        # The buttons are flat: only a faint rounded shade where the pointer is.
         self.setStyleSheet(
             f"QPlainTextEdit, QTextEdit {{ background: transparent; color: {text}; }}"
-            f"TitleBar QToolButton, TitleBar QLabel {{ color: {title_text}; }}"
+            f"TitleBar QLabel {{ color: {qcolor(title).name()}; }}"
+            "TitleBar QToolButton { border: none; border-radius: 4px; padding: 0;"
+            " background: transparent; }"
+            f"TitleBar QToolButton:hover {{ background: rgba({shade}, 0.12); }}"
+            f"TitleBar QToolButton:pressed {{ background: rgba({shade}, 0.22); }}"
+            "TitleBar QToolButton::menu-indicator { image: none; width: 0; }"
         )
-        self.title_bar.set_icon_color(qcolor(self.colors.title_text))
+        self.title_bar.set_icon_color(qcolor(title), qcolor(self.colors.title_icon))
         self.view.set_colors(self.colors)
         self.highlighter.set_colors(self.colors)
         for key, action in self.color_actions.items():

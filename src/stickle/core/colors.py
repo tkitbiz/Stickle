@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 DEFAULT_COLOR = "yellow"
 MIN_CONTRAST = 4.5
+ICON_CONTRAST = 3.0  # WCAG for icons and other graphics
+QUIET_ICON = 0.6  # title bar icons at rest: this much of the text colour, if it reads
 
 
 @dataclass(frozen=True)
@@ -122,6 +124,14 @@ def readable(background: Rgb, text: Rgb | None = None) -> Rgb:
     return background
 
 
+def quiet(color: Rgb, background: Rgb) -> Rgb:
+    """color faded towards background, but no further than icons stay clear (3:1)."""
+    alpha = QUIET_ICON
+    while alpha < 1 and contrast(color.over(background, alpha), background) < ICON_CONTRAST:
+        alpha = min(1.0, alpha + 0.05)
+    return color.over(background, alpha)
+
+
 def _lab(color: Rgb) -> tuple[float, float, float]:
     """CIE L*a*b* (D65), to judge how different two colours look."""
     red, green, blue = (_linear(c) for c in (color.red, color.green, color.blue))
@@ -148,6 +158,7 @@ class NoteColors:
     border: Rgb
     text: Rgb
     title_text: Rgb
+    title_icon: Rgb  # title bar icons at rest: quieter than the text, still clear
     highlight: Rgb
     code_background: Rgb
 
@@ -167,6 +178,7 @@ def colors_for(background: Rgb) -> NoteColors:
         border=text.over(background, BORDER_SHADE),
         text=text,
         title_text=text_on(title_bar),
+        title_icon=quiet(text_on(title_bar), title_bar),
         # The note's text is written on these, so they must suit it.
         highlight=readable(highlight, text),
         code_background=readable(text.over(background, CODE_SHADE), text),

@@ -7,6 +7,7 @@ from hypothesis import strategies as st
 from stickle.core.colors import (
     DEFAULT_COLOR,
     HIGHLIGHT_DIFFERENCE,
+    ICON_CONTRAST,
     MIN_CONTRAST,
     PALETTE,
     Rgb,
@@ -77,3 +78,13 @@ def test_a_dark_note_gets_light_text_and_a_lighter_title_bar() -> None:
 @given(any_color)
 def test_hex_round_trip(color: Rgb) -> None:
     assert Rgb.from_hex(color.hex) == color
+
+
+@pytest.mark.parametrize("key", list(PALETTE))
+def test_quiet_title_bar_icons_still_stand_out(key: str) -> None:
+    colors = note_colors(key)
+
+    assert contrast(colors.title_icon, colors.title_bar) >= ICON_CONTRAST
+    assert contrast(colors.title_icon, colors.title_bar) < contrast(
+        colors.title_text, colors.title_bar
+    )
