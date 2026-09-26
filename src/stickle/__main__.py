@@ -55,8 +55,9 @@ def main(argv: list[str] | None = None) -> int:
     unlock = Unlock(folder)
 
     from stickle.app.application import run
+    from stickle.data.startup import StartupSettings
 
-    return run(args, unlock=unlock, started=started)
+    return run(args, unlock=unlock, started=started, startup=StartupSettings(folder))
 
 
 if __name__ == "__main__":

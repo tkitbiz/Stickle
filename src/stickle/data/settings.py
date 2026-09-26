@@ -1,6 +1,7 @@
 """Settings, in two kinds.
 
-Device settings belong to this computer only (language, autostart, ...).
+Device settings belong to this computer only (autostart, ...; the language,
+needed before the database opens, is in stickle.data.startup).
 Shared settings will follow the user to every device once sync exists
 (default colour, categories, ...); each records when and on which device it
 last changed, so sync can later pick the newest per setting.
@@ -35,10 +36,6 @@ class InvalidSettingError(ValueError):
     pass
 
 
-def _optional_language(value: object) -> TypeGuard[str | None]:
-    return value is None or value in {"en", "ko"}
-
-
 def _color_key(value: object) -> TypeGuard[str]:
     return isinstance(value, str) and value.isidentifier()
 
@@ -52,14 +49,14 @@ def _uuid_or_none(value: object) -> TypeGuard[str | None]:
         return False
 
 
-# None follows the system language.
-LANGUAGE = Setting[str | None]("language", "device", None, _optional_language)
+# The interface language is not here: it is needed before the database is
+# open (see stickle.data.startup).
 DEVICE_ID = Setting[str | None]("device_id", "device", None, _uuid_or_none)
 DEFAULT_NOTE_COLOR = Setting[str]("default_color", "shared", DEFAULT_COLOR, _color_key)
 
 SETTINGS: dict[str, Setting[object]] = {
     s.key: s  # pyright: ignore[reportAssignmentType]
-    for s in (LANGUAGE, DEVICE_ID, DEFAULT_NOTE_COLOR)
+    for s in (DEVICE_ID, DEFAULT_NOTE_COLOR)
 }
 
 

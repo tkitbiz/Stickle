@@ -24,6 +24,7 @@ from stickle.app.tray import Tray
 from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
 from stickle.data.settings import Settings
+from stickle.data.startup import StartupSettings
 from stickle.platform.linux.display import preferred_qt_platform
 from stickle.platform.power import watch_sleep
 from stickle.unlock import Unlock
@@ -54,16 +55,36 @@ def log_qt_message(kind: QtMsgType, _context: QMessageLogContext, message: str) 
     logging.getLogger("qt").log(QT_LOG_LEVELS.get(kind, logging.WARNING), "%s", message)
 
 
+def use_language(translations: Translations, startup: StartupSettings | None) -> None:
+    """Apply the language chosen on this computer, and keep any new choice."""
+    translations.apply(startup.language if startup else None)
+    if startup is None:
+        return
+
+    def remember() -> None:
+        try:
+            startup.set_language(translations.language)
+        except OSError as error:
+            # The choice still applies now; it is only not kept for next time.
+            log.error("could not keep the interface language: %s", type(error).__name__)
+
+    translations.changed.connect(remember)
+
+
 def run(
     argv: list[str],
     perf: PerfMode | None = None,
     unlock: Unlock | None = None,
     started: float | None = None,
+    startup: StartupSettings | None = None,
 ) -> int:
     """Run the app. In measurement mode, open perf.notes notes and print READY.
 
     With unlock, the notes database is opened first (asking for a password or
     showing the recovery dialog when needed); quitting there ends the app.
+    With startup, the language chosen before applies from the first window
+    on, the password prompt and recovery screen included, and a new choice
+    is kept there.
     """
     timings: list[str] = []
 
@@ -99,7 +120,7 @@ def run(
         ensure_korean_font()
         mark("fonts")
         translations = Translations()
-        translations.apply(None)
+        use_language(translations, startup)
         log.info("interface language: %s", QLocale().name())
         mark("translations")
         if perf is not None:

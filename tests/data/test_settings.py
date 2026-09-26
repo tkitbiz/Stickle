@@ -11,7 +11,6 @@ from stickle.data.schema import open_store
 from stickle.data.settings import (
     DEFAULT_NOTE_COLOR,
     DEVICE_ID,
-    LANGUAGE,
     SETTINGS,
     InvalidSettingError,
     Settings,
@@ -19,6 +18,7 @@ from stickle.data.settings import (
 
 KEY = secrets.token_bytes(KEY_BYTES)
 NOW = "2026-09-26T10:00:00.000Z"
+AN_ID = "0b9b6b4e-6f86-4a53-9d8e-2d7a4c1f0a11"
 
 
 @pytest.fixture
@@ -30,31 +30,31 @@ def db(tmp_path: Path) -> Iterator[apsw.Connection]:
 
 def test_unset_settings_read_as_their_defaults(db: apsw.Connection) -> None:
     settings = Settings(db)
-    assert settings.get(LANGUAGE) is None  # follow the system
+    assert settings.get(DEVICE_ID) is None
     assert settings.get(DEFAULT_NOTE_COLOR) == "yellow"
 
 
 def test_values_survive_reopening(tmp_path: Path) -> None:
     path = tmp_path / "notes.db"
     connection = open_store(path, KEY)
-    Settings(connection).set(LANGUAGE, "ko")
+    Settings(connection).set(DEVICE_ID, AN_ID)
     Settings(connection).set(DEFAULT_NOTE_COLOR, "blue")
     connection.close()
 
     connection = open_store(path, KEY)
-    assert Settings(connection).get(LANGUAGE) == "ko"
+    assert Settings(connection).get(DEVICE_ID) == AN_ID
     assert Settings(connection).get(DEFAULT_NOTE_COLOR) == "blue"
     connection.close()
 
 
 def test_device_and_shared_settings_are_kept_apart(db: apsw.Connection) -> None:
     settings = Settings(db, clock=lambda: NOW)
-    settings.set(LANGUAGE, "en")
+    settings.set(DEVICE_ID, AN_ID)
     settings.set(DEFAULT_NOTE_COLOR, "green")
 
     device = db.execute("SELECT key FROM device_settings ORDER BY key").fetchall()
     shared = db.execute("SELECT key FROM shared_settings").fetchall()
-    assert ("language",) in device
+    assert ("device_id",) in device
     assert shared == [("default_color",)]
 
 
@@ -69,18 +69,20 @@ def test_shared_settings_record_when_and_where_they_changed(db: apsw.Connection)
 def test_invalid_values_are_refused(db: apsw.Connection) -> None:
     settings = Settings(db)
     with pytest.raises(InvalidSettingError):
-        settings.set(LANGUAGE, "fr")
+        settings.set(DEVICE_ID, "not a uuid")
     with pytest.raises(InvalidSettingError):
         settings.set(DEFAULT_NOTE_COLOR, "not a colour")
-    assert settings.get(LANGUAGE) is None
+    assert settings.get(DEVICE_ID) is None
 
 
 def test_stored_value_that_no_longer_fits_falls_back_to_the_default(
     db: apsw.Connection,
 ) -> None:
     with db:
-        db.execute("INSERT INTO device_settings VALUES ('language', '\"xx\"')")
-    assert Settings(db).get(LANGUAGE) is None
+        db.execute(
+            "INSERT INTO shared_settings VALUES ('default_color', '\"a b\"', ?, ?)", (NOW, AN_ID)
+        )
+    assert Settings(db).get(DEFAULT_NOTE_COLOR) == "yellow"
 
 
 def test_device_id_is_created_once_and_kept(db: apsw.Connection) -> None:
@@ -101,4 +103,4 @@ def test_the_device_id_is_a_device_setting() -> None:
 
 def test_every_setting_is_registered_under_its_key() -> None:
     assert all(key == setting.key for key, setting in SETTINGS.items())
-    assert {LANGUAGE.key, DEVICE_ID.key, DEFAULT_NOTE_COLOR.key} <= SETTINGS.keys()
+    assert {DEVICE_ID.key, DEFAULT_NOTE_COLOR.key} <= SETTINGS.keys()
