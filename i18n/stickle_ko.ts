@@ -12,6 +12,10 @@
         <translation>메모 내용</translation>
     </message>
     <message>
+        <source>Press Enter to edit.</source>
+        <translation>Enterë¥¼ ëë¥´ë©´ í¸ì§í©ëë¤.</translation>
+    </message>
+    <message>
         <source>Hide note</source>
         <translation>메모 숨기기</translation>
     </message>

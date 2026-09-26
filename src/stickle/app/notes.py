@@ -152,8 +152,12 @@ class NoteManager(QObject):
     def new_note(self) -> NoteWindow:
         return self._open(None)
 
-    def _open(self, note: Note | None) -> NoteWindow:
-        window = NoteWindow(note.id if note else None, note.body if note else "")
+    def open_unstored(self, text: str) -> NoteWindow:
+        """A note with text that is not stored until it changes (measurement mode)."""
+        return self._open(None, text)
+
+    def _open(self, note: Note | None, text: str = "") -> NoteWindow:
+        window = NoteWindow(note.id if note else None, note.body if note else text)
         window.new_note_requested.connect(self.new_note)
         window.hide_requested.connect(lambda: self.hide(window))
         window.delete_requested.connect(lambda: self.delete(window))

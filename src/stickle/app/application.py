@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from stickle.app.fonts import ensure_korean_font
 from stickle.app.i18n import Translations
 from stickle.app.notes import NoteManager
-from stickle.app.perf import PerfMode, open_storage_like_startup
+from stickle.app.perf import SAMPLE_NOTE, PerfMode, open_storage_like_startup
 from stickle.app.signals import SignalWatcher
 from stickle.app.startup import open_notes
 from stickle.app.tray import Tray
@@ -134,7 +134,7 @@ def run(
         tray.show()
         if perf is not None:
             for _ in range(max(1, perf.notes)):
-                manager.new_note()
+                manager.open_unstored(SAMPLE_NOTE)
         else:
             manager.open_stored(tray_available)
         mark("notes")

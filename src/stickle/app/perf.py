@@ -17,6 +17,12 @@ from stickle.data.database import KEY_BYTES
 from stickle.data.schema import open_store
 from stickle.platform.credentials import CredentialStoreUnavailableError, KeyRequest
 
+# Measured notes are formatted as real ones would be, so drawing them counts too.
+SAMPLE_NOTE = (
+    "# Shopping\n- [ ] milk **2**\n- [x] eggs\n\n오늘 ==꼭== 할 일\n"
+    "1. call\n2. `mail`\n\n> a quote with *emphasis*"
+)
+
 
 @dataclass
 class PerfMode:

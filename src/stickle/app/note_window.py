@@ -19,25 +19,31 @@ from PySide6.QtGui import (
     QAction,
     QCloseEvent,
     QColor,
+    QFocusEvent,
     QGuiApplication,
     QIcon,
     QInputMethodEvent,
+    QKeyEvent,
     QKeySequence,
     QMouseEvent,
     QPainter,
     QPaintEvent,
     QPen,
     QPixmap,
+    QTextCursor,
 )
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMenu,
     QPlainTextEdit,
     QSizeGrip,
+    QStackedWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
+
+from stickle.app.note_view import NoteView
 
 # Fixed until notes get their own colours. The text colour is pinned so a dark
 # system theme does not paint light text on the light note.
@@ -198,7 +204,7 @@ class NoteWindow(QWidget):
 
         # Style sheets rather than a palette: native styles ignore palette text colours.
         self.setStyleSheet(
-            f"QPlainTextEdit {{ background: transparent; color: {FOREGROUND.name()}; }}"
+            f"QPlainTextEdit, QTextEdit {{ background: transparent; color: {FOREGROUND.name()}; }}"
             f"QToolButton {{ color: {FOREGROUND.name()}; }}"
         )
 
@@ -224,7 +230,15 @@ class NoteWindow(QWidget):
         self.editor.setPlainText(text)
         self.editor.installEventFilter(self)
         self.editor.textChanged.connect(self.text_changed)
+        self.editor.textChanged.connect(self._text_changed)
         self.title_bar.unsaved_button.clicked.connect(self.retry_requested)
+        # The formatted note, drawn from the editor's text; a click edits it.
+        self.view = NoteView(self)
+        self.view.edit_requested.connect(self.edit)
+        self.stack = QStackedWidget(self)
+        self.stack.addWidget(self.view)
+        self.stack.addWidget(self.editor)
+        self.stack.setCurrentWidget(self.editor)
 
         grip_row = QHBoxLayout()
         grip_row.setContentsMargins(0, 0, 0, 0)
@@ -235,7 +249,7 @@ class NoteWindow(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.title_bar)
-        layout.addWidget(self.editor)
+        layout.addWidget(self.stack)
         layout.addLayout(grip_row)
 
         self.new_note_action = self._add_action(QKeySequence.StandardKey.New)
@@ -249,14 +263,19 @@ class NoteWindow(QWidget):
         self.menu_action.triggered.connect(self.open_menu)
         self.addAction(self.menu_action)
 
-        self.setFocusProxy(self.editor)
         self.retranslate()
+        if text.strip():
+            self.show_formatted()
+        else:
+            self.edit()
 
     def retranslate(self) -> None:
         """Apply every visible text; runs again when the UI language changes."""
         self.setWindowTitle(self.tr("Note"))
         self.setAccessibleName(self.tr("Note"))
         self.editor.setAccessibleName(self.tr("Note text"))
+        self.view.setAccessibleName(self.tr("Note text"))
+        self.view.setAccessibleDescription(self.tr("Press Enter to edit."))
         hide_note = self.tr("Hide note")
         self.title_bar.close_button.setAccessibleName(hide_note)
         self.title_bar.close_button.setToolTip(hide_note)
@@ -296,6 +315,43 @@ class NoteWindow(QWidget):
     @property
     def text(self) -> str:
         return self.editor.toPlainText()
+
+    @property
+    def editing(self) -> bool:
+        return self.stack.currentWidget() is self.editor
+
+    def edit(self, position: int = -1) -> None:
+        """Show the text to edit, with the cursor at position (-1: the end)."""
+        self.stack.setCurrentWidget(self.editor)
+        self.setFocusProxy(self.editor)
+        cursor = self.editor.textCursor()
+        if 0 <= position <= self.editor.document().characterCount() - 1:
+            cursor.setPosition(position)
+        else:
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+        self.editor.setTextCursor(cursor)
+        self.editor.setFocus()
+        self.editor.ensureCursorVisible()
+
+    def show_formatted(self) -> None:
+        """Show the note formatted; an empty note stays ready to type in."""
+        if not self.editing or not self.text.strip():
+            return
+        self.view.show_markdown(self.text)
+        self.stack.setCurrentWidget(self.view)
+        self.setFocusProxy(self.view)
+        # Given at once if the note is active, or when it next becomes active.
+        self.view.setFocus()
+
+    def _text_changed(self) -> None:
+        # The text can change while shown formatted: a character an input
+        # method committed after the focus left.
+        if not self.editing:
+            self.view.show_markdown(self.text)
+
+    def _leave_editing(self) -> None:
+        if not self._released and self.editing and not self.editor.hasFocus():
+            self.show_formatted()
 
     def finish_composition(self, closing: bool) -> None:
         """Make sure the character being composed ends up in the text.
@@ -354,10 +410,27 @@ class NoteWindow(QWidget):
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         # Once released the note has been stored (or deleted): closing moves the focus
         # away, and that must not store it again.
-        if watched is self.editor and event.type() == QEvent.Type.FocusOut and not self._released:
+        if (
+            watched is self.editor
+            and isinstance(event, QFocusEvent)
+            and event.type() == QEvent.Type.FocusOut
+            and not self._released
+        ):
             if self.composing:
                 self._watch_for_drop(self._preedit, self._commits)
             self.editing_finished.emit()
+            # A menu opened from the note leaves it being edited.
+            if event.reason() != Qt.FocusReason.PopupFocusReason:
+                QTimer.singleShot(0, self, self._leave_editing)
+        if (
+            watched is self.editor
+            and isinstance(event, QKeyEvent)
+            and event.type() == QEvent.Type.KeyPress
+            and event.key() == Qt.Key.Key_Escape
+            and event.modifiers() == Qt.KeyboardModifier.NoModifier
+        ):
+            self.show_formatted()
+            return True
         if watched is self.editor and isinstance(event, QInputMethodEvent):
             self._preedit = event.preeditString()
             self.composing = bool(self._preedit)
