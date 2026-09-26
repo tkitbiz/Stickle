@@ -6,7 +6,7 @@ from pathlib import Path
 
 import apsw
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtWidgets import QSystemTrayIcon
 from pytestqt.qtbot import QtBot
 
@@ -16,6 +16,7 @@ from stickle.app.note_window import NoteWindow
 from stickle.app.notes import NoteManager
 from stickle.app.stickle_window import StickleWindow
 from stickle.app.tray import Tray
+from stickle.app.window_flags import set_stays_on_top, stays_on_top
 from stickle.data.notes import NoteRepository
 from stickle.data.schema import open_store
 from stickle.platform.autostart import Autostart, Places
@@ -187,6 +188,23 @@ def test_clicking_the_tray_icon_opens_it(app: App) -> None:
     app.tray.activated.emit(QSystemTrayIcon.ActivationReason.Trigger)
 
     assert app.window.isVisible()
+
+
+def test_it_stays_above_other_windows_only_until_it_is_used(app: App) -> None:
+    # Opened by a second start, the window manager may not let it take the
+    # keyboard; above the others, it is still seen.
+    app.window.open()
+    assert stays_on_top(app.window) != app.window.isActiveWindow()
+
+    set_stays_on_top(app.window, True)
+    QCoreApplication.sendEvent(app.window, QEvent(QEvent.Type.WindowActivate))
+    assert not stays_on_top(app.window)
+
+    app.window.open()
+    set_stays_on_top(app.window, True)
+    app.window.hide()
+    assert not stays_on_top(app.window)
+    assert app.window.windowType() == Qt.WindowType.Window
 
 
 def test_without_a_tray_hiding_the_last_note_opens_it_with_a_notice(trayless: App) -> None:

@@ -31,6 +31,7 @@ from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.notes import HIDDEN_LISTED, NoteManager
 from stickle.app.recovery_key_dialog import RecoveryKeyDialog
 from stickle.app.tray import switch_autostart
+from stickle.app.window_flags import set_stays_on_top, stays_on_top
 from stickle.core.markdown import note_title
 from stickle.platform.autostart import Autostart
 from stickle.platform.linux.appimage import AppMenuEntry
@@ -233,9 +234,21 @@ class StickleWindow(QWidget):
         """Show the window in front, with the "all notes are hidden" notice or not."""
         self.notice.setVisible(notice)
         self.refresh()
+        # Window managers may refuse to hand over the keyboard to a window
+        # asked for by another program (a second start): kept above the others
+        # until it is used, it is at least seen.
+        set_stays_on_top(self, True)
         self.showNormal()
         self.raise_()
         self.activateWindow()
+
+    @override
+    def event(self, event: QEvent) -> bool:
+        if (
+            event.type() == QEvent.Type.WindowActivate or event.type() == QEvent.Type.Hide
+        ) and stays_on_top(self):
+            set_stays_on_top(self, False)
+        return super().event(event)
 
     def _show_note(self, item: QListWidgetItem) -> None:
         note_id = item.data(NOTE_ID)

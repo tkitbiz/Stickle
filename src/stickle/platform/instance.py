@@ -8,6 +8,7 @@ show itself, and ends without touching the notes. This side needs only the
 standard library, so it runs before Qt loads.
 """
 
+import ctypes
 import hashlib
 import os
 import socket
@@ -92,6 +93,11 @@ def ask_to_show(folder: Path, timeout: float = CONNECT_FOR_S) -> bool:
     """Ask the running Stickle to show itself; False if it could not be reached."""
     name = server_name(folder)
     deadline = time.monotonic() + timeout
+    if sys.platform == "win32":
+        # Just started by the user, this process may bring a window to the front;
+        # it passes that on, or Windows would only flash the taskbar button.
+        asfw_any = -1
+        ctypes.windll.user32.AllowSetForegroundWindow(asfw_any)
     while True:
         try:
             if sys.platform == "win32":

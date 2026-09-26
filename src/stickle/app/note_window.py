@@ -56,6 +56,7 @@ from PySide6.QtWidgets import (
 from stickle.app.note_highlight import MarkdownHighlighter
 from stickle.app.note_view import NoteView, utf16_length
 from stickle.app.palette import color_name, qcolor, swatch_icon
+from stickle.app.window_flags import set_stays_on_top, stays_on_top
 from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
 from stickle.core.markdown import note_title, task_box
 from stickle.platform.linux.x11 import keep_off_taskbar
@@ -517,7 +518,7 @@ class NoteWindow(QWidget):
 
     @property
     def always_on_top(self) -> bool:
-        return bool(self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint)
+        return stays_on_top(self)
 
     def set_always_on_top(self, on_top: bool) -> None:
         """Keep the note above other windows, or let them cover it."""
@@ -525,19 +526,7 @@ class NoteWindow(QWidget):
         self.on_top_action.setChecked(on_top)
         if on_top == self.always_on_top:
             return
-        if not self.testAttribute(Qt.WidgetAttribute.WA_WState_Created):  # never shown yet
-            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on_top)
-            return
-        window = self.windowHandle()
-        # Changed on the window as it is: setWindowFlag would destroy and
-        # recreate it, which makes the note blink.
-        flags = self.windowFlags()
-        if on_top:
-            flags |= Qt.WindowType.WindowStaysOnTopHint
-        else:
-            flags &= ~Qt.WindowType.WindowStaysOnTopHint
-        self.overrideWindowFlags(flags)
-        window.setFlags(flags)
+        set_stays_on_top(self, on_top)
         if on_top:
             self.raise_()
 
