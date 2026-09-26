@@ -22,6 +22,18 @@ def copy_project(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def test_korean_translations_are_not_garbled() -> None:
+    # UTF-8 Korean read as Latin-1 turns into letters such as "ë" mixed with
+    # invisible control characters (U+0080-U+009F).
+    garbled = [
+        text
+        for element in ET.parse(KOREAN).getroot().iter("translation")
+        if (text := "".join(element.itertext()))
+        and any("\x80" <= char <= "\x9f" or "\xc0" <= char <= "\xff" for char in text)
+    ]
+    assert garbled == []
+
+
 def test_every_ui_string_has_a_korean_translation(tmp_path: Path) -> None:
     # Re-extract from the current source into a copy: a new string without Korean shows up here.
     project = copy_project(tmp_path)
