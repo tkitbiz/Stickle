@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from stickle.app.note_highlight import MarkdownHighlighter
 from stickle.app.note_view import NoteView, utf16_length
 from stickle.core.markdown import task_box
 
@@ -229,8 +230,10 @@ class NoteWindow(QWidget):
         self.editor = QPlainTextEdit(self)
         self.editor.setFrameShape(QPlainTextEdit.Shape.NoFrame)
         self.editor.setPlainText(text)
+        self.highlighter = MarkdownHighlighter(self.editor.document(), FOREGROUND)
         self.editor.installEventFilter(self)
-        self.editor.textChanged.connect(self.text_changed)
+        # The editor also reports a change when only the colouring changed.
+        self._last_text = self.text
         self.editor.textChanged.connect(self._text_changed)
         self.title_bar.unsaved_button.clicked.connect(self.retry_requested)
         # The formatted note, drawn from the editor's text; a click edits it.
@@ -362,6 +365,11 @@ class NoteWindow(QWidget):
         cursor.insertText(mark)
 
     def _text_changed(self) -> None:
+        text = self.text
+        if text == self._last_text:
+            return
+        self._last_text = text
+        self.text_changed.emit()
         # The text can change while shown formatted: a checkbox was toggled, or
         # an input method committed a character after the focus left.
         if not self.editing:
