@@ -1,5 +1,6 @@
 """System tray icon and its menu."""
 
+import logging
 from collections.abc import Callable
 
 from PySide6.QtCore import QRectF, Qt
@@ -10,9 +11,24 @@ from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.notes import HIDDEN_LISTED, NoteManager
 from stickle.core.markdown import note_title
 from stickle.core.note import Note
+from stickle.platform.autostart import Autostart
 
+log = logging.getLogger(__name__)
 ICON_SIZE = 64
 TITLE_LENGTH = 40
+
+
+def switch_autostart(autostart: Autostart, on: bool) -> bool:
+    """Turn starting at login on or off; False (and logged) if the file could not be changed."""
+    try:
+        if on:
+            autostart.enable()
+        else:
+            autostart.disable()
+    except OSError as error:
+        log.error("could not change start at login: %s", type(error).__name__)
+        return False
+    return True
 
 
 def menu_title(note: Note) -> str:
@@ -43,11 +59,13 @@ class Tray(QSystemTrayIcon):
         on_quit: Callable[[], object],
         translations: Translations,
         notes: NoteManager | None = None,
+        autostart: Autostart | None = None,
     ) -> None:
         super().__init__(make_icon())
         self.setToolTip("Stickle")
         self._translations = translations
         self._notes = notes
+        self._autostart = autostart
 
         # QSystemTrayIcon does not own its menu, so keep a reference.
         self._menu = QMenu()
@@ -70,11 +88,18 @@ class Tray(QSystemTrayIcon):
             action.triggered.connect(lambda _=False, code=code: translations.apply(code))
             group.addAction(action)
             self.language_actions[code] = action
+        self.autostart_action = self._menu.addAction("")
+        self.autostart_action.setCheckable(True)
+        self.autostart_action.setVisible(autostart is not None)
+        self.autostart_action.triggered.connect(self._switch_autostart)
+        # The file may have been removed in the system's own settings meanwhile.
+        self._menu.aboutToShow.connect(self.refresh_autostart)
 
         self._menu.addSeparator()
         self.quit_action = self._menu.addAction("")
         self.quit_action.triggered.connect(on_quit)
         self.setContextMenu(self._menu)
+        self.refresh_autostart()
 
         # Not a widget, so no LanguageChange event: follow the translations instead.
         translations.changed.connect(self.retranslate)
@@ -117,6 +142,15 @@ class Tray(QSystemTrayIcon):
         if self._notes:
             self._notes.restore_last_deleted()
 
+    def refresh_autostart(self) -> None:
+        if self._autostart is not None:
+            self.autostart_action.setChecked(self._autostart.enabled)
+
+    def _switch_autostart(self, on: bool) -> None:
+        if self._autostart is not None:
+            switch_autostart(self._autostart, on)
+        self.refresh_autostart()
+
     def _raise_all(self) -> None:
         if self._notes:
             self._notes.raise_all()
@@ -131,3 +165,4 @@ class Tray(QSystemTrayIcon):
         if chosen := self.language_actions.get(self._translations.language):
             chosen.setChecked(True)
         self.quit_action.setText(self.tr("Quit Stickle"))
+        self.autostart_action.setText(self.tr("Start Stickle when I log in"))

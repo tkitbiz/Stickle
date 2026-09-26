@@ -12,6 +12,7 @@ from typing import override
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -24,7 +25,9 @@ from PySide6.QtWidgets import (
 
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.notes import HIDDEN_LISTED, NoteManager
+from stickle.app.tray import switch_autostart
 from stickle.core.markdown import note_title
+from stickle.platform.autostart import Autostart
 
 NOTE_ID = Qt.ItemDataRole.UserRole
 
@@ -37,11 +40,17 @@ class StickleWindow(QWidget):
         notes: NoteManager,
         translations: Translations,
         on_quit: Callable[[], object],
+        autostart: Autostart | None = None,
     ) -> None:
         super().__init__()
         self._notes = notes
         self._translations = translations
+        self._autostart = autostart
         self.setMinimumWidth(320)
+
+        self.autostart_box = QCheckBox(self)
+        self.autostart_box.setVisible(autostart is not None)
+        self.autostart_box.clicked.connect(self._switch_autostart)
 
         # Shown only when there is no tray and every note was hidden.
         self.notice = QLabel(self)
@@ -85,6 +94,7 @@ class StickleWindow(QWidget):
         layout.addWidget(self.show_all_button)
         layout.addWidget(self.restore_button)
         layout.addLayout(language)
+        layout.addWidget(self.autostart_box)
         layout.addWidget(self.quit_button)
 
         notes.changed.connect(self.refresh)
@@ -108,6 +118,7 @@ class StickleWindow(QWidget):
         self.language_box.setAccessibleName(self.tr("Language"))
         self.language_box.setItemText(0, self.tr("System language"))
         self.quit_button.setText(self.tr("Quit Stickle"))
+        self.autostart_box.setText(self.tr("&Start Stickle when I log in"))
         self.refresh()
 
     @override
@@ -141,6 +152,13 @@ class StickleWindow(QWidget):
         self.language_box.setCurrentIndex(
             max(0, self.language_box.findData(self._translations.language))
         )
+        if self._autostart is not None:
+            self.autostart_box.setChecked(self._autostart.enabled)
+
+    def _switch_autostart(self, on: bool) -> None:
+        if self._autostart is not None:
+            switch_autostart(self._autostart, on)
+            self.autostart_box.setChecked(self._autostart.enabled)
 
     def open(self, notice: bool = False) -> None:
         """Show the window in front, with the "all notes are hidden" notice or not."""

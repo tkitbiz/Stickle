@@ -14,6 +14,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--perf-notes", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--perf-blur", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--screens", action="store_true", help=argparse.SUPPRESS)
+    # Started at login (see stickle.platform.autostart): no window of its own at start.
+    parser.add_argument("--autostart", action="store_true", help=argparse.SUPPRESS)
     # Unknown options are left for Qt (for example -platform).
     options, _ = parser.parse_known_args(args[1:])
     if options.self_test:
@@ -70,7 +72,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         return run(
-            args, unlock=unlock, started=started, startup=StartupSettings(folder), instance=folder
+            args,
+            unlock=unlock,
+            started=started,
+            startup=StartupSettings(folder),
+            instance=folder,
+            at_login=options.autostart,
         )
     finally:
         lock.release()

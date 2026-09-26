@@ -18,6 +18,7 @@ from stickle.app.stickle_window import StickleWindow
 from stickle.app.tray import Tray
 from stickle.data.notes import NoteRepository
 from stickle.data.schema import open_store
+from stickle.platform.autostart import Autostart, Places
 
 KEY = secrets.token_bytes(32)
 
@@ -216,3 +217,93 @@ def test_without_a_tray_a_note_brought_back_keeps_stickle_running(trayless: App)
 
     assert trayless.quits == []
     assert len(trayless.manager.windows) == 1
+
+
+# Starting at login
+
+
+class FakeAutostart(Autostart):
+    """The real rules, with the files in a test folder."""
+
+    def __init__(self, folder: Path, fail: bool = False) -> None:
+        super().__init__(
+            Places(home=folder, config=folder / "config", appdata=folder), "linux", ["/x"]
+        )
+        self.fail = fail
+
+    def enable(self) -> None:
+        if self.fail:
+            raise PermissionError("read-only")
+        super().enable()
+
+
+def test_starting_at_login_is_switched_from_the_tray_and_the_window(
+    qtbot: QtBot, connection: apsw.Connection, tmp_path: Path
+) -> None:
+    autostart = FakeAutostart(tmp_path)
+    manager = NoteManager(NoteRepository(connection))
+    translations = Translations()
+    tray = Tray(manager.new_note, lambda: None, translations, manager, autostart)
+    window = StickleWindow(manager, translations, lambda: None, autostart)
+    qtbot.addWidget(window)
+    assert not tray.autostart_action.isChecked()
+
+    tray.autostart_action.trigger()
+    assert autostart.enabled
+    window.open()
+    assert window.autostart_box.isChecked()
+
+    window.autostart_box.click()
+    assert not autostart.enabled
+    tray.refresh_autostart()
+    assert not tray.autostart_action.isChecked()
+    assert tray.autostart_action.text() == "Start Stickle when I log in"
+    window.deleteLater()
+
+
+def test_turned_off_elsewhere_shows_as_off(
+    qtbot: QtBot, connection: apsw.Connection, tmp_path: Path
+) -> None:
+    autostart = FakeAutostart(tmp_path)
+    autostart.enable()
+    tray = Tray(lambda: None, lambda: None, Translations(), None, autostart)
+    assert tray.autostart_action.isChecked()
+
+    autostart.path.unlink()  # as when turned off in the system's own settings
+    tray.refresh_autostart()
+
+    assert not tray.autostart_action.isChecked()
+
+
+def test_a_file_that_cannot_be_written_leaves_it_off(
+    qtbot: QtBot, connection: apsw.Connection, tmp_path: Path
+) -> None:
+    autostart = FakeAutostart(tmp_path, fail=True)
+    tray = Tray(lambda: None, lambda: None, Translations(), None, autostart)
+
+    tray.autostart_action.trigger()
+
+    assert not autostart.enabled
+    assert not tray.autostart_action.isChecked()
+
+
+def test_without_the_setting_the_items_are_hidden(app: App) -> None:
+    assert not app.tray.autostart_action.isVisible()
+    assert app.window.autostart_box.isHidden()
+
+
+def test_started_at_login_with_only_hidden_notes_stays_in_the_tray(app: App) -> None:
+    hidden_note(app, "숨긴 메모")
+
+    open_at_start(app.manager, app.window, tray_available=True, at_login=True)
+
+    assert not app.window.isVisible()
+
+
+def test_started_at_login_without_a_tray_still_shows_the_way_back(trayless: App) -> None:
+    hidden_note(trayless, "숨긴 메모")
+
+    open_at_start(trayless.manager, trayless.window, tray_available=False, at_login=True)
+
+    assert trayless.window.isVisible()
+    assert trayless.window.notice.isVisible()

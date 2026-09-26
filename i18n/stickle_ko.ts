@@ -372,6 +372,10 @@
         <translation>Stickle 종료</translation>
     </message>
     <message>
+        <source>&amp;Start Stickle when I log in</source>
+        <translation>로그인할 때 Stickle 시작(&amp;S)</translation>
+    </message>
+    <message>
         <source>(empty note)</source>
         <translation>(빈 메모)</translation>
     </message>
@@ -429,6 +433,10 @@
     <message>
         <source>Quit Stickle</source>
         <translation>Stickle 종료</translation>
+    </message>
+    <message>
+        <source>Start Stickle when I log in</source>
+        <translation>로그인할 때 Stickle 시작</translation>
     </message>
 </context>
 </TS>

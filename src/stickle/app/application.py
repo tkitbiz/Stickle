@@ -29,6 +29,7 @@ from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
 from stickle.data.settings import Settings
 from stickle.data.startup import StartupSettings
+from stickle.platform.autostart import Autostart
 from stickle.platform.linux.display import preferred_qt_platform
 from stickle.platform.power import watch_sleep
 from stickle.unlock import Unlock
@@ -95,10 +96,13 @@ def connect_stickle_window(
     manager.changed.connect(notes_changed)
 
 
-def open_at_start(manager: NoteManager, window: StickleWindow, tray_available: bool) -> None:
-    """Open the stored notes; with only hidden ones, the Stickle window that lists them."""
+def open_at_start(
+    manager: NoteManager, window: StickleWindow, tray_available: bool, at_login: bool = False
+) -> None:
+    """Open the stored notes; with only hidden ones, the Stickle window that lists
+    them, unless Stickle was started at login (it then waits in the tray)."""
     manager.open_stored()
-    if not manager.windows:
+    if not manager.windows and not (at_login and tray_available):
         window.open(notice=not tray_available)
 
 
@@ -125,8 +129,11 @@ def run(
     started: float | None = None,
     startup: StartupSettings | None = None,
     instance: Path | None = None,
+    at_login: bool = False,
 ) -> int:
     """Run the app. In measurement mode, open perf.notes notes and print READY.
+
+    at_login: started at login (--autostart), so no Stickle window at start.
 
     With unlock, the notes database is opened first (asking for a password or
     showing the recovery dialog when needed); quitting there ends the app.
@@ -205,9 +212,17 @@ def run(
         sleep_watch = watch_sleep(before_sleep)
         log.info("sleep %s", "watched" if sleep_watch is not None else "not watched")
         tray_available = QSystemTrayIcon.isSystemTrayAvailable()
-        tray = Tray(manager.new_note, app.quit, translations, manager)
+        # Measuring must not touch the real login items.
+        autostart = Autostart() if perf is None else None
+        if autostart is not None:
+            try:
+                if autostart.refresh():
+                    log.info("start at login now points at this Stickle")
+            except OSError as error:
+                log.warning("could not update start at login: %s", type(error).__name__)
+        tray = Tray(manager.new_note, app.quit, translations, manager, autostart)
         tray.show()
-        stickle_window = StickleWindow(manager, translations, app.quit)
+        stickle_window = StickleWindow(manager, translations, app.quit, autostart)
         connect_stickle_window(stickle_window, manager, tray if tray_available else None, app.quit)
         if instance_server is not None:
             instance_server.show_requested.connect(stickle_window.open)
@@ -215,7 +230,7 @@ def run(
             for _ in range(max(1, perf.notes)):
                 manager.open_unstored(SAMPLE_NOTE)
         else:
-            open_at_start(manager, stickle_window, tray_available)
+            open_at_start(manager, stickle_window, tray_available, at_login)
             if instance_server is not None and instance_server.requested:
                 stickle_window.open()  # started again while this one was still starting
         mark("notes")
