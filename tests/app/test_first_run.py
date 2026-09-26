@@ -159,6 +159,44 @@ def test_without_a_recovery_key_the_welcome_ends_after_the_first_page(
     place.connection.close()
 
 
+def test_the_language_is_chosen_first_and_the_sample_note_follows(
+    place: Place, translations: Translations
+) -> None:
+    # An English system for someone who reads Korean: chosen on the first page.
+    seen: list[str] = []
+
+    def answer(dialog: FirstRunDialog) -> object:
+        assert dialog.language_box.isVisibleTo(dialog)
+        assert dialog.language_box.currentData() == "en"
+        korean = dialog.language_box.findData("ko")
+        dialog.language_box.setCurrentIndex(korean)
+        dialog.language_box.activated.emit(korean)
+        seen.append(dialog.heading.text())
+        return go_through(kept=True)(dialog)
+
+    welcome(
+        place.notes,
+        place.settings,
+        place.make_recovery_key,
+        place.autostart,
+        place.app_list,
+        answer,
+        translations=translations,
+    )
+
+    assert seen == ["Stickle에 오신 것을 환영합니다"]
+    assert translations.language == "ko"
+    assert [note.body for note in place.notes.all()] == [sample_note()]
+    assert place.notes.all()[0].body.startswith("# Stickle에 오신 것을 환영합니다")
+
+
+def test_without_translations_to_switch_no_language_is_offered(qtbot: QtBot) -> None:
+    dialog = FirstRunDialog(generate(), True, True)
+    qtbot.addWidget(dialog)
+
+    assert not dialog.language_box.isVisibleTo(dialog)
+
+
 def test_the_sample_note_speaks_the_interface_language(translations: Translations) -> None:
     translations.apply("ko")
 
@@ -183,3 +221,6 @@ def test_everything_has_a_name_and_a_key(qtbot: QtBot) -> None:
     for check in (dialog.this_device, dialog.several_devices, dialog.start_at_login):
         assert "&" in check.text()
     assert dialog.recovery.key.accessibleName()
+    assert "&" in dialog.language_label.text()
+    assert dialog.language_label.buddy() is dialog.language_box
+    assert dialog.language_box.accessibleName()

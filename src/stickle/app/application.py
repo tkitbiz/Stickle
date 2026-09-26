@@ -296,6 +296,7 @@ def run(
                     lambda: opened.make_recovery_key(key),
                     autostart,
                     app_list,
+                    translations=translations,
                 )
             open_at_start(manager, stickle_window, tray_available, at_login)
             if instance_server is not None and instance_server.requested:

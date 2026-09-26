@@ -1,11 +1,12 @@
 """The first start on a computer: a welcome, a few choices, and the recovery key.
 
 Shown once, when the notes database was just made, before the first note
-appears. Page one asks whether the notes are for this computer only (kept
-for when sync exists), whether Stickle starts at login, and, for an
-AppImage, whether it goes in the application list. Page two shows the
-recovery key. Closing the window without going on changes nothing: no
-choice is taken for the user.
+appears. Page one offers the interface language (it switches at once and is
+kept) and asks whether the notes are for this computer only (kept for when
+sync exists), whether Stickle starts at login, and, for an AppImage,
+whether it goes in the application list. Page two shows the recovery key.
+Closing the window without going on changes nothing: no choice is taken for
+the user. The sample note is written afterwards, in the language chosen.
 """
 
 import logging
@@ -18,8 +19,10 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
+    QHBoxLayout,
     QLabel,
     QRadioButton,
     QStackedWidget,
@@ -28,6 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from stickle.app.app_list import switch_app_list
+from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.recovery_key_dialog import RecoveryKeyPanel
 from stickle.app.tray import switch_autostart
 from stickle.data.notes import NoteRepository
@@ -76,10 +80,12 @@ class FirstRunDialog(QDialog):
         recovery_key: str,
         offer_start_at_login: bool,
         offer_app_list: bool,
+        translations: Translations | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._offers = (offer_start_at_login, offer_app_list)
+        self._translations = translations
         self.heading = QLabel()
         font = QFont(self.heading.font())
         font.setBold(True)
@@ -88,6 +94,21 @@ class FirstRunDialog(QDialog):
         self.heading.setWordWrap(True)
 
         # Page one: welcome and choices.
+        self.language_label = QLabel()
+        self.language_box = QComboBox()
+        self.language_label.setBuddy(self.language_box)
+        for code, native_name in LANGUAGES:
+            self.language_box.addItem(native_name, code)
+        if translations is not None:
+            self.language_box.setCurrentIndex(
+                max(0, self.language_box.findData(translations.language))
+            )
+        self.language_box.activated.connect(self._choose_language)
+        language = QHBoxLayout()
+        language.addWidget(self.language_label)
+        language.addWidget(self.language_box, 1)
+        self.language_label.setVisible(translations is not None)
+        self.language_box.setVisible(translations is not None)
         self.intro = QLabel()
         self.intro.setWordWrap(True)
         self.usage_label = QLabel()
@@ -107,6 +128,8 @@ class FirstRunDialog(QDialog):
         welcome = QWidget()
         welcome_layout = QVBoxLayout(welcome)
         welcome_layout.setContentsMargins(0, 0, 0, 0)
+        welcome_layout.addLayout(language)
+        welcome_layout.addSpacing(8)
         welcome_layout.addWidget(self.intro)
         welcome_layout.addSpacing(8)
         welcome_layout.addWidget(self.usage_label)
@@ -151,6 +174,9 @@ class FirstRunDialog(QDialog):
             self.heading.setText(self.tr("Welcome to Stickle"))
         else:
             self.heading.setText(self.tr("Your recovery key"))
+        self.language_label.setText(self.tr("&Language"))
+        self.language_box.setAccessibleName(self.tr("Language"))
+        self.language_box.setItemText(0, self.tr("System language"))
         self.intro.setText(
             self.tr(
                 "Stickle keeps sticky notes on your desktop. They are saved as you type, "
@@ -173,6 +199,12 @@ class FirstRunDialog(QDialog):
         if event.type() == QEvent.Type.LanguageChange:
             self.retranslate()
         super().changeEvent(event)
+
+    def _choose_language(self, index: int) -> None:
+        if self._translations is not None:
+            code = self.language_box.itemData(index)
+            # Every window, this one too, switches at once; the choice is kept.
+            self._translations.apply(code if isinstance(code, str) else None)
 
     def _next(self) -> None:
         self.went_on = True
@@ -208,17 +240,19 @@ def welcome(
     autostart: Autostart | None,
     app_list: AppMenuEntry | None,
     ask: Callable[[FirstRunDialog], object] = FirstRunDialog.exec,
+    translations: Translations | None = None,
 ) -> FirstRunChoices:
-    """The first start: the sample note, then the choices, carried out."""
-    notes.create(sample_note())
+    """The first start: the choices, carried out, then the sample note."""
     try:
         recovery_key = make_recovery_key()
     except OSError as error:
         log.error("no recovery key at first start: %s", type(error).__name__)
         recovery_key = ""
-    dialog = FirstRunDialog(recovery_key, autostart is not None, app_list is not None)
+    dialog = FirstRunDialog(recovery_key, autostart is not None, app_list is not None, translations)
     ask(dialog)
     choices = dialog.choices()
+    # In the language chosen in the welcome, if one was.
+    notes.create(sample_note())
     if choices.usage is not None:
         settings.set(USAGE, choices.usage)
     if autostart is not None and choices.start_at_login:

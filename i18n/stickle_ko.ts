@@ -81,6 +81,18 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>복구 키</translation>
     </message>
     <message>
+        <source>&amp;Language</source>
+        <translation>언어(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Language</source>
+        <translation>언어</translation>
+    </message>
+    <message>
+        <source>System language</source>
+        <translation>시스템 설정 따르기</translation>
+    </message>
+    <message>
         <source>Stickle keeps sticky notes on your desktop. They are saved as you type, encrypted on this computer, and nothing is sent anywhere.</source>
         <translation>Stickle은 바탕화면에 포스트잇 메모를 띄웁니다. 메모는 입력하는 대로 저장되고, 이 컴퓨터 안에서 암호화되며, 어디로도 보내지지 않습니다.</translation>
     </message>
