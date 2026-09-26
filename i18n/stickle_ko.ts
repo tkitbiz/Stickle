@@ -2,6 +2,13 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ko_KR">
 <context>
+    <name>AppList</name>
+    <message>
+        <source>Add Stickle to your list of applications, so you can start it like any other program? You can change this later in the Stickle menu.</source>
+        <translation>Stickle을 앱 목록에 추가할까요? 다른 프로그램처럼 앱 목록에서 실행할 수 있습니다. 나중에 Stickle 메뉴에서 바꿀 수 있습니다.</translation>
+    </message>
+</context>
+<context>
     <name>NoteColor</name>
     <message>
         <source>Yellow</source>
@@ -376,6 +383,10 @@
         <translation>로그인할 때 Stickle 시작(&amp;S)</translation>
     </message>
     <message>
+        <source>Show Stickle in the &amp;app list</source>
+        <translation>앱 목록에 Stickle 표시(&amp;A)</translation>
+    </message>
+    <message>
         <source>(empty note)</source>
         <translation>(빈 메모)</translation>
     </message>
@@ -437,6 +448,10 @@
     <message>
         <source>Start Stickle when I log in</source>
         <translation>로그인할 때 Stickle 시작</translation>
+    </message>
+    <message>
+        <source>Show Stickle in the app list</source>
+        <translation>앱 목록에 Stickle 표시</translation>
     </message>
 </context>
 </TS>

@@ -36,6 +36,10 @@ class InvalidSettingError(ValueError):
     pass
 
 
+def _flag(value: object) -> TypeGuard[bool]:
+    return isinstance(value, bool)
+
+
 def _color_key(value: object) -> TypeGuard[str]:
     return isinstance(value, str) and value.isidentifier()
 
@@ -53,10 +57,12 @@ def _uuid_or_none(value: object) -> TypeGuard[str | None]:
 # open (see stickle.data.startup).
 DEVICE_ID = Setting[str | None]("device_id", "device", None, _uuid_or_none)
 DEFAULT_NOTE_COLOR = Setting[str]("default_color", "shared", DEFAULT_COLOR, _color_key)
+# Asked once whether to add the AppImage to the application list (whatever the answer).
+APP_MENU_ASKED = Setting[bool]("app_menu_asked", "device", False, _flag)
 
 SETTINGS: dict[str, Setting[object]] = {
     s.key: s  # pyright: ignore[reportAssignmentType]
-    for s in (DEVICE_ID, DEFAULT_NOTE_COLOR)
+    for s in (DEVICE_ID, DEFAULT_NOTE_COLOR, APP_MENU_ASKED)
 }
 
 

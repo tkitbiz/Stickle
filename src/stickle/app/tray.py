@@ -7,11 +7,13 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from stickle.app.app_list import switch_app_list
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.notes import HIDDEN_LISTED, NoteManager
 from stickle.core.markdown import note_title
 from stickle.core.note import Note
 from stickle.platform.autostart import Autostart
+from stickle.platform.linux.appimage import AppMenuEntry
 
 log = logging.getLogger(__name__)
 ICON_SIZE = 64
@@ -60,12 +62,14 @@ class Tray(QSystemTrayIcon):
         translations: Translations,
         notes: NoteManager | None = None,
         autostart: Autostart | None = None,
+        app_list: AppMenuEntry | None = None,
     ) -> None:
         super().__init__(make_icon())
         self.setToolTip("Stickle")
         self._translations = translations
         self._notes = notes
         self._autostart = autostart
+        self._app_list = app_list
 
         # QSystemTrayIcon does not own its menu, so keep a reference.
         self._menu = QMenu()
@@ -92,14 +96,19 @@ class Tray(QSystemTrayIcon):
         self.autostart_action.setCheckable(True)
         self.autostart_action.setVisible(autostart is not None)
         self.autostart_action.triggered.connect(self._switch_autostart)
+        # Only for an AppImage: packages add themselves to the list.
+        self.app_list_action = self._menu.addAction("")
+        self.app_list_action.setCheckable(True)
+        self.app_list_action.setVisible(app_list is not None)
+        self.app_list_action.triggered.connect(self._switch_app_list)
         # The file may have been removed in the system's own settings meanwhile.
-        self._menu.aboutToShow.connect(self.refresh_autostart)
+        self._menu.aboutToShow.connect(self.refresh_switches)
 
         self._menu.addSeparator()
         self.quit_action = self._menu.addAction("")
         self.quit_action.triggered.connect(on_quit)
         self.setContextMenu(self._menu)
-        self.refresh_autostart()
+        self.refresh_switches()
 
         # Not a widget, so no LanguageChange event: follow the translations instead.
         translations.changed.connect(self.retranslate)
@@ -142,14 +151,22 @@ class Tray(QSystemTrayIcon):
         if self._notes:
             self._notes.restore_last_deleted()
 
-    def refresh_autostart(self) -> None:
+    def refresh_switches(self) -> None:
+        """Show what the files say (they may have changed outside Stickle)."""
         if self._autostart is not None:
             self.autostart_action.setChecked(self._autostart.enabled)
+        if self._app_list is not None:
+            self.app_list_action.setChecked(self._app_list.added)
+
+    def _switch_app_list(self, on: bool) -> None:
+        if self._app_list is not None:
+            switch_app_list(self._app_list, on)
+        self.refresh_switches()
 
     def _switch_autostart(self, on: bool) -> None:
         if self._autostart is not None:
             switch_autostart(self._autostart, on)
-        self.refresh_autostart()
+        self.refresh_switches()
 
     def _raise_all(self) -> None:
         if self._notes:
@@ -166,3 +183,4 @@ class Tray(QSystemTrayIcon):
             chosen.setChecked(True)
         self.quit_action.setText(self.tr("Quit Stickle"))
         self.autostart_action.setText(self.tr("Start Stickle when I log in"))
+        self.app_list_action.setText(self.tr("Show Stickle in the app list"))

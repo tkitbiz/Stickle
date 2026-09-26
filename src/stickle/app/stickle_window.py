@@ -23,11 +23,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from stickle.app.app_list import switch_app_list
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.notes import HIDDEN_LISTED, NoteManager
 from stickle.app.tray import switch_autostart
 from stickle.core.markdown import note_title
 from stickle.platform.autostart import Autostart
+from stickle.platform.linux.appimage import AppMenuEntry
 
 NOTE_ID = Qt.ItemDataRole.UserRole
 
@@ -41,16 +43,21 @@ class StickleWindow(QWidget):
         translations: Translations,
         on_quit: Callable[[], object],
         autostart: Autostart | None = None,
+        app_list: AppMenuEntry | None = None,
     ) -> None:
         super().__init__()
         self._notes = notes
         self._translations = translations
         self._autostart = autostart
+        self._app_list = app_list
         self.setMinimumWidth(320)
 
         self.autostart_box = QCheckBox(self)
         self.autostart_box.setVisible(autostart is not None)
         self.autostart_box.clicked.connect(self._switch_autostart)
+        self.app_list_box = QCheckBox(self)
+        self.app_list_box.setVisible(app_list is not None)
+        self.app_list_box.clicked.connect(self._switch_app_list)
 
         # Shown only when there is no tray and every note was hidden.
         self.notice = QLabel(self)
@@ -95,6 +102,7 @@ class StickleWindow(QWidget):
         layout.addWidget(self.restore_button)
         layout.addLayout(language)
         layout.addWidget(self.autostart_box)
+        layout.addWidget(self.app_list_box)
         layout.addWidget(self.quit_button)
 
         notes.changed.connect(self.refresh)
@@ -119,6 +127,7 @@ class StickleWindow(QWidget):
         self.language_box.setItemText(0, self.tr("System language"))
         self.quit_button.setText(self.tr("Quit Stickle"))
         self.autostart_box.setText(self.tr("&Start Stickle when I log in"))
+        self.app_list_box.setText(self.tr("Show Stickle in the &app list"))
         self.refresh()
 
     @override
@@ -154,6 +163,13 @@ class StickleWindow(QWidget):
         )
         if self._autostart is not None:
             self.autostart_box.setChecked(self._autostart.enabled)
+        if self._app_list is not None:
+            self.app_list_box.setChecked(self._app_list.added)
+
+    def _switch_app_list(self, on: bool) -> None:
+        if self._app_list is not None:
+            switch_app_list(self._app_list, on)
+            self.app_list_box.setChecked(self._app_list.added)
 
     def _switch_autostart(self, on: bool) -> None:
         if self._autostart is not None:

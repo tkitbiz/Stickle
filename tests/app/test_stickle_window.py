@@ -255,7 +255,7 @@ def test_starting_at_login_is_switched_from_the_tray_and_the_window(
 
     window.autostart_box.click()
     assert not autostart.enabled
-    tray.refresh_autostart()
+    tray.refresh_switches()
     assert not tray.autostart_action.isChecked()
     assert tray.autostart_action.text() == "Start Stickle when I log in"
     window.deleteLater()
@@ -270,7 +270,7 @@ def test_turned_off_elsewhere_shows_as_off(
     assert tray.autostart_action.isChecked()
 
     autostart.path.unlink()  # as when turned off in the system's own settings
-    tray.refresh_autostart()
+    tray.refresh_switches()
 
     assert not tray.autostart_action.isChecked()
 

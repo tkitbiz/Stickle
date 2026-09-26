@@ -16,6 +16,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
+from stickle.app.app_list import icon_png, offer_app_list
 from stickle.app.fonts import ensure_korean_font
 from stickle.app.i18n import Translations
 from stickle.app.instance_server import InstanceServer
@@ -30,6 +31,7 @@ from stickle.data.notes import NoteRepository
 from stickle.data.settings import Settings
 from stickle.data.startup import StartupSettings
 from stickle.platform.autostart import Autostart
+from stickle.platform.linux.appimage import AppMenuEntry, running_appimage
 from stickle.platform.linux.display import preferred_qt_platform
 from stickle.platform.power import watch_sleep
 from stickle.unlock import Unlock
@@ -94,6 +96,20 @@ def connect_stickle_window(
             window.notice.hide()  # a note is back: the notice no longer holds
 
     manager.changed.connect(notes_changed)
+
+
+def app_list_entry() -> AppMenuEntry | None:
+    """For an AppImage, its entry in the application list (followed if it moved)."""
+    appimage = running_appimage()
+    if appimage is None:
+        return None
+    entry = AppMenuEntry(appimage, icon_png())
+    try:
+        if entry.refresh():
+            log.info("the application list now points at this AppImage")
+    except OSError as error:
+        log.warning("could not update the application list: %s", type(error).__name__)
+    return entry
 
 
 def open_at_start(
@@ -220,9 +236,10 @@ def run(
                     log.info("start at login now points at this Stickle")
             except OSError as error:
                 log.warning("could not update start at login: %s", type(error).__name__)
-        tray = Tray(manager.new_note, app.quit, translations, manager, autostart)
+        app_list = app_list_entry() if perf is None else None
+        tray = Tray(manager.new_note, app.quit, translations, manager, autostart, app_list)
         tray.show()
-        stickle_window = StickleWindow(manager, translations, app.quit, autostart)
+        stickle_window = StickleWindow(manager, translations, app.quit, autostart, app_list)
         connect_stickle_window(stickle_window, manager, tray if tray_available else None, app.quit)
         if instance_server is not None:
             instance_server.show_requested.connect(stickle_window.open)
@@ -233,6 +250,10 @@ def run(
             open_at_start(manager, stickle_window, tray_available, at_login)
             if instance_server is not None and instance_server.requested:
                 stickle_window.open()  # started again while this one was still starting
+            if app_list is not None and connection is not None and not at_login:
+                entry, settings = app_list, Settings(connection)
+                # Once the notes are up: the first run of this AppImage.
+                QTimer.singleShot(0, lambda: offer_app_list(entry, settings))
         mark("notes")
         if perf is not None:
             # Runs once the queued show and paint events have been handled.

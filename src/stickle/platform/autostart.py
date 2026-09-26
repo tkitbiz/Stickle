@@ -45,14 +45,16 @@ def desktop_exec(command: list[str]) -> str:
     return " ".join(quote(argument) for argument in command)
 
 
-def desktop_entry(command: list[str], extra: dict[str, str] | None = None) -> str:
+def desktop_entry(
+    command: list[str], extra: dict[str, str] | None = None, icon: str = APP_ID
+) -> str:
     lines = [
         "[Desktop Entry]",
         "Type=Application",
         "Name=Stickle",
         "Comment=Sticky notes that follow you",
         f"Exec={desktop_exec(command)}",
-        f"Icon={APP_ID}",
+        f"Icon={icon}",
         "Terminal=false",
         f"StartupWMClass={APP_ID}",
     ]
