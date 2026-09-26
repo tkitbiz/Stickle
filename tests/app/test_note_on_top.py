@@ -76,6 +76,13 @@ def test_the_pin_turns_it_off_and_on_and_it_is_stored(
     assert note is not None and note.always_on_top
 
 
+def test_notes_are_tool_windows_outside_x11(manager: NoteManager) -> None:
+    # Under X11 they are ordinary windows kept off the taskbar instead.
+    window = manager.new_note()
+
+    assert window.windowType() == Qt.WindowType.Tool
+
+
 def test_the_pin_changes_the_window_without_remaking_it(manager: NoteManager) -> None:
     # Remaking the native window hides and shows it again: the note blinks.
     window = stored_note(manager)

@@ -37,6 +37,7 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QResizeEvent,
+    QShowEvent,
     QTextCursor,
 )
 from PySide6.QtWidgets import (
@@ -57,6 +58,7 @@ from stickle.app.note_view import NoteView, utf16_length
 from stickle.app.palette import color_name, qcolor, swatch_icon
 from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
 from stickle.core.markdown import note_title, task_box
+from stickle.platform.linux.x11 import keep_off_taskbar
 
 CORNER_RADIUS = 6
 TITLE_BAR_HEIGHT = 22  # also the height of a folded note
@@ -326,11 +328,14 @@ class NoteWindow(QWidget):
         color: str = DEFAULT_COLOR,
         always_on_top: bool = True,
     ) -> None:
+        # A tool window stays out of the taskbar and window switcher. Under X11 an
+        # ordinary window is asked to do the same instead (see showEvent): window
+        # managers lift all of an app's tool windows to the layer of the highest,
+        # so a note kept on top would keep every note on top.
+        self._x11 = QGuiApplication.platformName() == "xcb"
+        kind = Qt.WindowType.Window if self._x11 else Qt.WindowType.Tool
         super().__init__(
-            None,
-            Qt.WindowType.Tool
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint,
+            None, kind | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
         )
         # Only so the rounded corners are see-through; the note itself is opaque.
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -587,6 +592,20 @@ class NoteWindow(QWidget):
     def mark_placed(self) -> None:
         """Where the note is now has been remembered."""
         self._placed = self.geometry()
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        if self._x11 and not event.spontaneous():
+            # Before the window is mapped, and again once it is.
+            QGuiApplication.sync()  # the window exists on the X server
+            keep_off_taskbar(int(self.winId()), mapped=False)
+            QTimer.singleShot(0, self, self._keep_off_taskbar_mapped)
+
+    def _keep_off_taskbar_mapped(self) -> None:
+        if self.isVisible():
+            QGuiApplication.sync()
+            keep_off_taskbar(int(self.winId()), mapped=True)
 
     @override
     def moveEvent(self, event: QMoveEvent) -> None:
