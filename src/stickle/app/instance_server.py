@@ -34,8 +34,14 @@ class InstanceServer(QObject):
     def _accept(self) -> None:
         while self._server.hasPendingConnections():
             connection = self._server.nextPendingConnection()
-            connection.readyRead.connect(lambda c=connection: self._read(c))
-            connection.disconnected.connect(connection.deleteLater)
+            # Left to the server, which owns it: deleting it here as well
+            # crashed on Linux. A second start is rare; each leaves a few bytes.
+            connection.readyRead.connect(self._ready)
+            self._read(connection)
+
+    def _ready(self) -> None:
+        connection = self.sender()
+        if isinstance(connection, QLocalSocket):
             self._read(connection)
 
     def _read(self, connection: QLocalSocket) -> None:

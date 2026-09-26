@@ -6,6 +6,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 from stickle.platform.instance import InstanceLock, ask_to_show, server_name
 
 HOLD_LOCK = """
@@ -74,5 +76,17 @@ def test_each_data_folder_has_its_own_name(tmp_path: Path) -> None:
 
     assert server_name(first) != server_name(second)
     assert server_name(first) == server_name(first)
-    if sys.platform != "win32":
-        assert server_name(first).startswith(os.fspath(first))
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="socket files: Linux and macOS")
+def test_the_socket_path_stays_short_however_deep_the_data_folder(tmp_path: Path) -> None:
+    deep = tmp_path.joinpath(*["a-rather-long-folder-name"] * 8)
+    deep.mkdir(parents=True)
+
+    name = server_name(deep)
+
+    assert len(name.encode()) < 100
+    if sys.platform != "win32":  # also tells the type checker os.getuid exists
+        status = Path(name).parent.stat()
+        assert status.st_uid == os.getuid()
+        assert status.st_mode & 0o077 == 0  # only this user

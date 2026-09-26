@@ -9,25 +9,51 @@ standard library, so it runs before Qt loads.
 """
 
 import hashlib
+import os
 import socket
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import IO
 
 LOCK_FILE = "instance.lock"
-SOCKET_FILE = "instance.sock"
 SHOW = b"show\n"
 CONNECT_FOR_S = 5.0  # the running app may itself still be starting
 RETRY_S = 0.1
 
 
+def _socket_folder(data_folder: Path) -> Path:
+    """A short folder only this user can use, for the socket file.
+
+    Socket paths are limited to about 100 characters, which a data folder
+    can exceed; the user's runtime folder or a private folder under the
+    temporary one stays short. If that folder is not safely this user's,
+    the data folder (private too) is used and a long path simply fails.
+    """
+    if sys.platform == "win32":
+        return data_folder
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    if runtime and Path(runtime).is_dir():
+        return Path(runtime)
+    folder = Path(tempfile.gettempdir()) / f"stickle-{os.getuid()}"
+    try:
+        folder.mkdir(mode=0o700, exist_ok=True)
+        status = folder.lstat()
+    except OSError:
+        return data_folder
+    # Someone else could have made it first, to listen in their place.
+    if status.st_uid != os.getuid() or status.st_mode & 0o077 or folder.is_symlink():
+        return data_folder
+    return folder
+
+
 def server_name(folder: Path) -> str:
     """Where the running app listens: a named pipe on Windows, a socket file elsewhere."""
+    digest = hashlib.sha256(str(folder.resolve()).lower().encode("utf-8")).hexdigest()[:24]
     if sys.platform == "win32":
-        digest = hashlib.sha256(str(folder.resolve()).lower().encode("utf-8")).hexdigest()
-        return f"stickle-{digest[:24]}"
-    return str(folder / SOCKET_FILE)
+        return f"stickle-{digest}"
+    return str(_socket_folder(folder) / f"stickle-{digest}.sock")
 
 
 class InstanceLock:
