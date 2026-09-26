@@ -8,7 +8,11 @@ from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
 from stickle.app.application import NoteManager
-from stickle.app.note_window import FOREGROUND, NoteWindow
+from stickle.app.note_window import NoteWindow
+from stickle.app.palette import qcolor
+from stickle.core.colors import DEFAULT_COLOR, note_colors
+
+FOREGROUND = qcolor(note_colors(DEFAULT_COLOR).text)
 
 
 @pytest.fixture

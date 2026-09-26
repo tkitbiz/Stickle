@@ -16,7 +16,6 @@ from typing import override
 from markdown_it.tree import SyntaxTreeNode
 from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import (
-    QColor,
     QFont,
     QFontDatabase,
     QKeyEvent,
@@ -33,11 +32,10 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QApplication, QTextEdit, QWidget
 
+from stickle.app.palette import qcolor
+from stickle.core.colors import DEFAULT_COLOR, NoteColors, note_colors
 from stickle.core.markdown import LINE_SEPARATOR, parse, source_position
 
-# Until notes have their own colours: visible on the light note.
-HIGHLIGHT = QColor(255, 150, 0, 110)
-CODE_BACKGROUND = QColor(0, 0, 0, 22)
 INDENT_WIDTH = 20
 QUOTE_MARGIN = 14
 # Font size steps above normal (Qt's scale, as for HTML headings), by heading level.
@@ -82,10 +80,12 @@ def from_utf16(text: str, position: int) -> int:
 
 
 class _Builder:
-    def __init__(self, document: QTextDocument) -> None:
+    def __init__(self, document: QTextDocument, colors: NoteColors) -> None:
         document.clear()
         document.setIndentWidth(INDENT_WIDTH)
         self._document = document
+        self._highlight_color = qcolor(colors.highlight)
+        self._code_color = qcolor(colors.code_background)
         self._cursor = QTextCursor(document)
         self._fresh = True  # the document's first block has not been used yet
         self._next_line = 0  # the first line not yet shown
@@ -124,7 +124,7 @@ class _Builder:
                 self._heading = 0
             case "code_block" | "fence":
                 block = QTextBlockFormat()
-                block.setBackground(CODE_BACKGROUND)
+                block.setBackground(self._code_color)
                 self._start_block(first, end, block)
                 self._code = True
                 self._text(node.content.removesuffix("\n").replace("\n", LINE_SEPARATOR))
@@ -275,9 +275,9 @@ class _Builder:
             char.setFontFamilies([self._fixed_family])
             # A code block has the background on the whole block already.
             if not self._cursor.blockFormat().hasProperty(QTextFormat.Property.BackgroundBrush):
-                char.setBackground(CODE_BACKGROUND)
+                char.setBackground(self._code_color)
         if self._highlight:
-            char.setBackground(HIGHLIGHT)
+            char.setBackground(self._highlight_color)
         if self._links:
             char.setAnchor(True)
             char.setAnchorHref(self._links[-1])
@@ -285,9 +285,9 @@ class _Builder:
         return char
 
 
-def render(text: str, document: QTextDocument) -> list[BlockSource]:
+def render(text: str, document: QTextDocument, colors: NoteColors) -> list[BlockSource]:
     """Draw a note's Markdown into document; returns where each block came from."""
-    builder = _Builder(document)
+    builder = _Builder(document, colors)
     if text.strip():
         builder.blocks(parse(text))
     # Nothing shown (such as an empty quote): the one empty block stands for all of it.
@@ -316,13 +316,19 @@ class NoteView(QTextEdit):
         self._source = ""
         self._blocks: list[BlockSource] = []
         self._press: QPoint | None = None
+        self.colors = note_colors(DEFAULT_COLOR)
 
     def show_markdown(self, text: str) -> None:
         self._source = text
         # Drawn again when a checkbox is toggled: stay where the reader was.
         scrolled = self.verticalScrollBar().value()
-        self._blocks = render(text, self.document())
+        self._blocks = render(text, self.document(), self.colors)
         self.verticalScrollBar().setValue(scrolled)
+
+    def set_colors(self, colors: NoteColors) -> None:
+        self.colors = colors
+        if self._source:
+            self.show_markdown(self._source)
 
     def block_source(self, block: QTextBlock) -> BlockSource | None:
         number = block.blockNumber()

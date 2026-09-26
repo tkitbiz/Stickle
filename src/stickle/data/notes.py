@@ -126,6 +126,13 @@ class NoteRepository:
             return note  # nothing changed: no new change number
         return self._change(note_id, {"body": body, "content_hash": content_hash(body)})
 
+    def set_color(self, note_id: str, color: str) -> Note:
+        """color is a palette key; the colours drawn are worked out from it."""
+        note = self._require_live(note_id)
+        if note.color == color:
+            return note
+        return self._change(note_id, {"color": color})
+
     def set_hidden(self, note_id: str, hidden: bool) -> Note:
         note = self._require_live(note_id)
         if note.hidden == hidden:

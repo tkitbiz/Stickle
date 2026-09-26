@@ -25,8 +25,9 @@ from PySide6.QtCore import QEvent, QObject, QPoint, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 
 from stickle.app.note_window import NoteWindow
-from stickle.core.note import Note
+from stickle.core.note import DEFAULT_COLOR, Note
 from stickle.data.notes import NoteRepository
+from stickle.data.settings import DEFAULT_NOTE_COLOR, Settings
 
 # New notes cascade from the top-left of the screen so they never land exactly on top of each other.
 CASCADE_ORIGIN = 80
@@ -96,9 +97,11 @@ class NoteManager(QObject):
         repository: NoteRepository | None = None,
         idle_ms: int = IDLE_MS,
         max_ms: int = MAX_MS,
+        settings: Settings | None = None,
     ) -> None:
         super().__init__()
         self._repository = repository
+        self._settings = settings
         self._idle_ms = idle_ms
         self._max_ms = max_ms
         self._windows: list[NoteWindow] = []
@@ -157,8 +160,16 @@ class NoteManager(QObject):
         return self._open(None, text)
 
     def _open(self, note: Note | None, text: str = "") -> NoteWindow:
-        window = NoteWindow(note.id if note else None, note.body if note else text)
+        if note is not None:
+            window = NoteWindow(note.id, note.body, note.color)
+        else:
+            window = NoteWindow(None, text, self._new_note_color())
         window.new_note_requested.connect(self.new_note)
+
+        def color_requested(color: str) -> None:
+            self.set_color(window, color)
+
+        window.color_requested.connect(color_requested)
         window.hide_requested.connect(lambda: self.hide(window))
         window.delete_requested.connect(lambda: self.delete(window))
         autosave = AutoSave(lambda: self.save(window), self._idle_ms, self._max_ms, window)
@@ -195,7 +206,7 @@ class NoteManager(QObject):
         try:
             if window.note_id is None:
                 if text:
-                    window.note_id = self._repository.create(text).id
+                    window.note_id = self._repository.create(text, window.color).id
             else:
                 self._repository.update_body(window.note_id, text)
         except (apsw.Error, OSError) as error:
@@ -214,6 +225,28 @@ class NoteManager(QObject):
         """Save every note that stays open (logout, sleep)."""
         for window in self._windows:
             self.flush(window)
+
+    # Colour
+
+    def _new_note_color(self) -> str:
+        return self._settings.get(DEFAULT_NOTE_COLOR) if self._settings else DEFAULT_COLOR
+
+    def set_color(self, window: NoteWindow, color: str) -> None:
+        """Give the note a palette colour, which new notes then take too.
+
+        A note that is not stored yet takes the colour when it is first stored.
+        If storing fails the note keeps its colour, as nothing changed.
+        """
+        try:
+            if self._repository is not None and window.note_id is not None:
+                self._repository.set_color(window.note_id, color)
+            if self._settings is not None:
+                self._settings.set(DEFAULT_NOTE_COLOR, color)
+        except apsw.Error as error:
+            log.error("could not store a note colour: %s", type(error).__name__)
+            window.set_color(window.color)  # the menu shows the colour kept
+            return
+        window.set_color(color)
 
     # Hiding, deleting, bringing back
 

@@ -220,6 +220,9 @@ def test_note_menu_opens_with_f10(qtbot: QtBot, session: Session) -> None:
 
     QTest.keyClick(window.windowHandle(), Qt.Key.Key_F10)
     qtbot.waitUntil(window.menu.isVisible)
+    # Opens on its first item, so Enter alone never deletes.
+    assert window.menu.activeAction() is window.color_menu.menuAction()
+    QTest.keyClick(window.menu, Qt.Key.Key_Down)
     assert window.menu.activeAction() is window.delete_action
     QTest.keyClick(window.menu, Qt.Key.Key_Return)
 

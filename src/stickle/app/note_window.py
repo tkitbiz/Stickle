@@ -17,8 +17,10 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QAction,
+    QActionGroup,
     QCloseEvent,
     QColor,
+    QContextMenuEvent,
     QFocusEvent,
     QGuiApplication,
     QIcon,
@@ -27,6 +29,7 @@ from PySide6.QtGui import (
     QKeySequence,
     QMouseEvent,
     QPainter,
+    QPainterPath,
     QPaintEvent,
     QPen,
     QPixmap,
@@ -45,12 +48,10 @@ from PySide6.QtWidgets import (
 
 from stickle.app.note_highlight import MarkdownHighlighter
 from stickle.app.note_view import NoteView, utf16_length
+from stickle.app.palette import color_name, qcolor, swatch_icon
+from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
 from stickle.core.markdown import task_box
 
-# Fixed until notes get their own colours. The text colour is pinned so a dark
-# system theme does not paint light text on the light note.
-BACKGROUND = QColor(255, 236, 140, 235)
-FOREGROUND = QColor(32, 32, 32)
 CORNER_RADIUS = 6
 DEFAULT_SIZE = (260, 240)
 CLOSE_ICON_SIZE = 10
@@ -58,8 +59,8 @@ CLOSE_ICON_SIZE = 10
 DROP_CHECK_MS = 150
 
 
-def drawn_icon(draw: Callable[[QPainter, float], None]) -> QIcon:
-    """An icon drawn in the text colour at 1x and 2x for high-DPI screens.
+def drawn_icon(draw: Callable[[QPainter, float], None], color: QColor) -> QIcon:
+    """An icon drawn in color at 1x and 2x for high-DPI screens.
 
     Drawn rather than symbol characters: finding a font with such a glyph
     made showing the first note take a third of a second longer.
@@ -71,7 +72,7 @@ def drawn_icon(draw: Callable[[QPainter, float], None]) -> QIcon:
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pen = QPen(FOREGROUND, 1.4 * scale)
+        pen = QPen(color, 1.4 * scale)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
         draw(painter, size)
@@ -103,24 +104,26 @@ def _warning(painter: QPainter, size: float) -> None:
     painter.drawPoint(QPointF(size * 0.5, size * 0.72))
 
 
-def make_close_icon() -> QIcon:
-    return drawn_icon(_cross)
+def make_close_icon(color: QColor) -> QIcon:
+    return drawn_icon(_cross, color)
 
 
-def make_menu_icon() -> QIcon:
-    return drawn_icon(_bars)
+def make_menu_icon(color: QColor) -> QIcon:
+    return drawn_icon(_bars, color)
 
 
-def make_delete_icon() -> QIcon:
-    return drawn_icon(_bin)
+def make_delete_icon(color: QColor) -> QIcon:
+    return drawn_icon(_bin, color)
 
 
-def make_unsaved_icon() -> QIcon:
-    return drawn_icon(_warning)
+def make_unsaved_icon(color: QColor) -> QIcon:
+    return drawn_icon(_warning, color)
 
 
 class TitleBar(QWidget):
-    """Drag handle with the menu and hide buttons."""
+    """Drag handle with the menu and hide buttons. Right-clicking it opens the menu."""
+
+    menu_requested = Signal(QPoint)  # where, on the screen
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
@@ -128,19 +131,17 @@ class TitleBar(QWidget):
         self._drag_offset: QPoint | None = None
 
         self.menu_button = QToolButton(self)
-        self.menu_button.setIcon(make_menu_icon())
         self.menu_button.setAutoRaise(True)
         self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         # The menu arrow would crowd the small title bar; the icon says it is a menu.
         self.menu_button.setStyleSheet("QToolButton::menu-indicator { image: none; }")
         self.close_button = QToolButton(self)
-        self.close_button.setIcon(make_close_icon())
         self.close_button.setAutoRaise(True)
         # Shown only while the note could not be saved; clicking tries again at once.
         self.unsaved_button = QToolButton(self)
-        self.unsaved_button.setIcon(make_unsaved_icon())
         self.unsaved_button.setAutoRaise(True)
         self.unsaved_button.hide()
+        self.set_icon_color(qcolor(DARK_TEXT))
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 2, 2, 2)
@@ -148,6 +149,16 @@ class TitleBar(QWidget):
         layout.addStretch()
         layout.addWidget(self.menu_button)
         layout.addWidget(self.close_button)
+
+    def set_icon_color(self, color: QColor) -> None:
+        self.menu_button.setIcon(make_menu_icon(color))
+        self.close_button.setIcon(make_close_icon(color))
+        self.unsaved_button.setIcon(make_unsaved_icon(color))
+
+    @override
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        self.menu_requested.emit(event.globalPos())
+        event.accept()
 
     @override
     def mousePressEvent(self, event: QMouseEvent) -> None:
@@ -176,7 +187,10 @@ class TitleBar(QWidget):
 
 
 class NoteWindow(QWidget):
-    """Frameless, always-on-top, translucent note that stays off the taskbar.
+    """Frameless, always-on-top note with rounded corners that stays off the taskbar.
+
+    Its colours all follow from one palette key (see stickle.core.colors); the
+    background is opaque so the text always contrasts as intended.
 
     The window only asks: hiding and deleting are decided (and stored) by its
     owner, which then closes it with release(). Any other close, such as Alt+F4,
@@ -190,25 +204,23 @@ class NoteWindow(QWidget):
     editing_finished = Signal()  # the text lost focus: a moment to save
     text_changed = Signal()
     retry_requested = Signal()
+    color_requested = Signal(str)  # a palette key
 
-    def __init__(self, note_id: str | None = None, text: str = "") -> None:
+    def __init__(
+        self, note_id: str | None = None, text: str = "", color: str = DEFAULT_COLOR
+    ) -> None:
         super().__init__(
             None,
             Qt.WindowType.Tool
             | Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint,
         )
+        # Only so the rounded corners are see-through; the note itself is opaque.
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         # macOS hides tool windows while the app is inactive unless told otherwise.
         self.setAttribute(Qt.WidgetAttribute.WA_MacAlwaysShowToolWindow)
         self.resize(*DEFAULT_SIZE)
-
-        # Style sheets rather than a palette: native styles ignore palette text colours.
-        self.setStyleSheet(
-            f"QPlainTextEdit, QTextEdit {{ background: transparent; color: {FOREGROUND.name()}; }}"
-            f"QToolButton {{ color: {FOREGROUND.name()}; }}"
-        )
 
         self.note_id = note_id  # None until the note is first stored
         self._released = False
@@ -220,17 +232,32 @@ class NoteWindow(QWidget):
         self._commit_seen = False
         self._commits = 0  # committed texts seen, to tell a drop from a commit
 
+        self.color = color
+        self.colors = note_colors(color)
+
         self.title_bar = TitleBar(self)
         self.title_bar.close_button.clicked.connect(self.hide_requested)
+        self.title_bar.menu_requested.connect(self.open_menu_at)
         self.menu = QMenu(self)
-        self.delete_action = self.menu.addAction(make_delete_icon(), "")
+        self.color_menu = self.menu.addMenu("")
+        self.color_actions: dict[str, QAction] = {}
+        colors = QActionGroup(self)
+        for key in PALETTE:
+            action = self.color_menu.addAction(swatch_icon(key), "")
+            action.setCheckable(True)
+            action.triggered.connect(lambda _=False, key=key: self.color_requested.emit(key))
+            colors.addAction(action)
+            self.color_actions[key] = action
+        self.menu.addSeparator()
+        # The menu has the system's colours, which are the note's only by chance.
+        self.delete_action = self.menu.addAction(make_delete_icon(qcolor(DARK_TEXT)), "")
         self.delete_action.triggered.connect(self.delete_requested)
         self.title_bar.menu_button.setMenu(self.menu)
 
         self.editor = QPlainTextEdit(self)
         self.editor.setFrameShape(QPlainTextEdit.Shape.NoFrame)
         self.editor.setPlainText(text)
-        self.highlighter = MarkdownHighlighter(self.editor.document(), FOREGROUND)
+        self.highlighter = MarkdownHighlighter(self.editor.document(), self.colors)
         self.editor.installEventFilter(self)
         # The editor also reports a change when only the colouring changed.
         self._last_text = self.text
@@ -268,6 +295,7 @@ class NoteWindow(QWidget):
         self.menu_action.triggered.connect(self.open_menu)
         self.addAction(self.menu_action)
 
+        self.set_color(color)
         self.retranslate()
         if text.strip():
             self.show_formatted()
@@ -289,6 +317,9 @@ class NoteWindow(QWidget):
         self.title_bar.menu_button.setAccessibleName(note_menu)
         self.title_bar.menu_button.setToolTip(note_menu)
         self.menu_action.setText(note_menu)
+        self.color_menu.setTitle(self.tr("Color"))
+        for key, action in self.color_actions.items():
+            action.setText(color_name(key))
         self.delete_action.setText(self.tr("Delete note"))
         self.new_note_action.setText(self.tr("New note"))
         self.title_bar.unsaved_button.setAccessibleName(self.tr("Not saved"))
@@ -309,13 +340,38 @@ class NoteWindow(QWidget):
         self.addAction(action)
         return action
 
+    def set_color(self, color: str) -> None:
+        """Show the note in a palette colour (an unknown key shows the default)."""
+        self.color = color
+        self.colors = note_colors(color)
+        text = qcolor(self.colors.text).name()
+        title_text = qcolor(self.colors.title_text).name()
+        # Style sheets rather than a palette: native styles ignore palette text colours.
+        # Pinned so a dark system theme does not paint light text on a light note.
+        self.setStyleSheet(
+            f"QPlainTextEdit, QTextEdit {{ background: transparent; color: {text}; }}"
+            f"TitleBar QToolButton {{ color: {title_text}; }}"
+        )
+        self.title_bar.set_icon_color(qcolor(self.colors.title_text))
+        self.view.set_colors(self.colors)
+        self.highlighter.set_colors(self.colors)
+        for key, action in self.color_actions.items():
+            action.setChecked(key == color)
+        self.update()
+
     @override
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(BACKGROUND)
-        painter.drawRoundedRect(self.rect(), CORNER_RADIUS, CORNER_RADIUS)
+        shape = QPainterPath()
+        outline = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)  # the border on whole pixels
+        shape.addRoundedRect(outline, CORNER_RADIUS, CORNER_RADIUS)
+        painter.fillPath(shape, qcolor(self.colors.background))
+        painter.setClipPath(shape)
+        painter.fillRect(0, 0, self.width(), self.title_bar.height(), qcolor(self.colors.title_bar))
+        painter.setClipping(False)
+        painter.setPen(QPen(qcolor(self.colors.border), 1))
+        painter.drawPath(shape)
 
     @property
     def text(self) -> str:
@@ -420,8 +476,12 @@ class NoteWindow(QWidget):
 
     def open_menu(self) -> None:
         button = self.title_bar.menu_button
-        self.menu.popup(button.mapToGlobal(button.rect().bottomLeft()))
-        self.menu.setActiveAction(self.delete_action)
+        self.open_menu_at(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def open_menu_at(self, position: QPoint) -> None:
+        self.menu.popup(position)
+        # The first item, for the keyboard; not Delete, which Enter would then trigger.
+        self.menu.setActiveAction(self.color_menu.menuAction())
 
     def allow_close(self) -> None:
         """Let the next close through without asking to hide (the app is quitting)."""

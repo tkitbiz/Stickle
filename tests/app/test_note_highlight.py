@@ -7,8 +7,15 @@ from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
 from stickle.app.note_highlight import MarkdownHighlighter
-from stickle.app.note_view import CODE_BACKGROUND, HIGHLIGHT, utf16_length
-from stickle.app.note_window import FOREGROUND, NoteWindow
+from stickle.app.note_view import utf16_length
+from stickle.app.note_window import NoteWindow
+from stickle.app.palette import qcolor
+from stickle.core.colors import DEFAULT_COLOR, note_colors
+
+DEFAULT = note_colors(DEFAULT_COLOR)
+FOREGROUND = qcolor(DEFAULT.text)
+HIGHLIGHT = qcolor(DEFAULT.highlight)
+CODE_BACKGROUND = qcolor(DEFAULT.code_background)
 
 _windows: list[NoteWindow] = []  # kept alive while their documents are examined
 
@@ -131,7 +138,7 @@ def test_colouring_never_changes_the_text(qtbot: QtBot, text: str) -> None:
     document = QTextDocument()
     document.setPlainText(text)
     before = document.toPlainText()
-    highlighter = MarkdownHighlighter(document, FOREGROUND)
+    highlighter = MarkdownHighlighter(document, DEFAULT)
     highlighter.rehighlight()
 
     assert document.toPlainText() == before

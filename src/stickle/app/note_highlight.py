@@ -16,7 +16,9 @@ from PySide6.QtGui import (
     QTextDocument,
 )
 
-from stickle.app.note_view import CODE_BACKGROUND, HIGHLIGHT, utf16_length
+from stickle.app.note_view import utf16_length
+from stickle.app.palette import qcolor
+from stickle.core.colors import NoteColors
 
 OUTSIDE_FENCE = 0
 INSIDE_FENCE = 1
@@ -39,12 +41,23 @@ def _utf16(text: str, index: int) -> int:
 
 
 class MarkdownHighlighter(QSyntaxHighlighter):
-    def __init__(self, document: QTextDocument, foreground: QColor) -> None:
+    def __init__(self, document: QTextDocument, colors: NoteColors) -> None:
         super().__init__(document)
         self._marks = QTextCharFormat()
-        dimmed = QColor(foreground)
+        self._code = QColor()
+        self._highlight = QColor()
+        self._take_colors(colors)
+
+    def _take_colors(self, colors: NoteColors) -> None:
+        dimmed = qcolor(colors.text)
         dimmed.setAlphaF(0.45)
         self._marks.setForeground(dimmed)
+        self._code = qcolor(colors.code_background)
+        self._highlight = qcolor(colors.highlight)
+
+    def set_colors(self, colors: NoteColors) -> None:
+        self._take_colors(colors)
+        self.rehighlight()
 
     def _apply(self, text: str, start: int, end: int, char: QTextCharFormat) -> None:
         begin = _utf16(text, start)
@@ -64,7 +77,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         fence = _FENCE.match(text)
         if inside or fence:
             code = QTextCharFormat()
-            code.setBackground(CODE_BACKGROUND)
+            code.setBackground(self._code)
             self._apply(text, 0, len(text), code)
             if fence:
                 self._apply(text, 0, len(text), self._marks)
@@ -89,7 +102,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         code_spans: list[tuple[int, int]] = []
         for match in _CODE.finditer(text):
             code = QTextCharFormat()
-            code.setBackground(CODE_BACKGROUND)
+            code.setBackground(self._code)
             self._merge(text, match.start(), match.end(), code)
             self._merge(text, match.start(1), match.end(1), self._marks)
             self._merge(text, match.end(2), match.end(), self._marks)
@@ -104,7 +117,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         italic = QTextCharFormat()
         italic.setFontItalic(True)
         highlight = QTextCharFormat()
-        highlight.setBackground(HIGHLIGHT)
+        highlight.setBackground(self._highlight)
         styles += [(_BOLD, bold), (_ITALIC, italic), (_HIGHLIGHT, highlight)]
         for pattern, char in styles:
             for match in pattern.finditer(text):

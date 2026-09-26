@@ -3,7 +3,9 @@
 import hashlib
 from dataclasses import dataclass
 
-DEFAULT_COLOR = "yellow"  # a palette key; the palette itself comes with the colour feature
+from stickle.core.colors import DEFAULT_COLOR
+
+__all__ = ["DEFAULT_COLOR", "Note", "content_hash"]
 
 
 def content_hash(body: str) -> str:

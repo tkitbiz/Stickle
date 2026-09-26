@@ -22,6 +22,7 @@ from stickle.app.signals import SignalWatcher
 from stickle.app.startup import open_notes
 from stickle.app.tray import Tray
 from stickle.data.notes import NoteRepository
+from stickle.data.settings import Settings
 from stickle.platform.linux.display import preferred_qt_platform
 from stickle.platform.power import watch_sleep
 from stickle.unlock import Unlock
@@ -109,7 +110,10 @@ def run(
                 return 0
             mark("notes-database")
 
-        manager = NoteManager(NoteRepository(connection) if connection else None)
+        manager = NoteManager(
+            NoteRepository(connection) if connection else None,
+            settings=Settings(connection) if connection else None,
+        )
         manager.watch_quit(app)
         app.aboutToQuit.connect(manager.save_all)
 

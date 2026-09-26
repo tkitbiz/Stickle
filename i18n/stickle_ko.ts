@@ -2,6 +2,57 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ko_KR">
 <context>
+    <name>NoteColor</name>
+    <message>
+        <source>Yellow</source>
+        <translation>노랑</translation>
+    </message>
+    <message>
+        <source>Apricot</source>
+        <translation>살구</translation>
+    </message>
+    <message>
+        <source>Coral</source>
+        <translation>산호</translation>
+    </message>
+    <message>
+        <source>Pink</source>
+        <translation>분홍</translation>
+    </message>
+    <message>
+        <source>Lavender</source>
+        <translation>라벤더</translation>
+    </message>
+    <message>
+        <source>Blue</source>
+        <translation>파랑</translation>
+    </message>
+    <message>
+        <source>Sky</source>
+        <translation>하늘</translation>
+    </message>
+    <message>
+        <source>Mint</source>
+        <translation>민트</translation>
+    </message>
+    <message>
+        <source>Green</source>
+        <translation>연두</translation>
+    </message>
+    <message>
+        <source>Sand</source>
+        <translation>모래</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>회색</translation>
+    </message>
+    <message>
+        <source>White</source>
+        <translation>흰색</translation>
+    </message>
+</context>
+<context>
     <name>NoteWindow</name>
     <message>
         <source>Note</source>
@@ -22,6 +73,10 @@
     <message>
         <source>Note menu</source>
         <translation>메모 메뉴</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>색</translation>
     </message>
     <message>
         <source>Delete note</source>

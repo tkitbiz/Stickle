@@ -20,8 +20,14 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
-from stickle.app.note_view import CODE_BACKGROUND, HIGHLIGHT, LINE_SEPARATOR, render
+from stickle.app.note_view import LINE_SEPARATOR, render
 from stickle.app.note_window import NoteWindow
+from stickle.app.palette import qcolor
+from stickle.core.colors import DEFAULT_COLOR, note_colors
+
+DEFAULT = note_colors(DEFAULT_COLOR)
+HIGHLIGHT = qcolor(DEFAULT.highlight)
+CODE_BACKGROUND = qcolor(DEFAULT.code_background)
 
 # Characters that make Markdown structure, so generated notes are more than plain text.
 MARKDOWN = st.text(alphabet=st.sampled_from([*"-*_=#>`[]x ().1\n\t!한글abc😀", LINE_SEPARATOR]))
@@ -61,7 +67,7 @@ def block_format(document: QTextDocument, text: str) -> QTextBlockFormat:
 
 def test_inline_formats(document: QTextDocument) -> None:
     text = "**굵게** *기울임* 한글 _밑줄 기울임_ ==형광== `코드` [링크](https://example.com)"
-    render(text, document)
+    render(text, document, DEFAULT)
 
     assert blocks(document) == ["굵게 기울임 한글 밑줄 기울임 형광 코드 링크"]
     assert char_format(document, "굵게").fontWeight() == QFont.Weight.Bold
@@ -81,7 +87,7 @@ def test_inline_formats(document: QTextDocument) -> None:
 
 
 def test_headings_are_bold_and_the_first_two_larger(document: QTextDocument) -> None:
-    render("# One\n## Two\n### Three", document)
+    render("# One\n## Two\n### Three", document, DEFAULT)
 
     for text, level in (("One", 1), ("Two", 2), ("Three", 3)):
         assert block_format(document, text).headingLevel() == level
@@ -93,7 +99,7 @@ def test_headings_are_bold_and_the_first_two_larger(document: QTextDocument) -> 
 
 
 def test_lists_keep_their_kind_numbering_and_depth(document: QTextDocument) -> None:
-    render("- top\n  - inner\n\n3) three\n4) four", document)
+    render("- top\n  - inner\n\n3) three\n4) four", document, DEFAULT)
 
     top = document.find("top").block().textList()
     inner = document.find("inner").block().textList()
@@ -108,7 +114,7 @@ def test_lists_keep_their_kind_numbering_and_depth(document: QTextDocument) -> N
 
 
 def test_task_items_show_boxes_instead_of_brackets(document: QTextDocument) -> None:
-    render("- [ ] to do\n- [x] done\n- plain", document)
+    render("- [ ] to do\n- [x] done\n- plain", document, DEFAULT)
 
     assert blocks(document) == ["to do", "done", "plain"]
     assert block_format(document, "to do").marker() == QTextBlockFormat.MarkerType.Unchecked
@@ -117,7 +123,7 @@ def test_task_items_show_boxes_instead_of_brackets(document: QTextDocument) -> N
 
 
 def test_quote_code_block_and_rule(document: QTextDocument) -> None:
-    render("> quoted\n\n```\ncode\n  indented\n```\n\n---", document)
+    render("> quoted\n\n```\ncode\n  indented\n```\n\n---", document, DEFAULT)
 
     assert block_format(document, "quoted").leftMargin() > 0
     code = document.find("code").block()
@@ -131,20 +137,20 @@ def test_quote_code_block_and_rule(document: QTextDocument) -> None:
 
 
 def test_lines_show_as_they_were_typed(document: QTextDocument) -> None:
-    render("one\ntwo\n\n\n\nthree", document)
+    render("one\ntwo\n\n\n\nthree", document, DEFAULT)
 
     assert blocks(document) == [f"one{LINE_SEPARATOR}two", "", "", "", "three"]
 
 
 def test_leading_blank_lines_are_kept(document: QTextDocument) -> None:
-    render("\n\ntext", document)
+    render("\n\ntext", document, DEFAULT)
 
     assert blocks(document) == ["", "", "text"]
 
 
 def test_html_shows_as_typed_and_images_are_never_loaded(document: QTextDocument) -> None:
     text = '<img src="https://example.com/a.png">\n\n![a cat](https://example.com/cat.png)'
-    render(text, document)
+    render(text, document, DEFAULT)
 
     assert blocks(document) == ['<img src="https://example.com/a.png">', "", "a cat"]
     block = document.begin()
@@ -159,7 +165,7 @@ def test_html_shows_as_typed_and_images_are_never_loaded(document: QTextDocument
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None)
 @given(MARKDOWN)
 def test_any_text_can_be_drawn(document: QTextDocument, text: str) -> None:
-    sources = render(text, document)
+    sources = render(text, document, DEFAULT)
 
     lines = text.count("\n") + 1
     assert len(sources) == document.blockCount()

@@ -163,7 +163,32 @@ def test_deleted_note_cannot_be_edited(repo: NoteRepository) -> None:
     with pytest.raises(NoteDeletedError):
         repo.set_hidden(note.id, True)
     with pytest.raises(NoteDeletedError):
+        repo.set_color(note.id, "sky")
+    with pytest.raises(NoteDeletedError):
         repo.delete(note.id)
+
+
+def test_colour_is_stored_by_key_and_is_a_change(repo: NoteRepository, clock: FakeClock) -> None:
+    note = repo.create("장보기")
+    clock.now = "2026-09-26T11:00:00.000Z"
+
+    changed = repo.set_color(note.id, "sky")
+
+    assert changed.color == "sky"
+    assert changed.body == "장보기"
+    assert changed.updated_at == clock.now
+    assert changed.change_seq > note.change_seq
+    assert repo.set_color(note.id, "sky") == changed  # the same colour is not a change
+
+
+def test_a_colour_this_version_does_not_know_is_kept(repo: NoteRepository) -> None:
+    note = repo.create("from a newer version", "teal2")
+
+    repo.update_body(note.id, "edited here")
+
+    stored = repo.get(note.id)
+    assert stored is not None
+    assert stored.color == "teal2"
 
 
 def test_unknown_note_is_reported(repo: NoteRepository) -> None:
