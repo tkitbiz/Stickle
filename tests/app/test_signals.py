@@ -64,7 +64,9 @@ def sigterm_exit_code(data: Path) -> int:
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals from another process")
-def test_running_app_quits_on_sigterm(tmp_path: Path) -> None:
+def test_app_quits_on_sigterm_at_first_start(tmp_path: Path) -> None:
+    # An empty data folder: the welcome is open when the signal comes, and closing
+    # it must end the app, not lead on into the main loop.
     assert sigterm_exit_code(tmp_path) == 0
 
 

@@ -195,11 +195,17 @@ def run(
     # dialog is open. quit() only acts once the main loop runs; until then exit() ends
     # the dialog's loop (and any later one) instead.
     main_loop_running = False
+    # Asked to end while starting up. exit() closes the dialog open at the time,
+    # but a dialog that goes on when closed (the welcome) must not lead into the
+    # main loop, which would then run on.
+    ended_early = False
 
     def on_signal() -> None:
+        nonlocal ended_early
         if main_loop_running:
             app.quit()
         else:
+            ended_early = True
             app.exit(0)
 
     watcher = SignalWatcher(on_signal)
@@ -298,6 +304,10 @@ def run(
         elif started is not None:
             # Includes any time spent at the password prompt.
             QTimer.singleShot(0, lambda: log.info("started: %s", ", ".join(timings)))
+        if ended_early:
+            log.info("asked to end while starting: quitting")
+            manager.save_all()
+            return 0
         main_loop_running = True
         try:
             return app.exec()
