@@ -769,9 +769,10 @@ class NoteWindow(QWidget):
         self.open_menu_at(button.mapToGlobal(button.rect().bottomLeft()))
 
     def open_menu_at(self, position: QPoint) -> None:
+        # No item is chosen beforehand, so Enter alone does nothing (Down picks the
+        # first). Choosing the Color item would open its submenu at once, and a
+        # submenu opened that way misses its first click.
         self.menu.popup(position)
-        # The first item, for the keyboard; not Delete, which Enter would then trigger.
-        self.menu.setActiveAction(self.color_menu.menuAction())
 
     def allow_close(self) -> None:
         """Let the next close through without asking to hide (the app is quitting)."""

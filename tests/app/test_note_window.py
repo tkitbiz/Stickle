@@ -2,9 +2,9 @@ from collections.abc import Iterator
 
 import pytest
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QIcon, QImage, QPalette
+from PySide6.QtGui import QContextMenuEvent, QIcon, QImage, QPalette
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QApplication, QWidget
 from pytestqt.qtbot import QtBot
 
 from stickle.app.application import NoteManager
@@ -111,6 +111,26 @@ def test_the_pin_stands_when_on_top_and_lies_when_not(qtbot: QtBot) -> None:
     assert any(abs(x - middle) <= 1 for x in column_of_point(upright))  # straight down
     assert not any(abs(x - middle) <= 1 for x in column_of_point(lying))  # off to a side
     window.release()
+
+
+def test_right_click_opens_the_menu_without_opening_colors(qtbot: QtBot) -> None:
+    # A submenu opened by itself missed its first click.
+    window = NoteWindow()
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+
+    point = window.title_bar.rect().center()
+    event = QContextMenuEvent(
+        QContextMenuEvent.Reason.Mouse, point, window.title_bar.mapToGlobal(point)
+    )
+    QApplication.sendEvent(window.title_bar, event)
+    qtbot.waitUntil(window.menu.isVisible)
+    QTest.qWait(400)  # longer than a submenu's hover delay
+
+    assert window.menu.activeAction() is None
+    assert not window.color_menu.isVisible()
+    window.menu.close()
 
 
 def test_every_control_has_an_accessible_name(qtbot: QtBot) -> None:

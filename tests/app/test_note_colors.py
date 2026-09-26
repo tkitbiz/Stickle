@@ -163,6 +163,7 @@ def test_colour_can_be_chosen_with_the_keyboard(qtbot: QtBot, manager: NoteManag
 
     window.open_menu()  # what F10 does (test_note_persistence)
     qtbot.waitUntil(window.menu.isVisible)
+    QTest.keyClick(window.menu, Qt.Key.Key_Down)  # the first item: Color
     QTest.keyClick(window.menu, Qt.Key.Key_Right)  # into the colour menu, on its first colour
     qtbot.waitUntil(window.color_menu.isVisible)
     QTest.keyClick(window.color_menu, Qt.Key.Key_Down)
