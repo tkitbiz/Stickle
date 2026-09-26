@@ -25,7 +25,7 @@ FAST = {"opslimit": 1, "memlimit": 8192}
 
 
 def fast_wrap(key: bytes, password: str) -> PasswordSlot:
-    return wrap_with_password(key, password, **FAST)
+    return wrap_with_password(key, password, FAST["opslimit"], FAST["memlimit"])
 
 
 def test_the_default_strength_is_libsodiums_moderate_level() -> None:

@@ -24,7 +24,7 @@ from stickle.app.notes import NoteManager
 from stickle.app.perf import SAMPLE_NOTE, PerfMode, open_storage_like_startup
 from stickle.app.signals import SignalWatcher
 from stickle.app.startup import open_notes
-from stickle.app.stickle_window import StickleWindow
+from stickle.app.stickle_window import RecoveryKeys, StickleWindow
 from stickle.app.tray import Tray
 from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
@@ -96,6 +96,16 @@ def connect_stickle_window(
             window.notice.hide()  # a note is back: the notice no longer holds
 
     manager.changed.connect(notes_changed)
+
+
+def recovery_keys(unlock: Unlock | None) -> RecoveryKeys | None:
+    """Making recovery keys for the key that opened the notes (none in measurement mode)."""
+    if unlock is None or unlock.opened_key is None:
+        return None
+    key = unlock.opened_key
+    return RecoveryKeys(
+        exists=lambda: unlock.has_recovery_key, make=lambda: unlock.make_recovery_key(key)
+    )
 
 
 def app_list_entry() -> AppMenuEntry | None:
@@ -239,7 +249,10 @@ def run(
         app_list = app_list_entry() if perf is None else None
         tray = Tray(manager.new_note, app.quit, translations, manager, autostart, app_list)
         tray.show()
-        stickle_window = StickleWindow(manager, translations, app.quit, autostart, app_list)
+        recovery = recovery_keys(unlock)
+        stickle_window = StickleWindow(
+            manager, translations, app.quit, autostart, app_list, recovery
+        )
         connect_stickle_window(stickle_window, manager, tray if tray_available else None, app.quit)
         if instance_server is not None:
             instance_server.show_requested.connect(stickle_window.open)

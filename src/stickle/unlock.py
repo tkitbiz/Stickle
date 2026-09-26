@@ -28,7 +28,15 @@ from stickle.crypto.keyfile import (
     wrap_with_password,
     write_key_file,
 )
+from stickle.crypto.recovery import (
+    WrongRecoveryKeyError,
+    read_recovery,
+    write_recovery,
+)
+from stickle.crypto.recovery import generate as generate_recovery_key
+from stickle.crypto.recovery import unwrap as unwrap_recovery
 from stickle.platform.credentials import (
+    DATABASE_KEY,
     KEY_BYTES,
     CredentialStore,
     CredentialStoreUnavailableError,
@@ -80,6 +88,10 @@ class Unlock:
         self.folder = folder
         self._store = store
         self._strength = strength
+        # The key that opened the notes, once they are open (to make a recovery key).
+        self.opened_key: bytes | None = None
+        # No notes existed when Stickle started: this is its first start here.
+        self.first_start = not self.database.exists()
         self.start()
 
     @property
@@ -139,3 +151,63 @@ class Unlock:
         )
         self._key_file = read_key_file(self.key_file)
         return key
+
+    # The recovery key (stickle.crypto.recovery)
+
+    @property
+    def has_recovery_key(self) -> bool:
+        try:
+            return read_recovery(self.folder) is not None
+        except KeyFileError, OSError:
+            return False
+
+    def open_with_recovery_key(self, typed: str) -> bytes:
+        """The key, or RecoveryKeyTypoError / WrongRecoveryKeyError.
+
+        Nothing is written here: the key is kept (keep_recovered_key or
+        set_password) only once it has opened the database.
+        """
+        slot = read_recovery(self.folder)
+        if slot is None:
+            raise WrongRecoveryKeyError("no recovery key was made for these notes")
+        return unwrap_recovery(slot, typed)
+
+    @property
+    def recovered_key_needs_password(self) -> bool:
+        """Whether a key opened with the recovery key needs a new password to be kept:
+        in password mode (the password was forgotten) or with keys.json damaged."""
+        if self._unreadable:
+            return True
+        return self._key_file is not None and self._key_file.has_password
+
+    def keep_recovered_key(self, key: bytes) -> None:
+        """Put the key back in the credential store (or CredentialStoreUnavailableError)."""
+        store = self._store()
+        store.write(DATABASE_KEY, key)
+        if store.read(DATABASE_KEY) != key:
+            raise CredentialStoreUnavailableError("the store did not keep the key")
+
+    def set_password(self, key: bytes, password: str) -> None:
+        """Protect an existing key (known to open the database) with a new password.
+
+        A damaged keys.json is set aside, never deleted: it may hold something
+        a newer version understands.
+        """
+        if password_length(password) < MIN_PASSWORD_LENGTH:
+            raise ValueError("password too short")
+        others: dict[str, object] = {}
+        if self._unreadable and self.key_file.exists():
+            self.key_file.replace(self.key_file.with_name(f"{KEY_FILE}.damaged"))
+        elif self._key_file is not None:
+            others = self._key_file.other_slots
+        write_key_file(
+            self.key_file, KeyFile(wrap_with_password(key, password, *self._strength), others)
+        )
+        self._unreadable = False
+        self._key_file = read_key_file(self.key_file)
+
+    def make_recovery_key(self, key: bytes) -> str:
+        """A new recovery key for key (known to open the database); the old one stops working."""
+        recovery_key = generate_recovery_key()
+        write_recovery(self.folder, key, recovery_key)
+        return recovery_key

@@ -19,12 +19,14 @@ from stickle.app.application import NoteManager
 from stickle.app.i18n import Translations
 from stickle.app.password_dialog import PasswordDialog
 from stickle.app.recovery_dialog import KINDS, Problem, RecoveryDialog
+from stickle.app.recovery_key_dialog import EnterRecoveryKeyDialog, RecoveryKeyDialog
 from stickle.app.stickle_window import StickleWindow
 from stickle.app.tray import Tray
 from stickle.data.schema import NotesDiff
 
 ACCENTED = str.maketrans("aeiouAEIOUcnst", "åëïöüÅËÏÖÜçñşŧ")
 # Texts that are not translated on purpose.
+RECOVERY_KEY = "K7QM-2HXP-9RTV-4WJD-8FNB-3YCS-6GKA-M2Q7"
 UNTRANSLATED = {"", "Stickle", "English", "한국어"}
 
 
@@ -104,10 +106,17 @@ def test_every_startup_dialog_text_is_translated(qtbot: QtBot, tmp_path: Path) -
         RecoveryDialog(Problem(kind, diff=diff), tmp_path, export=lambda _: None)  # pyright: ignore[reportArgumentType]
         for kind in KINDS
     ]
+    dialogs += [
+        PasswordDialog(True, lambda _: None, after_recovery=True),
+        PasswordDialog(False, lambda _: None, can_recover=True),
+        EnterRecoveryKeyDialog(lambda _: None),
+        RecoveryKeyDialog(RECOVERY_KEY),
+    ]
     try:
         translations.apply("fr")
         for dialog in dialogs:
-            texts = [t for t in visible_texts(dialog) if t not in UNTRANSLATED]
+            # The recovery key itself is not text to translate.
+            texts = [t for t in visible_texts(dialog) if t not in UNTRANSLATED | {RECOVERY_KEY}]
             # Note titles in the list are the user's own text around a translated label.
             untranslated = [t for t in texts if "~]" not in t]
             assert untranslated == [], type(dialog).__name__

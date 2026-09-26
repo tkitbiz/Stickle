@@ -68,8 +68,13 @@ def _aad(slot: str) -> bytes:
 
 
 def wrap_with_password(
-    key: bytes, password: str, opslimit: int = OPSLIMIT, memlimit: int = MEMLIMIT
+    key: bytes,
+    password: str,
+    opslimit: int = OPSLIMIT,
+    memlimit: int = MEMLIMIT,
+    slot_name: str = PASSWORD,
 ) -> PasswordSlot:
+    """key wrapped with password; slot_name binds it to its slot (a recovery key has its own)."""
     from nacl import pwhash, secret, utils
 
     if len(key) != KEY_BYTES:
@@ -78,11 +83,11 @@ def wrap_with_password(
     wrapping_key = pwhash.argon2id.kdf(
         secret.Aead.KEY_SIZE, normalized(password), salt, opslimit=opslimit, memlimit=memlimit
     )
-    box = bytes(secret.Aead(wrapping_key).encrypt(key, _aad(PASSWORD)))
+    box = bytes(secret.Aead(wrapping_key).encrypt(key, _aad(slot_name)))
     return PasswordSlot(opslimit, memlimit, salt, box)
 
 
-def unwrap_with_password(slot: PasswordSlot, password: str) -> bytes:
+def unwrap_with_password(slot: PasswordSlot, password: str, slot_name: str = PASSWORD) -> bytes:
     from nacl import exceptions, pwhash, secret
 
     wrapping_key = pwhash.argon2id.kdf(
@@ -93,7 +98,7 @@ def unwrap_with_password(slot: PasswordSlot, password: str) -> bytes:
         memlimit=slot.memlimit,
     )
     try:
-        key = secret.Aead(wrapping_key).decrypt(slot.box, _aad(PASSWORD))
+        key = secret.Aead(wrapping_key).decrypt(slot.box, _aad(slot_name))
     except exceptions.CryptoError as error:
         raise WrongPasswordError from error
     if len(key) != KEY_BYTES:
@@ -116,7 +121,7 @@ def _int(value: object) -> int:
     return value
 
 
-def _password_slot(value: object) -> PasswordSlot:
+def decode_slot(value: object) -> PasswordSlot:
     if not isinstance(value, dict):
         raise KeyFileError("password slot is not an object")
     fields = cast(dict[str, object], value)
@@ -151,12 +156,12 @@ def read_key_file(path: Path) -> KeyFile | None:
     slot_map = cast(dict[str, object], slots)
     password = slot_map.get(PASSWORD)
     return KeyFile(
-        password=None if password is None else _password_slot(password),
+        password=None if password is None else decode_slot(password),
         other_slots={name: v for name, v in slot_map.items() if name != PASSWORD},
     )
 
 
-def _encode_slot(slot: PasswordSlot) -> dict[str, Any]:
+def encode_slot(slot: PasswordSlot) -> dict[str, Any]:
     return {
         "kdf": "argon2id",
         "opslimit": slot.opslimit,
@@ -170,7 +175,12 @@ def write_key_file(path: Path, key_file: KeyFile) -> None:
     """Replace the file atomically, flushed to disk before and after the swap."""
     slots: dict[str, Any] = dict(key_file.other_slots)
     if key_file.password is not None:
-        slots[PASSWORD] = _encode_slot(key_file.password)
+        slots[PASSWORD] = encode_slot(key_file.password)
+    write_slots(path, slots)
+
+
+def write_slots(path: Path, slots: dict[str, Any]) -> None:
+    """A key file with these slots, replacing any atomically and durably."""
     data = json.dumps({"format": FORMAT, "slots": slots}, indent=2).encode("utf-8")
     temporary = path.with_name(path.name + ".new")
     try:

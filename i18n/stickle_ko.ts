@@ -9,6 +9,45 @@
     </message>
 </context>
 <context>
+    <name>EnterRecoveryKeyDialog</name>
+    <message>
+        <source>Open with the recovery key</source>
+        <translation>복구 키로 열기</translation>
+    </message>
+    <message>
+        <source>Type the recovery key you were given when you started using Stickle. Letter case, spaces and dashes do not matter.</source>
+        <translation>Stickle을 처음 쓸 때 받은 복구 키를 입력하세요. 대소문자, 빈칸, 하이픈은 상관없습니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Recovery key:</source>
+        <translation>복구 키(&amp;R):</translation>
+    </message>
+    <message>
+        <source>Recovery key</source>
+        <translation>복구 키</translation>
+    </message>
+    <message>
+        <source>Open notes</source>
+        <translation>메모 열기</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>뒤로</translation>
+    </message>
+    <message>
+        <source>This is not a recovery key as written: a character may be missing, extra or mistyped. Please check it again.</source>
+        <translation>복구 키 형식이 맞지 않습니다. 빠지거나 더 들어가거나 잘못 적은 글자가 있을 수 있습니다. 다시 확인해 주세요.</translation>
+    </message>
+    <message>
+        <source>This recovery key does not open these notes.</source>
+        <translation>이 복구 키로는 이 메모를 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>No recovery key was made for these notes.</source>
+        <translation>이 메모에는 만들어 둔 복구 키가 없습니다.</translation>
+    </message>
+</context>
+<context>
     <name>NoteColor</name>
     <message>
         <source>Yellow</source>
@@ -120,6 +159,22 @@
 </context>
 <context>
     <name>PasswordDialog</name>
+    <message>
+        <source>I &amp;forgot the password</source>
+        <translation>암호를 잊었어요(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Choose a new password</source>
+        <translation>새 암호 정하기</translation>
+    </message>
+    <message>
+        <source>The recovery key opened your notes. Choose a new password to lock them with from now on.</source>
+        <translation>복구 키로 메모를 열었습니다. 앞으로 메모를 잠글 새 암호를 정하세요.</translation>
+    </message>
+    <message>
+        <source>Set password</source>
+        <translation>암호 정하기</translation>
+    </message>
     <message>
         <source>Protect your notes with a password</source>
         <translation>암호로 메모 보호하기</translation>
@@ -290,6 +345,10 @@
         <translation>다시 시도(&amp;T)</translation>
     </message>
     <message>
+        <source>Use the &amp;recovery key…</source>
+        <translation>복구 키로 열기(&amp;R)…</translation>
+    </message>
+    <message>
         <source>&amp;Export notes…</source>
         <translation>메모 꺼내기(&amp;E)…</translation>
     </message>
@@ -334,6 +393,68 @@
     <message>
         <source>Copied. The details contain no note text, paths or keys.</source>
         <translation>복사했습니다. 메모 내용·경로·키는 들어 있지 않습니다.</translation>
+    </message>
+</context>
+<context>
+    <name>RecoveryKeyDialog</name>
+    <message>
+        <source>Your recovery key</source>
+        <translation>복구 키</translation>
+    </message>
+    <message>
+        <source>Done</source>
+        <translation>완료</translation>
+    </message>
+    <message>
+        <source>Later</source>
+        <translation>나중에</translation>
+    </message>
+</context>
+<context>
+    <name>RecoveryKeyPanel</name>
+    <message>
+        <source>If the key that opens your notes is ever lost (a new computer, a reset keychain, a forgotten password), this recovery key opens them again. Stickle does not keep it: write it down or save it somewhere safe, away from this computer. Anyone with it can read your notes.</source>
+        <translation>메모를 여는 키를 잃어버렸을 때(새 컴퓨터, 초기화된 키 저장소, 잊어버린 암호) 이 복구 키로 메모를 다시 열 수 있습니다. Stickle은 복구 키를 보관하지 않습니다. 적어 두거나 이 컴퓨터가 아닌 안전한 곳에 저장하세요. 복구 키가 있으면 누구나 메모를 읽을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Recovery key</source>
+        <translation>복구 키</translation>
+    </message>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>복사(&amp;C)</translation>
+    </message>
+    <message>
+        <source>&amp;Save to a file…</source>
+        <translation>파일로 저장(&amp;S)…</translation>
+    </message>
+    <message>
+        <source>I have &amp;kept the recovery key somewhere safe</source>
+        <translation>복구 키를 안전한 곳에 보관했습니다(&amp;K)</translation>
+    </message>
+    <message>
+        <source>Copied. Paste it somewhere safe, then clear the clipboard.</source>
+        <translation>복사했습니다. 안전한 곳에 붙여 넣은 뒤 클립보드를 비우세요.</translation>
+    </message>
+    <message>
+        <source>Save the recovery key</source>
+        <translation>복구 키 저장</translation>
+    </message>
+    <message>
+        <source>Text files (*.txt)</source>
+        <translation>텍스트 파일 (*.txt)</translation>
+    </message>
+    <message>
+        <source>Stickle recovery key: %1</source>
+        <translation>Stickle 복구 키: %1</translation>
+    </message>
+    <message>
+        <source>The file could not be saved.</source>
+        <translation>파일을 저장하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Saved. Keep the file away from this computer.</source>
+        <translation>저장했습니다. 이 파일은 이 컴퓨터가 아닌 곳에 보관하세요.</translation>
     </message>
 </context>
 <context>
@@ -387,6 +508,10 @@
         <translation>앱 목록에 Stickle 표시(&amp;A)</translation>
     </message>
     <message>
+        <source>Make a new &amp;recovery key…</source>
+        <translation>새 복구 키 만들기(&amp;R)…</translation>
+    </message>
+    <message>
         <source>(empty note)</source>
         <translation>(빈 메모)</translation>
     </message>
@@ -401,6 +526,14 @@
     <message>
         <source>Restore the note just deleted: %1</source>
         <translation>방금 지운 메모 되살리기: %1</translation>
+    </message>
+    <message>
+        <source>Make a new recovery key? The one you have now will no longer open your notes.</source>
+        <translation>새 복구 키를 만들까요? 지금 가진 복구 키로는 더 이상 메모를 열 수 없게 됩니다.</translation>
+    </message>
+    <message>
+        <source>The recovery key could not be saved.</source>
+        <translation>복구 키를 저장하지 못했습니다.</translation>
     </message>
 </context>
 <context>

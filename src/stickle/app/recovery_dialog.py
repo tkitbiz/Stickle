@@ -42,6 +42,8 @@ type Kind = Literal[
 ]
 KINDS: tuple[Kind, ...] = get_args(Kind.__value__)
 NO_RETRY: set[Kind] = {"wrong_key", "newer_version"}
+# Problems where the key itself is out of reach, which the recovery key replaces.
+RECOVERABLE: set[Kind] = {"store_unavailable", "key_missing", "key_file_unreadable"}
 
 
 @dataclass(frozen=True)
@@ -54,6 +56,7 @@ class Problem:
 class Choice(Enum):
     RETRY = auto()
     QUIT = auto()
+    RECOVER = auto()  # open with the recovery key
 
 
 def diagnostics(problem: Problem) -> str:
@@ -81,6 +84,7 @@ class RecoveryDialog(QDialog):
         data_folder: Path,
         export: Callable[[Path], ExportResult] | None = None,
         parent: QWidget | None = None,
+        can_recover: bool = False,
     ) -> None:
         super().__init__(parent)
         self.problem = problem
@@ -108,6 +112,10 @@ class RecoveryDialog(QDialog):
         self.export_button = QPushButton()
         self.export_button.clicked.connect(self._export_notes)
         self.export_button.setVisible(export is not None)
+        # When the key is lost and a recovery key was made, it is the way back in.
+        self.recover_button = QPushButton()
+        self.recover_button.clicked.connect(self._recover)
+        self.recover_button.setVisible(can_recover and problem.kind in RECOVERABLE)
         # Helpers for a problem report, kept small below the real choices.
         self.report_label = QLabel()
         self.copy_button = QPushButton()
@@ -125,6 +133,7 @@ class RecoveryDialog(QDialog):
         buttons.addWidget(self.export_button)
         buttons.addStretch()
         buttons.addWidget(self.quit_button)
+        buttons.addWidget(self.recover_button)
         buttons.addWidget(self.retry_button)
         report = QHBoxLayout()
         report.addWidget(self.report_label)
@@ -229,6 +238,7 @@ class RecoveryDialog(QDialog):
                 self.notes.addItems([template.replace("%1", t or empty) for t in titles])
         self.notes.setAccessibleName(self.tr("Affected notes"))
         self.retry_button.setText(self.tr("&Try again"))
+        self.recover_button.setText(self.tr("Use the &recovery key…"))
         self.export_button.setText(self.tr("&Export notes…"))
         self.report_label.setText(self.tr("For a problem report:"))
         self.log_button.setText(self.tr("Open the log folder"))
@@ -253,6 +263,10 @@ class RecoveryDialog(QDialog):
 
     def _retry(self) -> None:
         self.choice = Choice.RETRY
+        self.accept()
+
+    def _recover(self) -> None:
+        self.choice = Choice.RECOVER
         self.accept()
 
     def _export_notes(self) -> None:

@@ -22,9 +22,22 @@ type Submit = Callable[[str], str | None]
 
 
 class PasswordDialog(QDialog):
-    def __init__(self, create: bool, submit: Submit, parent: QWidget | None = None) -> None:
+    """Enter the password, or create one: at first start, or after the recovery key
+    opened the notes (after_recovery). While unlocking, "I forgot the password"
+    closes it with forgot set, where a recovery key exists."""
+
+    def __init__(
+        self,
+        create: bool,
+        submit: Submit,
+        parent: QWidget | None = None,
+        can_recover: bool = False,
+        after_recovery: bool = False,
+    ) -> None:
         super().__init__(parent)
         self.creating = create
+        self.after_recovery = after_recovery
+        self.forgot = False
         self._submit = submit
 
         self.intro = QLabel()
@@ -50,6 +63,9 @@ class PasswordDialog(QDialog):
         self.ok_button.setDefault(True)
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
+        self.forgot_button = self.buttons.addButton("", QDialogButtonBox.ButtonRole.ActionRole)
+        self.forgot_button.setVisible(can_recover and not create)
+        self.forgot_button.clicked.connect(self._forgot)
 
         form = QFormLayout()
         form.addRow(self.password_label, self.password)
@@ -69,8 +85,22 @@ class PasswordDialog(QDialog):
         self.retranslate()
         self.password.setFocus()
 
+    def _forgot(self) -> None:
+        self.forgot = True
+        self.reject()
+
     def retranslate(self) -> None:
-        if self.creating:
+        self.forgot_button.setText(self.tr("I &forgot the password"))
+        if self.after_recovery:
+            self.setWindowTitle(self.tr("Choose a new password"))
+            self.intro.setText(
+                self.tr(
+                    "The recovery key opened your notes. Choose a new password to lock "
+                    "them with from now on."
+                )
+            )
+            self.ok_button.setText(self.tr("Set password"))
+        elif self.creating:
             self.setWindowTitle(self.tr("Protect your notes with a password"))
             self.intro.setText(
                 self.tr(

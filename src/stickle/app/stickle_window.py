@@ -6,7 +6,9 @@ note is hidden: then it says so, and closing it ends Stickle. It will grow
 into the list of all notes.
 """
 
+import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import override
 
 from PySide6.QtCore import QEvent, Qt, Signal
@@ -18,6 +20,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -26,12 +29,29 @@ from PySide6.QtWidgets import (
 from stickle.app.app_list import switch_app_list
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.notes import HIDDEN_LISTED, NoteManager
+from stickle.app.recovery_key_dialog import RecoveryKeyDialog
 from stickle.app.tray import switch_autostart
 from stickle.core.markdown import note_title
 from stickle.platform.autostart import Autostart
 from stickle.platform.linux.appimage import AppMenuEntry
 
 NOTE_ID = Qt.ItemDataRole.UserRole
+log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class RecoveryKeys:
+    """Making the recovery key, without the window knowing the database key."""
+
+    exists: Callable[[], bool]
+    make: Callable[[], str]  # a new one, the old one no longer working
+
+
+def _exec(dialog: RecoveryKeyDialog) -> None:
+    dialog.exec()
+
+
+show_recovery_key: Callable[[RecoveryKeyDialog], None] = _exec  # replaced in tests
 
 
 class StickleWindow(QWidget):
@@ -44,12 +64,14 @@ class StickleWindow(QWidget):
         on_quit: Callable[[], object],
         autostart: Autostart | None = None,
         app_list: AppMenuEntry | None = None,
+        recovery: RecoveryKeys | None = None,
     ) -> None:
         super().__init__()
         self._notes = notes
         self._translations = translations
         self._autostart = autostart
         self._app_list = app_list
+        self._recovery = recovery
         self.setMinimumWidth(320)
 
         self.autostart_box = QCheckBox(self)
@@ -58,6 +80,9 @@ class StickleWindow(QWidget):
         self.app_list_box = QCheckBox(self)
         self.app_list_box.setVisible(app_list is not None)
         self.app_list_box.clicked.connect(self._switch_app_list)
+        self.recovery_button = QPushButton(self)
+        self.recovery_button.setVisible(recovery is not None)
+        self.recovery_button.clicked.connect(self.new_recovery_key)
 
         # Shown only when there is no tray and every note was hidden.
         self.notice = QLabel(self)
@@ -103,6 +128,7 @@ class StickleWindow(QWidget):
         layout.addLayout(language)
         layout.addWidget(self.autostart_box)
         layout.addWidget(self.app_list_box)
+        layout.addWidget(self.recovery_button)
         layout.addWidget(self.quit_button)
 
         notes.changed.connect(self.refresh)
@@ -128,6 +154,7 @@ class StickleWindow(QWidget):
         self.quit_button.setText(self.tr("Quit Stickle"))
         self.autostart_box.setText(self.tr("&Start Stickle when I log in"))
         self.app_list_box.setText(self.tr("Show Stickle in the &app list"))
+        self.recovery_button.setText(self.tr("Make a new &recovery key…"))
         self.refresh()
 
     @override
@@ -165,6 +192,30 @@ class StickleWindow(QWidget):
             self.autostart_box.setChecked(self._autostart.enabled)
         if self._app_list is not None:
             self.app_list_box.setChecked(self._app_list.added)
+
+    def new_recovery_key(self) -> None:
+        """Make a new recovery key and show it; the previous one stops working."""
+        if self._recovery is None:
+            return
+        if self._recovery.exists():
+            answer = QMessageBox.question(
+                self,
+                "Stickle",
+                self.tr(
+                    "Make a new recovery key? The one you have now will no longer open your notes."
+                ),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        try:
+            recovery_key = self._recovery.make()
+        except OSError as error:
+            log.error("could not make a recovery key: %s", type(error).__name__)
+            QMessageBox.warning(self, "Stickle", self.tr("The recovery key could not be saved."))
+            return
+        show_recovery_key(RecoveryKeyDialog(recovery_key, self))
 
     def _switch_app_list(self, on: bool) -> None:
         if self._app_list is not None:
