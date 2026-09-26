@@ -126,7 +126,8 @@ class NoteManager(QObject):
 
     def prepare_to_quit(self) -> None:
         self._quitting = True
-        self.save_all(commit=True)
+        for window in self._windows:
+            self.flush(window, closing=True)
         for window in self._windows:
             window.allow_close()
 
@@ -200,15 +201,15 @@ class NoteManager(QObject):
         window.set_unsaved(False)
         return True
 
-    def flush(self, window: NoteWindow, commit: bool = True) -> bool:
-        """Save now, with the character being composed if commit is set."""
-        if commit:
-            window.commit_composition()
+    def flush(self, window: NoteWindow, closing: bool = False) -> bool:
+        """Save now, with the character being composed (see finish_composition)."""
+        window.finish_composition(closing)
         return self._autosaves[window].save_now()
 
-    def save_all(self, commit: bool = False) -> None:
+    def save_all(self) -> None:
+        """Save every note that stays open (logout, sleep)."""
         for window in self._windows:
-            self.flush(window, commit)
+            self.flush(window)
 
     # Hiding, deleting, bringing back
 
@@ -217,7 +218,7 @@ class NoteManager(QObject):
             window.release()
             return
         # A note that could not be saved stays open: closing it would lose the text.
-        if not self.flush(window):
+        if not self.flush(window, closing=True):
             return
         if self._repository is not None and window.note_id is not None:
             try:
@@ -233,7 +234,7 @@ class NoteManager(QObject):
         window.release()
 
     def delete(self, window: NoteWindow) -> None:
-        if not self.flush(window):
+        if not self.flush(window, closing=True):
             return
         if self._repository is not None and window.note_id is not None:
             try:

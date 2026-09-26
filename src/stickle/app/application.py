@@ -110,11 +110,11 @@ def run(
         # program may still cancel the logout.
         def before_session_end(*_: object) -> None:
             log.info("saving before the session ends")
-            manager.save_all(commit=True)
+            manager.save_all()
 
         def before_sleep() -> None:
             log.info("saving before sleep")
-            manager.save_all(commit=True)
+            manager.save_all()
 
         app.commitDataRequest.connect(before_session_end)
         sleep_watch = watch_sleep(before_sleep)

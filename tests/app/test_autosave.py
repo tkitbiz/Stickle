@@ -127,18 +127,104 @@ def test_composing_character_is_saved_once_committed(
     qtbot.waitUntil(lambda: stored(repository) == ["안녕하"], timeout=2000)
 
 
-def test_hiding_while_composing_keeps_the_character(
-    qtbot: QtBot, manager: NoteManager, repository: NoteRepository, monkeypatch: pytest.MonkeyPatch
+class InputMethod:
+    """Plays an input method that answers requests in one of several ways.
+
+    commits: commits the composed character when asked to commit
+    fcitx5: ignores the commit request, commits when reset
+    late: commits when asked, but through a posted event (after the request returns)
+    ignores: answers neither request
+    discards: drops the character when reset, committing nothing
+    """
+
+    def __init__(self, window: NoteWindow, kind: str, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.window = window
+        self.kind = kind
+        self.preedit = ""
+        monkeypatch.setattr(window.editor, "hasFocus", lambda: True)
+        monkeypatch.setattr(window, "_request_commit", self.commit)
+        monkeypatch.setattr(window, "_request_reset", self.reset)
+
+    def compose(self, preedit: str) -> None:
+        self.preedit = preedit
+        compose(self.window, preedit)
+
+    def commit(self) -> None:
+        if self.kind == "commits":
+            compose(self.window, "", commit=self.preedit)
+        elif self.kind == "late":
+            event = QInputMethodEvent("", [])
+            event.setCommitString(self.preedit)
+            QApplication.postEvent(self.window.editor, event)
+
+    def reset(self) -> None:
+        if self.kind == "fcitx5":
+            compose(self.window, "", commit=self.preedit)
+        elif self.kind == "discards":
+            compose(self.window, "")
+
+
+KINDS = ["commits", "fcitx5", "late", "ignores", "discards"]
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_hiding_while_composing_keeps_the_character_once(
+    qtbot: QtBot,
+    manager: NoteManager,
+    repository: NoteRepository,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
 ) -> None:
     window = manager.new_note()
-    type_into(window, "안녕")
-    compose(window, "하")
+    ime = InputMethod(window, kind, monkeypatch)
+    type_into(window, "조합 시험 숨")
+    ime.compose("김")
 
-    # The input method commits when asked; here it is asked through the window.
-    monkeypatch.setattr(window, "commit_composition", lambda: compose(window, "", commit="하"))
     window.title_bar.close_button.click()
 
-    assert [n.body for n in repository.hidden()] == ["안녕하"]
+    # Regression (fcitx5 on Ubuntu): only "숨" was kept.
+    assert [n.body for n in repository.hidden()] == ["조합 시험 숨김"]
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_quitting_while_composing_keeps_the_character_once(
+    qtbot: QtBot,
+    manager: NoteManager,
+    repository: NoteRepository,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+) -> None:
+    window = manager.new_note()
+    ime = InputMethod(window, kind, monkeypatch)
+    type_into(window, "조합 시")
+    ime.compose("험")
+
+    manager.prepare_to_quit()
+
+    assert stored(repository) == ["조합 시험"]
+
+
+@pytest.mark.parametrize("kind", ["commits", "ignores"])
+def test_sleep_and_logout_leave_the_composition_alone(
+    qtbot: QtBot,
+    manager: NoteManager,
+    repository: NoteRepository,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+) -> None:
+    # The note stays open and the user may go on typing: never insert the character
+    # ourselves (it could end up typed twice), only ask the input method.
+    window = manager.new_note()
+    ime = InputMethod(window, kind, monkeypatch)
+    type_into(window, "절전 시")
+    ime.compose("험")
+
+    manager.save_all()
+
+    if kind == "commits":
+        assert stored(repository) == ["절전 시험"] and not window.composing
+    else:
+        assert stored(repository) == ["절전 시"] and window.composing
 
 
 # D. The session ending saves everything, and nothing becomes hidden.
@@ -147,7 +233,7 @@ def test_session_end_saves_without_hiding(manager: NoteManager, repository: Note
     type_into(first, "첫째")
     type_into(second, "둘째")
 
-    manager.save_all(commit=True)
+    manager.save_all()
 
     assert sorted(stored(repository)) == ["둘째", "첫째"]
     assert repository.hidden() == []

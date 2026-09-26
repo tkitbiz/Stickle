@@ -3,7 +3,18 @@
 from collections.abc import Callable
 from typing import override
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import (
+    QCoreApplication,
+    QEvent,
+    QEventLoop,
+    QObject,
+    QPoint,
+    QPointF,
+    QRectF,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import (
     QAction,
     QCloseEvent,
@@ -195,6 +206,8 @@ class NoteWindow(QWidget):
         # The editor's text holds only what is committed, so saving never catches
         # half a character.
         self.composing = False
+        self._preedit = ""
+        self._commit_seen = False
 
         self.title_bar = TitleBar(self)
         self.title_bar.close_button.clicked.connect(self.hide_requested)
@@ -281,10 +294,37 @@ class NoteWindow(QWidget):
     def text(self) -> str:
         return self.editor.toPlainText()
 
-    def commit_composition(self) -> None:
-        """Ask the input method to finish the character being composed, so it is kept."""
-        if self.composing and self.editor.hasFocus():
-            QGuiApplication.inputMethod().commit()
+    def finish_composition(self, closing: bool) -> None:
+        """Make sure the character being composed ends up in the text.
+
+        Input methods differ: some commit when asked to, fcitx5 commits when
+        reset, and some answer only after the request returns. When the note
+        is closing, a character that was still not committed after all that
+        is put into the text as the input method would have. While the note
+        stays open (logout, sleep) it is only asked to commit, so that nothing
+        can be typed twice when the user goes on typing.
+        """
+        if not self.composing:
+            return
+        preedit = self._preedit
+        self._commit_seen = False
+        if self.editor.hasFocus():
+            self._request_commit()
+            if closing and self.composing:
+                self._request_reset()
+            # Answers that arrive as posted events; the user's input waits.
+            QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+        if closing and not self._commit_seen:
+            event = QInputMethodEvent("", [])
+            event.setCommitString(preedit)
+            QCoreApplication.sendEvent(self.editor, event)
+
+    # Separate so tests can play the part of different input methods.
+    def _request_commit(self) -> None:
+        QGuiApplication.inputMethod().commit()
+
+    def _request_reset(self) -> None:
+        QGuiApplication.inputMethod().reset()
 
     def set_unsaved(self, unsaved: bool) -> None:
         self.title_bar.unsaved_button.setVisible(unsaved)
@@ -314,7 +354,10 @@ class NoteWindow(QWidget):
         if watched is self.editor and event.type() == QEvent.Type.FocusOut and not self._released:
             self.editing_finished.emit()
         if watched is self.editor and isinstance(event, QInputMethodEvent):
-            self.composing = bool(event.preeditString())
+            self._preedit = event.preeditString()
+            self.composing = bool(self._preedit)
+            if event.commitString():
+                self._commit_seen = True
         return super().eventFilter(watched, event)
 
     @override
