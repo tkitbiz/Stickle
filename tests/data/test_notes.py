@@ -181,6 +181,19 @@ def test_colour_is_stored_by_key_and_is_a_change(repo: NoteRepository, clock: Fa
     assert repo.set_color(note.id, "sky") == changed  # the same colour is not a change
 
 
+def test_folding_is_stored_and_is_a_change(repo: NoteRepository, clock: FakeClock) -> None:
+    note = repo.create("접을 메모")
+    clock.now = "2026-09-26T12:00:00.000Z"
+
+    folded = repo.set_collapsed(note.id, True)
+
+    assert folded.collapsed
+    assert folded.body == "접을 메모"
+    assert folded.change_seq > note.change_seq
+    assert repo.set_collapsed(note.id, True) == folded  # already folded: not a change
+    assert not repo.set_collapsed(note.id, False).collapsed
+
+
 def test_a_colour_this_version_does_not_know_is_kept(repo: NoteRepository) -> None:
     note = repo.create("from a newer version", "teal2")
 

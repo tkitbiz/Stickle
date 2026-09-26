@@ -36,6 +36,24 @@ def parse(text: str) -> SyntaxTreeNode:
     return SyntaxTreeNode(_parser().parse(text))
 
 
+def _plain(node: SyntaxTreeNode) -> str:
+    if node.type in ("text", "code_inline"):
+        return node.content
+    return "".join(_plain(child) for child in node.children)
+
+
+def note_title(text: str) -> str:
+    """A note's title: its first line with text, as shown, without Markdown marks.
+
+    "# **Shopping**" gives "Shopping", "- [ ] milk" gives "milk". Lines that
+    show nothing (a rule, an empty task) are passed over. Empty if none.
+    """
+    for line in text.splitlines():
+        if line.strip() and (title := " ".join(_plain(parse(line)).split())):
+            return title
+    return ""
+
+
 # ==highlight==, built like markdown-it's ~~strikethrough~~.
 
 

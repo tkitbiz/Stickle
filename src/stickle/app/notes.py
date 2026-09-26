@@ -182,6 +182,11 @@ class NoteManager(QObject):
             self.set_color(window, color)
 
         window.color_requested.connect(color_requested)
+
+        def collapse_requested(collapsed: bool) -> None:
+            self.set_collapsed(window, collapsed)
+
+        window.collapse_requested.connect(collapse_requested)
         window.hide_requested.connect(lambda: self.hide(window))
         window.delete_requested.connect(lambda: self.delete(window))
         autosave = AutoSave(lambda: self.save(window), self._idle_ms, self._max_ms, window)
@@ -198,6 +203,9 @@ class NoteManager(QObject):
             self._created += 1
             area = QGuiApplication.primaryScreen().availableGeometry()
             window.place(QRect(area.topLeft() + QPoint(offset, offset), window.size()))
+        if note is not None and note.collapsed:
+            window.set_collapsed(True)
+            window.mark_placed()
 
         window.show()
         window.activateWindow()
@@ -222,6 +230,8 @@ class NoteManager(QObject):
                 if text:
                     window.note_id = self._repository.create(text, window.color).id
                     self.save_layout(window, force=True)
+                    if window.collapsed:
+                        self._repository.set_collapsed(window.note_id, True)
             else:
                 self._repository.update_body(window.note_id, text)
         except (apsw.Error, OSError) as error:
@@ -267,7 +277,8 @@ class NoteManager(QObject):
             return
         places = self._places(window)
         if can_place_windows():
-            places = remember(places, rect(window.geometry()), monitors(), window.own_monitor)
+            window_rect = rect(window.expanded_geometry())  # folded or not, the full size
+            places = remember(places, window_rect, monitors(), window.own_monitor)
         elif MAIN in places:
             size = {"width": window.width(), "height": window.height()}
             places = {slot: replace(place, **size) for slot, place in places.items()}
@@ -289,14 +300,38 @@ class NoteManager(QObject):
             if self._restore_place(window):
                 continue
             # Not remembered yet: at least keep it on a monitor.
-            _, monitor = monitor_at(rect(window.geometry()), current)
-            window.place(qrect(fit(rect(window.geometry()), monitor.available)), window.own_monitor)
+            where = rect(window.expanded_geometry())
+            _, monitor = monitor_at(where, current)
+            window.place(qrect(fit(where, monitor.available)), window.own_monitor)
         log.info("monitors changed: %d notes on %d monitors", len(self._windows), len(current))
 
     def save_all(self) -> None:
         """Save every note that stays open (logout, sleep)."""
         for window in self._windows:
             self.flush(window)
+
+    # Folding
+
+    def set_collapsed(self, window: NoteWindow, collapsed: bool) -> None:
+        """Fold a note to its title bar, or unfold it (kept on screen)."""
+        if collapsed:
+            # Like hiding: the text goes out of sight, and some input methods
+            # drop a character still being composed.
+            self.flush(window, closing=True)
+        window.set_collapsed(collapsed)
+        if not collapsed and can_place_windows():
+            where = rect(window.geometry())
+            _, monitor = monitor_at(where, monitors())
+            fitted = fit(where, monitor.available)
+            if fitted != where:
+                window.place(qrect(fitted), window.own_monitor)
+        window.mark_placed()  # folding is not moving: the remembered place stays
+        if self._repository is None or window.note_id is None:
+            return
+        try:
+            self._repository.set_collapsed(window.note_id, collapsed)
+        except apsw.Error as error:
+            log.error("could not store a note being folded: %s", type(error).__name__)
 
     # Colour
 

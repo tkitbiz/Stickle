@@ -8,16 +8,16 @@ from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.notes import HIDDEN_LISTED, NoteManager
+from stickle.core.markdown import note_title
 from stickle.core.note import Note
-from stickle.data.schema import first_line
 
 ICON_SIZE = 64
 TITLE_LENGTH = 40
 
 
 def menu_title(note: Note) -> str:
-    """The note's first line, shortened, with & kept literal (Qt reads it as a shortcut mark)."""
-    title = first_line(note.body)
+    """The note's title, shortened, with & kept literal (Qt reads it as a shortcut mark)."""
+    title = note_title(note.body)
     if len(title) > TITLE_LENGTH:
         title = title[: TITLE_LENGTH - 1] + "…"
     return title.replace("&", "&&")

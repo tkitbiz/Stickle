@@ -79,6 +79,14 @@
         <translation>색</translation>
     </message>
     <message>
+        <source>Expand note</source>
+        <translation>메모 펼치기</translation>
+    </message>
+    <message>
+        <source>Collapse note</source>
+        <translation>메모 접기</translation>
+    </message>
+    <message>
         <source>Delete note</source>
         <translation>메모 삭제</translation>
     </message>
@@ -93,6 +101,10 @@
     <message>
         <source>This note could not be saved. Trying again; click to try now.</source>
         <translation>이 메모를 저장하지 못했습니다. 다시 시도하는 중이며, 누르면 바로 시도합니다.</translation>
+    </message>
+    <message>
+        <source>Empty note</source>
+        <translation>빈 메모</translation>
     </message>
 </context>
 <context>

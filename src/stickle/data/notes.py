@@ -133,6 +133,13 @@ class NoteRepository:
             return note
         return self._change(note_id, {"color": color})
 
+    def set_collapsed(self, note_id: str, collapsed: bool) -> Note:
+        """Folded to its title bar; its size is kept with its place (note_layouts)."""
+        note = self._require_live(note_id)
+        if note.collapsed == collapsed:
+            return note
+        return self._change(note_id, {"collapsed": int(collapsed)})
+
     def set_hidden(self, note_id: str, hidden: bool) -> Note:
         note = self._require_live(note_id)
         if note.hidden == hidden:

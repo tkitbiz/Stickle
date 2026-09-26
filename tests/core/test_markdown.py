@@ -5,7 +5,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from markdown_it.tree import SyntaxTreeNode
 
-from stickle.core.markdown import LINE_SEPARATOR, parse, source_position, task_box
+from stickle.core.markdown import LINE_SEPARATOR, note_title, parse, source_position, task_box
 
 
 def kinds(node: SyntaxTreeNode) -> list[str]:
@@ -185,3 +185,31 @@ def test_toggling_changes_one_character_and_twice_restores(
         line,
         line.replace("[X]", "[x]"),
     )
+
+
+# A note's title: its first line with text, without Markdown marks
+
+
+@pytest.mark.parametrize(
+    ("text", "title"),
+    [
+        ("# **Shopping**\nmilk", "Shopping"),
+        ("\n\n  - [ ] buy *milk*", "buy milk"),
+        ("---\n- [x]\n> ==important== [link](https://example.com) `code`", "important link code"),
+        ("<b>raw</b> stays", "<b>raw</b> stays"),
+        ("![a cat](cat.png)", "a cat"),
+        ("  lots   of\tspace  ", "lots of space"),
+        ("", ""),
+        ("   \n\n", ""),
+    ],
+)
+def test_note_title(text: str, title: str) -> None:
+    assert note_title(text) == title
+
+
+@given(st.text())
+def test_a_title_is_one_line_of_text(text: str) -> None:
+    title = note_title(text)
+
+    assert "\n" not in title
+    assert title == title.strip()

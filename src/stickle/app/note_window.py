@@ -12,6 +12,7 @@ from PySide6.QtCore import (
     QPointF,
     QRect,
     QRectF,
+    QSize,
     Qt,
     QTimer,
     Signal,
@@ -39,7 +40,9 @@ from PySide6.QtGui import (
     QTextCursor,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
+    QLabel,
     QMenu,
     QPlainTextEdit,
     QSizeGrip,
@@ -53,9 +56,11 @@ from stickle.app.note_highlight import MarkdownHighlighter
 from stickle.app.note_view import NoteView, utf16_length
 from stickle.app.palette import color_name, qcolor, swatch_icon
 from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
-from stickle.core.markdown import task_box
+from stickle.core.markdown import note_title, task_box
 
 CORNER_RADIUS = 6
+TITLE_BAR_HEIGHT = 28  # also the height of a folded note
+MAX_HEIGHT = 16_777_215  # Qt's QWIDGETSIZE_MAX: no limit
 DEFAULT_SIZE = (260, 240)
 CLOSE_ICON_SIZE = 10
 # How long an input method has to commit a character after the focus left.
@@ -126,14 +131,23 @@ def make_unsaved_icon(color: QColor) -> QIcon:
 
 
 class TitleBar(QWidget):
-    """Drag handle with the menu and hide buttons. Right-clicking it opens the menu."""
+    """Drag handle with the menu and hide buttons. Right-clicking it opens the menu,
+    double-clicking it folds or unfolds the note, and a folded note shows its title."""
 
     menu_requested = Signal(QPoint)  # where, on the screen
+    double_clicked = Signal()
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
-        self.setFixedHeight(28)
+        self.setFixedHeight(TITLE_BAR_HEIGHT)
         self._drag_offset: QPoint | None = None
+        self._press: QPoint | None = None  # a press that may yet become a drag
+
+        self.title = QLabel(self)
+        self.title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.title.setMinimumWidth(0)
+        self.title.hide()
+        self._full_title = ""
 
         self.menu_button = QToolButton(self)
         self.menu_button.setAutoRaise(True)
@@ -151,6 +165,7 @@ class TitleBar(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 2, 2, 2)
         layout.addWidget(self.unsaved_button)
+        layout.addWidget(self.title, 1)
         layout.addStretch()
         layout.addWidget(self.menu_button)
         layout.addWidget(self.close_button)
@@ -159,6 +174,22 @@ class TitleBar(QWidget):
         self.menu_button.setIcon(make_menu_icon(color))
         self.close_button.setIcon(make_close_icon(color))
         self.unsaved_button.setIcon(make_unsaved_icon(color))
+
+    def set_title(self, title: str) -> None:
+        """Shown while the note is folded, shortened to the width it has."""
+        self._full_title = title
+        self._elide()
+
+    def _elide(self) -> None:
+        metrics = self.title.fontMetrics()
+        self.title.setText(
+            metrics.elidedText(self._full_title, Qt.TextElideMode.ElideRight, self.title.width())
+        )
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._elide()
 
     @override
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
@@ -170,25 +201,42 @@ class TitleBar(QWidget):
         if event.button() != Qt.MouseButton.LeftButton:
             super().mousePressEvent(event)
             return
-        # Let the window system move the window: the only way that also works on Wayland.
-        if self.window().windowHandle().startSystemMove():
-            self._drag_offset = None
-        else:
-            self._drag_offset = event.globalPosition().toPoint() - self.window().pos()
+        # The window starts moving only once the mouse moves: a click or a
+        # double-click (to fold the note) must reach the note first.
+        self._press = event.globalPosition().toPoint()
         event.accept()
 
     @override
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        point = event.globalPosition().toPoint()
+        if self._press is not None and self._drag_offset is None:
+            if (point - self._press).manhattanLength() < QApplication.startDragDistance():
+                return
+            start = self._press
+            self._press = None
+            # Let the window system move the window: the only way that also works on Wayland.
+            if not self.window().windowHandle().startSystemMove():
+                self._drag_offset = start - self.window().pos()
         if self._drag_offset is None:
             super().mouseMoveEvent(event)
             return
-        self.window().move(event.globalPosition().toPoint() - self._drag_offset)
+        self.window().move(point - self._drag_offset)
         event.accept()
 
     @override
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        self._press = None
         self._drag_offset = None
         super().mouseReleaseEvent(event)
+
+    @override
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._press = None
+            self.double_clicked.emit()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
 
 
 class NoteWindow(QWidget):
@@ -210,6 +258,7 @@ class NoteWindow(QWidget):
     text_changed = Signal()
     retry_requested = Signal()
     color_requested = Signal(str)  # a palette key
+    collapse_requested = Signal(bool)  # True: fold to the title bar, False: unfold
     geometry_settled = Signal()  # moved or resized, and then left alone for a moment
 
     def __init__(
@@ -242,6 +291,8 @@ class NoteWindow(QWidget):
         self._placed: QRect | None = None
         # False while shown in its spare place because its own monitor is missing.
         self.own_monitor = True
+        self.collapsed = False
+        self._expanded_height = 0  # the height to unfold to, while folded
         self._settle = QTimer(self)
         self._settle.setSingleShot(True)
         self._settle.setInterval(SETTLE_MS)
@@ -253,6 +304,9 @@ class NoteWindow(QWidget):
         self.title_bar = TitleBar(self)
         self.title_bar.close_button.clicked.connect(self.hide_requested)
         self.title_bar.menu_requested.connect(self.open_menu_at)
+        self.title_bar.double_clicked.connect(
+            lambda: self.collapse_requested.emit(not self.collapsed)
+        )
         self.menu = QMenu(self)
         self.color_menu = self.menu.addMenu("")
         self.color_actions: dict[str, QAction] = {}
@@ -263,6 +317,10 @@ class NoteWindow(QWidget):
             action.triggered.connect(lambda _=False, key=key: self.color_requested.emit(key))
             colors.addAction(action)
             self.color_actions[key] = action
+        self.collapse_action = self.menu.addAction("")
+        self.collapse_action.triggered.connect(
+            lambda: self.collapse_requested.emit(not self.collapsed)
+        )
         self.menu.addSeparator()
         # The menu has the system's colours, which are the note's only by chance.
         self.delete_action = self.menu.addAction(make_delete_icon(qcolor(DARK_TEXT)), "")
@@ -290,7 +348,8 @@ class NoteWindow(QWidget):
         grip_row = QHBoxLayout()
         grip_row.setContentsMargins(0, 0, 0, 0)
         grip_row.addStretch()
-        grip_row.addWidget(QSizeGrip(self))
+        self.size_grip = QSizeGrip(self)
+        grip_row.addWidget(self.size_grip)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -333,6 +392,10 @@ class NoteWindow(QWidget):
         self.title_bar.menu_button.setToolTip(note_menu)
         self.menu_action.setText(note_menu)
         self.color_menu.setTitle(self.tr("Color"))
+        self.collapse_action.setText(
+            self.tr("Expand note") if self.collapsed else self.tr("Collapse note")
+        )
+        self._update_title()
         for key, action in self.color_actions.items():
             action.setText(color_name(key))
         self.delete_action.setText(self.tr("Delete note"))
@@ -356,10 +419,66 @@ class NoteWindow(QWidget):
         return action
 
     def place(self, geometry: QRect, own_monitor: bool = True) -> None:
-        """Put the note somewhere as the app, not the user, decided."""
+        """Put the note somewhere as the app, not the user, decided.
+
+        geometry has the unfolded height; a folded note keeps it for later.
+        """
+        if self.collapsed:
+            self._expanded_height = geometry.height()
+            geometry = QRect(geometry.topLeft(), QSize(geometry.width(), TITLE_BAR_HEIGHT))
         self.setGeometry(geometry)
         self._placed = self.geometry()
         self.own_monitor = own_monitor
+
+    def expanded_geometry(self) -> QRect:
+        """Where the note is, with the height it has when unfolded."""
+        geometry = self.geometry()
+        if self.collapsed:
+            geometry.setHeight(self._expanded_height)
+        return geometry
+
+    def set_collapsed(self, collapsed: bool) -> None:
+        """Fold the note to its title bar, keeping its top edge where it is, or unfold it."""
+        if collapsed == self.collapsed:
+            return
+        top_left = self.pos()
+        if collapsed:
+            self._expanded_height = self.height()
+            self.collapsed = True
+            self.stack.hide()
+            self.size_grip.hide()
+            self.setFixedHeight(TITLE_BAR_HEIGHT)
+            # The keyboard stays with the note (on its title bar): Enter unfolds it.
+            self.title_bar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            self.setFocusProxy(self.title_bar)
+            self.title_bar.setFocus()
+        else:
+            self.collapsed = False
+            self.setMinimumHeight(0)
+            self.setMaximumHeight(MAX_HEIGHT)
+            self.stack.show()
+            self.size_grip.show()
+            self.resize(self.width(), self._expanded_height)
+            self.title_bar.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            focus = self.editor if self.editing else self.view
+            self.setFocusProxy(focus)
+            focus.setFocus()
+        self.move(top_left)
+        self.title_bar.title.setVisible(collapsed)
+        self.retranslate()
+
+    def _update_title(self) -> None:
+        if not self.collapsed:
+            self.title_bar.set_title("")  # only a folded note shows it
+            return
+        self.title_bar.set_title(note_title(self.text) or self.tr("Empty note"))
+
+    @override
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self.collapsed and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.collapse_requested.emit(False)
+            return
+        super().keyPressEvent(event)
 
     @property
     def moved_by_user(self) -> bool:
@@ -392,7 +511,7 @@ class NoteWindow(QWidget):
         # Pinned so a dark system theme does not paint light text on a light note.
         self.setStyleSheet(
             f"QPlainTextEdit, QTextEdit {{ background: transparent; color: {text}; }}"
-            f"TitleBar QToolButton {{ color: {title_text}; }}"
+            f"TitleBar QToolButton, TitleBar QLabel {{ color: {title_text}; }}"
         )
         self.title_bar.set_icon_color(qcolor(self.colors.title_text))
         self.view.set_colors(self.colors)
@@ -442,6 +561,8 @@ class NoteWindow(QWidget):
             return
         self.view.show_markdown(self.text)
         self.stack.setCurrentWidget(self.view)
+        if self.collapsed:
+            return  # the folded note keeps the keyboard itself
         self.setFocusProxy(self.view)
         # Given at once if the note is active, or when it next becomes active.
         self.view.setFocus()
@@ -472,6 +593,8 @@ class NoteWindow(QWidget):
         # an input method committed a character after the focus left.
         if not self.editing:
             self.view.show_markdown(self.text)
+        if self.collapsed:
+            self._update_title()
 
     def _leave_editing(self) -> None:
         if not self._released and self.editing and not self.editor.hasFocus():
