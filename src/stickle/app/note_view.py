@@ -295,9 +295,14 @@ def render(text: str, document: QTextDocument) -> list[BlockSource]:
 
 
 class NoteView(QTextEdit):
-    """Read-only formatted note. A click asks to edit, a drag selects text."""
+    """Read-only formatted note. A click asks to edit, a drag selects text.
+
+    Clicking a task item's checkbox asks to toggle it instead; the note
+    changes its text, and the view is drawn again from it.
+    """
 
     edit_requested = Signal(int)  # a position in the text, or -1 for its end
+    checkbox_clicked = Signal(int)  # the line of the checkbox
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
@@ -314,11 +319,32 @@ class NoteView(QTextEdit):
 
     def show_markdown(self, text: str) -> None:
         self._source = text
+        # Drawn again when a checkbox is toggled: stay where the reader was.
+        scrolled = self.verticalScrollBar().value()
         self._blocks = render(text, self.document())
+        self.verticalScrollBar().setValue(scrolled)
 
     def block_source(self, block: QTextBlock) -> BlockSource | None:
         number = block.blockNumber()
         return self._blocks[number] if 0 <= number < len(self._blocks) else None
+
+    def checkbox_at(self, point: QPoint) -> int | None:
+        """The checkbox line if point (in viewport coordinates) is on a task item's box."""
+        block = self.cursorForPosition(point).block()
+        source = self.block_source(block)
+        if source is None or source.checkbox_line is None:
+            return None
+        layout = block.layout()
+        if layout.lineCount() == 0:
+            return None
+        line = layout.lineAt(0)
+        x = point.x() + self.horizontalScrollBar().value()
+        y = point.y() + self.verticalScrollBar().value()
+        text_left = layout.position().x() + line.x()
+        top = layout.position().y() + line.y()
+        # The box is drawn in the indent to the left of the item's text.
+        on_box = text_left - self.document().indentWidth() <= x < text_left
+        return source.checkbox_line if on_box and top <= y < top + line.height() else None
 
     def source_position_at(self, point: QPoint) -> int:
         """The position in the text (as Qt counts) that point shows."""
@@ -351,7 +377,11 @@ class NoteView(QTextEdit):
             or self.textCursor().hasSelection()
         ):
             return
-        self.edit_requested.emit(self.source_position_at(point))
+        line = self.checkbox_at(point)
+        if line is not None:
+            self.checkbox_clicked.emit(line)
+        else:
+            self.edit_requested.emit(self.source_position_at(point))
 
     @override
     def keyPressEvent(self, e: QKeyEvent) -> None:

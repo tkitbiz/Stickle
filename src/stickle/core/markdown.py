@@ -18,6 +18,8 @@ HIGHLIGHT_MARKER = "="
 LINE_SEPARATOR = chr(0x2028)  # how a line break inside a paragraph is shown
 # "[ ]", "[x]" or "[X]" at the start of a list item, then a space or nothing.
 _TASK_START = re.compile(r"\[([ xX])\](?:[ \t]+|$)")
+# The same box on the line a list item starts on, after any quote and list markers.
+_TASK_LINE = re.compile(r"(?:[ \t]*>)*[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]+\[([ xX])\]")
 
 
 @cache
@@ -122,6 +124,17 @@ def _tasks(state: StateCore) -> None:
             continue
         item.meta["checked"] = match.group(1) != " "
         first.content = first.content[match.end() :]
+
+
+def task_box(line: str) -> tuple[int, str] | None:
+    """Where a list item line's checkbox mark is, and what toggling it writes there.
+
+    Only that one character changes: " " becomes "x", "x" or "X" becomes " ".
+    """
+    match = _TASK_LINE.match(line)
+    if match is None:
+        return None
+    return match.start(1), "x" if match.group(1) == " " else " "
 
 
 # Mapping a click on the formatted note back to the text.

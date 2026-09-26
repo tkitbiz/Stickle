@@ -1,10 +1,11 @@
 """Parsing notes: CommonMark, ==highlight==, task items, and finding a shown point in the text."""
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from markdown_it.tree import SyntaxTreeNode
 
-from stickle.core.markdown import LINE_SEPARATOR, parse, source_position
+from stickle.core.markdown import LINE_SEPARATOR, parse, source_position, task_box
 
 
 def kinds(node: SyntaxTreeNode) -> list[str]:
@@ -136,3 +137,51 @@ def test_point_always_lies_within_the_block(
     end = start + len("\n".join(lines[first : last + 1]))
 
     assert start <= source_position(source, first, last, before, after) <= end
+
+
+# Toggling a task item's checkbox in the text
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("- [ ] milk", (3, "x")),
+        ("- [x] milk", (3, " ")),
+        ("- [X] milk", (3, " ")),
+        ("* [ ]", (3, "x")),
+        ("  12. [x] nested", (7, " ")),
+        ("3) [ ] ordered", (4, "x")),
+        ("> - [ ] quoted", (5, "x")),
+        ("> > + [x] twice quoted", (7, " ")),
+    ],
+)
+def test_task_box_is_found(line: str, expected: tuple[int, str]) -> None:
+    assert task_box(line) == expected
+
+
+@pytest.mark.parametrize("line", ["plain [ ] text", "- [] no space", "-[ ] no gap", "- [y] other"])
+def test_other_lines_have_no_box(line: str) -> None:
+    assert task_box(line) is None
+
+
+@given(
+    st.sampled_from(["", "  ", "> ", "> > "]),
+    st.sampled_from(["-", "*", "+", "1.", "10)"]),
+    st.sampled_from([" ", "x", "X"]),
+    st.text(),
+)
+def test_toggling_changes_one_character_and_twice_restores(
+    prefix: str, marker: str, mark: str, rest: str
+) -> None:
+    line = f"{prefix}{marker} [{mark}] {rest}"
+    column, replacement = task_box(line) or (-1, "")
+    toggled = line[:column] + replacement + line[column + 1 :]
+
+    assert column == line.index("[") + 1
+    assert (replacement == " ") == (mark != " ")
+    again = task_box(toggled)
+    assert again is not None
+    assert toggled[: again[0]] + again[1] + toggled[again[0] + 1 :] in (
+        line,
+        line.replace("[X]", "[x]"),
+    )

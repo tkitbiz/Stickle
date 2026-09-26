@@ -319,3 +319,86 @@ def test_switching_never_changes_the_text(qtbot: QtBot, text: str, switches: int
     assert window.text == original
     assert changes == []
     window.release()
+
+
+# Checking a task item without editing
+
+
+def box_of(window: NoteWindow, text: str) -> QPoint:
+    """The middle of the checkbox drawn before the task item showing text."""
+    view = window.view
+    block = view.document().find(text).block()
+    layout = block.layout()
+    line = layout.lineAt(0)
+    x = layout.position().x() + line.x() - view.document().indentWidth() / 2
+    y = layout.position().y() + line.y() + line.height() / 2
+    return QPoint(
+        round(x) - view.horizontalScrollBar().value(), round(y) - view.verticalScrollBar().value()
+    )
+
+
+TASKS = "# 할 일 😀\n- [ ] 🍎 사과\n- [x] 우유\n> - [ ] 인용 안"
+
+
+@pytest.fixture
+def tasks(qtbot: QtBot) -> Iterator[NoteWindow]:
+    window = NoteWindow(text=TASKS)
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    yield window
+    window.release()
+
+
+@pytest.mark.parametrize(
+    ("shown", "expected"),
+    [
+        ("🍎 사과", "# 할 일 😀\n- [x] 🍎 사과\n- [x] 우유\n> - [ ] 인용 안"),
+        ("우유", "# 할 일 😀\n- [ ] 🍎 사과\n- [ ] 우유\n> - [ ] 인용 안"),
+        ("인용 안", "# 할 일 😀\n- [ ] 🍎 사과\n- [x] 우유\n> - [x] 인용 안"),
+    ],
+)
+def test_clicking_a_box_toggles_only_its_mark(tasks: NoteWindow, shown: str, expected: str) -> None:
+    changes: list[None] = []
+    tasks.text_changed.connect(lambda: changes.append(None))
+
+    click(tasks, box_of(tasks, shown))
+
+    assert tasks.text == expected
+    assert changes == [None]  # saved like any other change
+    assert not tasks.editing
+
+
+def test_the_box_shows_its_new_state(tasks: NoteWindow) -> None:
+    click(tasks, box_of(tasks, "🍎 사과"))
+
+    block = tasks.view.document().find("🍎 사과").block()
+    assert block.blockFormat().marker() == QTextBlockFormat.MarkerType.Checked
+
+
+def test_a_toggle_can_be_undone(tasks: NoteWindow) -> None:
+    click(tasks, box_of(tasks, "우유"))
+
+    tasks.editor.undo()
+
+    assert tasks.text == TASKS
+
+
+def test_clicking_the_item_text_edits_instead(tasks: NoteWindow) -> None:
+    click(tasks, point_of(tasks, "우유", 1))
+
+    assert tasks.editing
+    assert tasks.text == TASKS
+
+
+def test_clicking_beside_a_plain_list_item_edits(qtbot: QtBot) -> None:
+    window = NoteWindow(text="- plain\n- [ ] task")
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+
+    click(window, box_of(window, "plain"))
+
+    assert window.text == "- plain\n- [ ] task"
+    assert window.editing
+    window.release()

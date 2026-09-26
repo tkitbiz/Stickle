@@ -43,7 +43,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from stickle.app.note_view import NoteView
+from stickle.app.note_view import NoteView, utf16_length
+from stickle.core.markdown import task_box
 
 # Fixed until notes get their own colours. The text colour is pinned so a dark
 # system theme does not paint light text on the light note.
@@ -235,6 +236,7 @@ class NoteWindow(QWidget):
         # The formatted note, drawn from the editor's text; a click edits it.
         self.view = NoteView(self)
         self.view.edit_requested.connect(self.edit)
+        self.view.checkbox_clicked.connect(self.toggle_checkbox)
         self.stack = QStackedWidget(self)
         self.stack.addWidget(self.view)
         self.stack.addWidget(self.editor)
@@ -343,9 +345,25 @@ class NoteWindow(QWidget):
         # Given at once if the note is active, or when it next becomes active.
         self.view.setFocus()
 
+    def toggle_checkbox(self, line: int) -> None:
+        """Check or uncheck the task item on that line of the text.
+
+        Only the mark inside its brackets changes, through the editor, so it
+        can be undone and is saved like any other change.
+        """
+        block = self.editor.document().findBlockByNumber(line)
+        found = task_box(block.text()) if block.isValid() else None
+        if found is None:
+            return
+        column, mark = found
+        cursor = QTextCursor(block)
+        cursor.setPosition(block.position() + utf16_length(block.text()[:column]))
+        cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor)
+        cursor.insertText(mark)
+
     def _text_changed(self) -> None:
-        # The text can change while shown formatted: a character an input
-        # method committed after the focus left.
+        # The text can change while shown formatted: a checkbox was toggled, or
+        # an input method committed a character after the focus left.
         if not self.editing:
             self.view.show_markdown(self.text)
 
