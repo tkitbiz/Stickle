@@ -26,7 +26,10 @@ def launch_command(env: Mapping[str, str] | None = None) -> list[str]:
     """What starts this Stickle: the AppImage, the built program, or Python."""
     env = os.environ if env is None else env
     if appimage := env.get("APPIMAGE"):
-        return [appimage]
+        from stickle.platform.linux.appimage import data_home, launch_path
+
+        launcher = launch_path(Path(appimage), data_home(env))
+        return [appimage if launcher == Path(appimage) else str(launcher)]
     if "__compiled__" in globals():  # a Nuitka build: sys.executable is the program
         return [sys.executable]
     return [sys.executable, "-m", "stickle"]

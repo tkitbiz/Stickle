@@ -33,7 +33,7 @@ from stickle.data.notes import NoteRepository
 from stickle.data.settings import RECOVERY_KEY_KEPT, Settings
 from stickle.data.startup import StartupSettings
 from stickle.platform.autostart import Autostart
-from stickle.platform.linux.appimage import AppMenuEntry, running_appimage
+from stickle.platform.linux.appimage import AppMenuEntry, point_launcher, running_appimage
 from stickle.platform.linux.display import preferred_qt_platform
 from stickle.platform.power import watch_sleep
 from stickle.unlock import Unlock
@@ -112,6 +112,19 @@ def recovery_keys(unlock: Unlock | None, settings: Settings | None) -> RecoveryK
     )
 
 
+def point_launcher_here() -> None:
+    """For an AppImage, make the launcher the entries start lead to this one."""
+    appimage = running_appimage()
+    if appimage is None:
+        return
+    try:
+        if point_launcher(appimage):
+            log.info("the launcher now leads to this AppImage")
+    except OSError as error:
+        # The entries then name the AppImage itself, as before.
+        log.warning("could not point the launcher: %s", type(error).__name__)
+
+
 def app_list_entry() -> AppMenuEntry | None:
     """For an AppImage, its entry in the application list (followed if it moved)."""
     appimage = running_appimage()
@@ -120,7 +133,7 @@ def app_list_entry() -> AppMenuEntry | None:
     entry = AppMenuEntry(appimage, icon_png())
     try:
         if entry.refresh():
-            log.info("the application list now points at this AppImage")
+            log.info("the application list entry was brought up to date")
     except OSError as error:
         log.warning("could not update the application list: %s", type(error).__name__)
     return entry
@@ -249,11 +262,13 @@ def run(
         log.info("sleep %s", "watched" if sleep_watch is not None else "not watched")
         tray_available = QSystemTrayIcon.isSystemTrayAvailable()
         # Measuring must not touch the real login items.
+        if perf is None:
+            point_launcher_here()
         autostart = Autostart() if perf is None else None
         if autostart is not None:
             try:
                 if autostart.refresh():
-                    log.info("start at login now points at this Stickle")
+                    log.info("start at login was brought up to date")
             except OSError as error:
                 log.warning("could not update start at login: %s", type(error).__name__)
         app_list = app_list_entry() if perf is None else None
