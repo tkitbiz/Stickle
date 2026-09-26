@@ -1,7 +1,7 @@
 """Markdown syntax colouring for a note's text while it is edited.
 
 Only how the text looks changes; the text itself is never touched. The
-marks that make formats (#, **, ==, `, list markers) are dimmed and what they
+marks that make formats (#, **, ==, ~~, `, list markers) are dimmed and what they
 format is shown formatted, line by line, so it stays quick while typing.
 """
 
@@ -33,6 +33,7 @@ _BOLD = re.compile(r"(\*\*|__)(?=\S)(.+?)(?<=\S)\1")
 # Not the inside of **bold**: the text may not begin or end with another marker.
 _ITALIC = re.compile(r"(?<![*_\w])([*_])(?![\s*_])(.+?)(?<![\s*_])\1(?![*_\w])")
 _HIGHLIGHT = re.compile(r"(==)(?=\S)(.+?)(?<=\S)==")
+_STRIKE = re.compile(r"(?<!~)(~~)(?=[^\s~])(.+?)(?<=[^\s~])~~(?!~)")
 _LINK = re.compile(r"!?\[([^\]]*)\](\([^)]*\))")
 
 
@@ -118,7 +119,9 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         italic.setFontItalic(True)
         highlight = QTextCharFormat()
         highlight.setBackground(self._highlight)
-        styles += [(_BOLD, bold), (_ITALIC, italic), (_HIGHLIGHT, highlight)]
+        struck = QTextCharFormat()
+        struck.setFontStrikeOut(True)
+        styles += [(_BOLD, bold), (_ITALIC, italic), (_HIGHLIGHT, highlight), (_STRIKE, struck)]
         for pattern, char in styles:
             for match in pattern.finditer(text):
                 if in_code(match.start()):

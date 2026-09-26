@@ -37,6 +37,15 @@ def test_lone_or_spaced_equals_signs_stay_text() -> None:
         assert texts(tree) == text
 
 
+def test_strikethrough_takes_two_tildes() -> None:
+    tree = parse("사야 할 것 ~~우유~~ 빵")
+
+    assert kinds(tree).count("s") == 1
+    assert texts(tree) == "사야 할 것 우유 빵"
+    for text in ("a ~ b", "~one~", "~~open only", "`~~code~~`"):
+        assert "s" not in kinds(parse(text)), text
+
+
 def test_highlight_next_to_korean() -> None:
     tree = parse("오늘==중요==합니다")
 

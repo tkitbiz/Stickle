@@ -1,4 +1,4 @@
-"""Reading note text: CommonMark plus task list checkboxes and ==highlight==.
+"""Reading note text: CommonMark plus task list checkboxes, ~~strikethrough~~ and ==highlight==.
 
 Notes are stored as Markdown only. This module parses them for display and
 maps what is shown back to the text, without depending on Qt. Raw HTML is
@@ -24,7 +24,7 @@ _TASK_LINE = re.compile(r"(?:[ \t]*>)*[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]+\[([ xX])
 
 @cache
 def _parser() -> MarkdownIt:
-    md = MarkdownIt("commonmark", {"html": False})
+    md = MarkdownIt("commonmark", {"html": False}).enable("strikethrough")
     md.inline.ruler.before("emphasis", "highlight", _highlight_tokenize)
     md.inline.ruler2.before("emphasis", "highlight", _highlight_post_process)
     md.core.ruler.after("inline", "tasks", _tasks)

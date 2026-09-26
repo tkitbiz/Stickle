@@ -57,12 +57,15 @@ def test_heading_is_bold_with_its_marks_dimmed(qtbot: QtBot) -> None:
 
 
 def test_inline_formats_and_their_marks(qtbot: QtBot) -> None:
-    text = "😀 **굵게** *기울임* ==형광== `코드`"
+    text = "😀 **굵게** *기울임* ==형광== ~~취소~~ `코드`"
     document = highlighted(qtbot, text)
 
     def at(part: str) -> QTextCharFormat:
         return format_at(document, 0, text.index(part))
 
+    assert dimmed(at("~~"))
+    assert at("취소").fontStrikeOut()
+    assert not at("형광").fontStrikeOut()
     assert dimmed(at("**"))
     assert bold(at("굵게"))
     assert at("기울임").fontItalic()

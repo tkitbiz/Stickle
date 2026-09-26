@@ -96,6 +96,7 @@ class _Builder:
         self._bold = 0
         self._italic = 0
         self._highlight = 0
+        self._struck = 0
         self._code = False
         self._links: list[str] = []
         self._fixed_family: str | None = None
@@ -243,6 +244,10 @@ class _Builder:
                 self._highlight += 1
                 self._inline_children(node)
                 self._highlight -= 1
+            case "s":
+                self._struck += 1
+                self._inline_children(node)
+                self._struck -= 1
             case "link":
                 href = node.attrs.get("href", "")
                 self._links.append(href if isinstance(href, str) else "")
@@ -278,6 +283,8 @@ class _Builder:
                 char.setBackground(self._code_color)
         if self._highlight:
             char.setBackground(self._highlight_color)
+        if self._struck:
+            char.setFontStrikeOut(True)
         if self._links:
             char.setAnchor(True)
             char.setAnchorHref(self._links[-1])

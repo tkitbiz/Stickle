@@ -66,10 +66,14 @@ def block_format(document: QTextDocument, text: str) -> QTextBlockFormat:
 
 
 def test_inline_formats(document: QTextDocument) -> None:
-    text = "**굵게** *기울임* 한글 _밑줄 기울임_ ==형광== `코드` [링크](https://example.com)"
+    text = (
+        "**굵게** *기울임* 한글 _밑줄 기울임_ ==형광== ~~취소~~ `코드` [링크](https://example.com)"
+    )
     render(text, document, DEFAULT)
 
-    assert blocks(document) == ["굵게 기울임 한글 밑줄 기울임 형광 코드 링크"]
+    assert blocks(document) == ["굵게 기울임 한글 밑줄 기울임 형광 취소 코드 링크"]
+    assert char_format(document, "취소").fontStrikeOut()
+    assert not char_format(document, "형광").fontStrikeOut()
     assert char_format(document, "굵게").fontWeight() == QFont.Weight.Bold
     assert char_format(document, "기울임").fontItalic()
     assert char_format(document, "밑줄 기울임").fontItalic()
