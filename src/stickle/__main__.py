@@ -46,6 +46,17 @@ def main(argv: list[str] | None = None) -> int:
 
     folder = data_dir()
     warnings = ensure_private_dir(folder)
+    from stickle.platform.instance import InstanceLock, ask_to_show
+
+    # Before anything else touches the data folder: one Stickle per user and folder.
+    lock = InstanceLock(folder)
+    if not lock.acquire():
+        if ask_to_show(folder):
+            return 0
+        # Nobody answered: the holder has gone (Windows lets go of a crashed
+        # process's lock a moment later), so this one starts instead.
+        if not lock.acquire():
+            return 1
     setup_logging(folder / "logs", data=folder)
     log = logging.getLogger("stickle")
     log.info("Stickle %s starting", __version__)
@@ -57,7 +68,12 @@ def main(argv: list[str] | None = None) -> int:
     from stickle.app.application import run
     from stickle.data.startup import StartupSettings
 
-    return run(args, unlock=unlock, started=started, startup=StartupSettings(folder))
+    try:
+        return run(
+            args, unlock=unlock, started=started, startup=StartupSettings(folder), instance=folder
+        )
+    finally:
+        lock.release()
 
 
 if __name__ == "__main__":

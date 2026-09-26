@@ -5,6 +5,7 @@ import os
 import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from PySide6.QtCore import (
     QLocale,
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from stickle.app.fonts import ensure_korean_font
 from stickle.app.i18n import Translations
+from stickle.app.instance_server import InstanceServer
 from stickle.app.notes import NoteManager
 from stickle.app.perf import SAMPLE_NOTE, PerfMode, open_storage_like_startup
 from stickle.app.signals import SignalWatcher
@@ -122,6 +124,7 @@ def run(
     unlock: Unlock | None = None,
     started: float | None = None,
     startup: StartupSettings | None = None,
+    instance: Path | None = None,
 ) -> int:
     """Run the app. In measurement mode, open perf.notes notes and print READY.
 
@@ -129,7 +132,8 @@ def run(
     showing the recovery dialog when needed); quitting there ends the app.
     With startup, the language chosen before applies from the first window
     on, the password prompt and recovery screen included, and a new choice
-    is kept there.
+    is kept there. With instance (the data folder, whose instance lock this
+    process holds), a second start of Stickle brings up the Stickle window.
     """
     timings: list[str] = []
 
@@ -147,6 +151,8 @@ def run(
     app.setApplicationName("Stickle")
     app.setDesktopFileName(APP_ID)
     app.setQuitOnLastWindowClosed(False)
+    # Listening at once: a second start may come while a password is being asked for.
+    instance_server = InstanceServer(instance) if instance is not None else None
     mark("qt")
     # Ctrl+C in a terminal, logout and shutdown all end the app, also while a start-up
     # dialog is open. quit() only acts once the main loop runs; until then exit() ends
@@ -203,11 +209,15 @@ def run(
         tray.show()
         stickle_window = StickleWindow(manager, translations, app.quit)
         connect_stickle_window(stickle_window, manager, tray if tray_available else None, app.quit)
+        if instance_server is not None:
+            instance_server.show_requested.connect(stickle_window.open)
         if perf is not None:
             for _ in range(max(1, perf.notes)):
                 manager.open_unstored(SAMPLE_NOTE)
         else:
             open_at_start(manager, stickle_window, tray_available)
+            if instance_server is not None and instance_server.requested:
+                stickle_window.open()  # started again while this one was still starting
         mark("notes")
         if perf is not None:
             # Runs once the queued show and paint events have been handled.
