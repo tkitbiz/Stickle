@@ -13,7 +13,7 @@
     </message>
     <message>
         <source>Press Enter to edit.</source>
-        <translation>Enterë¥¼ ëë¥´ë©´ í¸ì§í©ëë¤.</translation>
+        <translation>Enter를 누르면 편집합니다.</translation>
     </message>
     <message>
         <source>Hide note</source>
