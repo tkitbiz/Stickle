@@ -107,6 +107,16 @@ def test_an_entry_naming_the_appimage_itself_is_brought_to_the_launcher(tmp_path
     assert not list(entry.desktop_file.parent.glob(".*.new"))  # no half-written leftovers
 
 
+@symlinks
+def test_the_launcher_never_leads_to_itself(tmp_path: Path) -> None:
+    share = tmp_path / "share"
+    appimage = tmp_path / "Stickle.AppImage"
+    point_launcher(appimage, share)
+
+    assert not point_launcher(launcher_path(share), share)
+    assert launcher_path(share).readlink() == appimage
+
+
 def test_without_a_launcher_the_appimage_itself_is_named(tmp_path: Path) -> None:
     appimage = tmp_path / "Stickle.AppImage"
 

@@ -41,7 +41,9 @@ def _leads_to(link: Path, appimage: Path) -> bool:
 def point_launcher(appimage: Path, data: Path | None = None) -> bool:
     """Make the launcher lead to this AppImage; True if it had to change."""
     link = launcher_path(data)
-    if _leads_to(link, appimage):
+    # Started through the launcher, an AppImage still knows its real path; if
+    # not, the link must not come to lead to itself.
+    if appimage == link or _leads_to(link, appimage):
         return False
     link.parent.mkdir(parents=True, exist_ok=True)
     # Replaced in one step, so a start at that moment finds the old or the new.
