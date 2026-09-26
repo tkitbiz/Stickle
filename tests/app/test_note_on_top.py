@@ -76,6 +76,31 @@ def test_the_pin_turns_it_off_and_on_and_it_is_stored(
     assert note is not None and note.always_on_top
 
 
+def test_the_pin_changes_the_window_without_remaking_it(manager: NoteManager) -> None:
+    # Remaking the native window hides and shows it again: the note blinks.
+    window = stored_note(manager)
+    native = window.windowHandle()
+    hidden: list[bool] = []
+
+    def visible_changed(visible: bool) -> None:
+        hidden.append(not visible)
+
+    native.visibleChanged.connect(visible_changed)
+
+    window.title_bar.pin_button.click()
+
+    assert window.windowHandle() is native
+    assert not on_top_flag(window)
+    assert not native.flags() & Qt.WindowType.WindowStaysOnTopHint
+    assert not any(hidden)
+
+    window.title_bar.pin_button.click()
+
+    assert window.windowHandle() is native
+    assert native.flags() & Qt.WindowType.WindowStaysOnTopHint
+    assert not any(hidden)
+
+
 def test_the_menu_does_the_same_as_the_pin(manager: NoteManager) -> None:
     window = stored_note(manager)
 

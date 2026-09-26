@@ -520,15 +520,21 @@ class NoteWindow(QWidget):
         self.on_top_action.setChecked(on_top)
         if on_top == self.always_on_top:
             return
-        was_visible = self.isVisible()
-        geometry = self.geometry()
-        # Qt hides a window whose flags change; it comes back where it was.
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on_top)
-        if was_visible:
-            self.setGeometry(geometry)
-            self.show()
+        if not self.testAttribute(Qt.WidgetAttribute.WA_WState_Created):  # never shown yet
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on_top)
+            return
+        window = self.windowHandle()
+        # Changed on the window as it is: setWindowFlag would destroy and
+        # recreate it, which makes the note blink.
+        flags = self.windowFlags()
+        if on_top:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        else:
+            flags &= ~Qt.WindowType.WindowStaysOnTopHint
+        self.overrideWindowFlags(flags)
+        window.setFlags(flags)
+        if on_top:
             self.raise_()
-            self.activateWindow()
 
     def set_collapsed(self, collapsed: bool) -> None:
         """Fold the note to its title bar, keeping its top edge where it is, or unfold it."""
