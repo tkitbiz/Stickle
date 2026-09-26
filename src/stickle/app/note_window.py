@@ -10,6 +10,7 @@ from PySide6.QtCore import (
     QObject,
     QPoint,
     QPointF,
+    QRect,
     QRectF,
     Qt,
     QTimer,
@@ -28,11 +29,13 @@ from PySide6.QtGui import (
     QKeyEvent,
     QKeySequence,
     QMouseEvent,
+    QMoveEvent,
     QPainter,
     QPainterPath,
     QPaintEvent,
     QPen,
     QPixmap,
+    QResizeEvent,
     QTextCursor,
 )
 from PySide6.QtWidgets import (
@@ -57,6 +60,8 @@ DEFAULT_SIZE = (260, 240)
 CLOSE_ICON_SIZE = 10
 # How long an input method has to commit a character after the focus left.
 DROP_CHECK_MS = 150
+# Moving and resizing report a stream of positions: the place is kept once they stop.
+SETTLE_MS = 500
 
 
 def drawn_icon(draw: Callable[[QPainter, float], None], color: QColor) -> QIcon:
@@ -205,6 +210,7 @@ class NoteWindow(QWidget):
     text_changed = Signal()
     retry_requested = Signal()
     color_requested = Signal(str)  # a palette key
+    geometry_settled = Signal()  # moved or resized, and then left alone for a moment
 
     def __init__(
         self, note_id: str | None = None, text: str = "", color: str = DEFAULT_COLOR
@@ -231,6 +237,15 @@ class NoteWindow(QWidget):
         self._preedit = ""
         self._commit_seen = False
         self._commits = 0  # committed texts seen, to tell a drop from a commit
+
+        # Where the app last put the note; anything else is the user's doing.
+        self._placed: QRect | None = None
+        # False while shown in its spare place because its own monitor is missing.
+        self.own_monitor = True
+        self._settle = QTimer(self)
+        self._settle.setSingleShot(True)
+        self._settle.setInterval(SETTLE_MS)
+        self._settle.timeout.connect(self.geometry_settled)
 
         self.color = color
         self.colors = note_colors(color)
@@ -339,6 +354,33 @@ class NoteWindow(QWidget):
         action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.addAction(action)
         return action
+
+    def place(self, geometry: QRect, own_monitor: bool = True) -> None:
+        """Put the note somewhere as the app, not the user, decided."""
+        self.setGeometry(geometry)
+        self._placed = self.geometry()
+        self.own_monitor = own_monitor
+
+    @property
+    def moved_by_user(self) -> bool:
+        """Moved or resized since the app last placed it."""
+        return self.geometry() != self._placed
+
+    def mark_placed(self) -> None:
+        """Where the note is now has been remembered."""
+        self._placed = self.geometry()
+
+    @override
+    def moveEvent(self, event: QMoveEvent) -> None:
+        super().moveEvent(event)
+        if self.isVisible():
+            self._settle.start()
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        if self.isVisible():
+            self._settle.start()
 
     def set_color(self, color: str) -> None:
         """Show the note in a palette colour (an unknown key shows the default)."""

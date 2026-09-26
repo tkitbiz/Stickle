@@ -12,20 +12,28 @@ hiding a note whose text was all erased deletes it instead (it can still be
 restored), so the hidden list never fills up with empty notes. Deleting only
 marks the note.
 
+Where each note is, and its size, is kept once moving or resizing stops, and
+before it is hidden or the app quits (see stickle.core.layout); a stored note
+opens where it was, and notes are put back when monitors come or go.
+
 Without a repository (measurement mode, some tests) the windows are simply
 not stored.
 """
 
 import logging
 from collections.abc import Callable
+from dataclasses import replace
 from typing import override
 
 import apsw
-from PySide6.QtCore import QEvent, QObject, QPoint, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 
 from stickle.app.note_window import NoteWindow
+from stickle.app.placement import MonitorWatch, can_place_windows, monitors, qrect, rect
+from stickle.core.layout import MAIN, Place, fit, monitor_at, remember, restore
 from stickle.core.note import DEFAULT_COLOR, Note
+from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
 from stickle.data.settings import DEFAULT_NOTE_COLOR, Settings
 
@@ -98,10 +106,14 @@ class NoteManager(QObject):
         idle_ms: int = IDLE_MS,
         max_ms: int = MAX_MS,
         settings: Settings | None = None,
+        layouts: LayoutRepository | None = None,
     ) -> None:
         super().__init__()
         self._repository = repository
         self._settings = settings
+        self._layouts = layouts
+        self._monitor_watch = MonitorWatch(self)
+        self._monitor_watch.changed.connect(self.place_all)
         self._idle_ms = idle_ms
         self._max_ms = max_ms
         self._windows: list[NoteWindow] = []
@@ -178,12 +190,14 @@ class NoteManager(QObject):
         window.editing_finished.connect(autosave.save_now)
         window.retry_requested.connect(autosave.save_now)
         window.closed.connect(lambda: self._forget(window))
+        window.geometry_settled.connect(lambda: self.save_layout(window))
         self._windows.append(window)
 
-        offset = CASCADE_ORIGIN + CASCADE_STEP * (self._created % CASCADE_LENGTH)
-        self._created += 1
-        area = QGuiApplication.primaryScreen().availableGeometry()
-        window.move(area.topLeft() + QPoint(offset, offset))
+        if not self._restore_place(window):
+            offset = CASCADE_ORIGIN + CASCADE_STEP * (self._created % CASCADE_LENGTH)
+            self._created += 1
+            area = QGuiApplication.primaryScreen().availableGeometry()
+            window.place(QRect(area.topLeft() + QPoint(offset, offset), window.size()))
 
         window.show()
         window.activateWindow()
@@ -207,6 +221,7 @@ class NoteManager(QObject):
             if window.note_id is None:
                 if text:
                     window.note_id = self._repository.create(text, window.color).id
+                    self.save_layout(window, force=True)
             else:
                 self._repository.update_body(window.note_id, text)
         except (apsw.Error, OSError) as error:
@@ -217,9 +232,66 @@ class NoteManager(QObject):
         return True
 
     def flush(self, window: NoteWindow, closing: bool = False) -> bool:
-        """Save now, with the character being composed (see finish_composition)."""
+        """Save now, with the character being composed (see finish_composition),
+        and where the note is if it was just moved."""
         window.finish_composition(closing)
+        self.save_layout(window)
         return self._autosaves[window].save_now()
+
+    # Where notes are
+
+    def _places(self, window: NoteWindow) -> dict[str, Place]:
+        if self._layouts is None or window.note_id is None:
+            return {}
+        return self._layouts.places(window.note_id)
+
+    def _restore_place(self, window: NoteWindow) -> bool:
+        """Put a stored note where it was; False if nothing is remembered."""
+        places = self._places(window)
+        if not can_place_windows():
+            # Only the size can be kept: the window system decides where windows go.
+            if MAIN in places:
+                window.resize(places[MAIN].width, places[MAIN].height)
+            return False
+        placement = restore(places, monitors())
+        if placement is None:
+            return False
+        window.place(qrect(placement.window), placement.own_monitor)
+        return True
+
+    def save_layout(self, window: NoteWindow, force: bool = False) -> None:
+        """Remember where the note is, if the user moved or resized it (or force)."""
+        if self._layouts is None or window.note_id is None:
+            return
+        if not force and not window.moved_by_user:
+            return
+        places = self._places(window)
+        if can_place_windows():
+            places = remember(places, rect(window.geometry()), monitors(), window.own_monitor)
+        elif MAIN in places:
+            size = {"width": window.width(), "height": window.height()}
+            places = {slot: replace(place, **size) for slot, place in places.items()}
+        else:
+            return
+        try:
+            self._layouts.save(window.note_id, places)
+        except apsw.Error as error:
+            log.error("could not store where a note is: %s", type(error).__name__)
+            return
+        window.mark_placed()
+
+    def place_all(self) -> None:
+        """Monitors were connected, removed or changed: put every note where it belongs."""
+        if not can_place_windows():
+            return
+        current = monitors()
+        for window in self._windows:
+            if self._restore_place(window):
+                continue
+            # Not remembered yet: at least keep it on a monitor.
+            _, monitor = monitor_at(rect(window.geometry()), current)
+            window.place(qrect(fit(rect(window.geometry()), monitor.available)), window.own_monitor)
+        log.info("monitors changed: %d notes on %d monitors", len(self._windows), len(current))
 
     def save_all(self) -> None:
         """Save every note that stays open (logout, sleep)."""
