@@ -13,7 +13,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Literal, get_args, override
 
-from PySide6.QtCore import QEvent, QUrl, qVersion
+from PySide6.QtCore import QEvent, Qt, QUrl, qVersion
 from PySide6.QtGui import QDesktopServices, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QDialog,
@@ -108,25 +108,37 @@ class RecoveryDialog(QDialog):
         self.export_button = QPushButton()
         self.export_button.clicked.connect(self._export_notes)
         self.export_button.setVisible(export is not None)
-        self.folder_button = QPushButton()
-        self.folder_button.clicked.connect(self._open_folder)
+        # Helpers for a problem report, kept small below the real choices.
+        self.report_label = QLabel()
         self.copy_button = QPushButton()
         self.copy_button.clicked.connect(self._copy_details)
+        self.log_button = QPushButton()
+        self.log_button.clicked.connect(self._open_logs)
+        for link in (self.copy_button, self.log_button):
+            link.setFlat(True)
+            link.setCursor(Qt.CursorShape.PointingHandCursor)
+            link.setStyleSheet("QPushButton { text-decoration: underline; padding: 0 4px; }")
         self.quit_button = QPushButton()
         self.quit_button.clicked.connect(self.reject)
 
         buttons = QHBoxLayout()
-        for button in (self.export_button, self.folder_button, self.copy_button):
-            buttons.addWidget(button)
+        buttons.addWidget(self.export_button)
         buttons.addStretch()
         buttons.addWidget(self.quit_button)
         buttons.addWidget(self.retry_button)
+        report = QHBoxLayout()
+        report.addWidget(self.report_label)
+        report.addWidget(self.copy_button)
+        report.addWidget(self.log_button)
+        report.addStretch()
         layout = QVBoxLayout(self)
         layout.addWidget(self.heading)
         layout.addWidget(self.explanation)
         layout.addWidget(self.notes)
         layout.addWidget(self.status)
         layout.addLayout(buttons)
+        layout.addSpacing(8)
+        layout.addLayout(report)
         self.setMinimumWidth(560)
         self.retranslate()
         default = self.retry_button if self.retry_button.isVisibleTo(self) else self.quit_button
@@ -218,7 +230,11 @@ class RecoveryDialog(QDialog):
         self.notes.setAccessibleName(self.tr("Affected notes"))
         self.retry_button.setText(self.tr("&Try again"))
         self.export_button.setText(self.tr("&Export notes…"))
-        self.folder_button.setText(self.tr("Open data &folder"))
+        self.report_label.setText(self.tr("For a problem report:"))
+        self.log_button.setText(self.tr("Open the log folder"))
+        self.log_button.setToolTip(
+            self.tr("The log file can be attached to a problem report. It holds no note text.")
+        )
         self.copy_button.setText(self.tr("&Copy details"))
         self.copy_button.setToolTip(
             self.tr("For a problem report. Contains no note text, paths or keys.")
@@ -259,8 +275,10 @@ class RecoveryDialog(QDialog):
             ).replace("%1", result.folder.name)
         )
 
-    def _open_folder(self) -> None:
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._data_folder)))
+    def _open_logs(self) -> None:
+        logs = self._data_folder / "logs"
+        folder = logs if logs.is_dir() else self._data_folder
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     def _copy_details(self) -> None:
         clipboard = QGuiApplication.clipboard()

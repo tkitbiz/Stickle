@@ -5,7 +5,13 @@ import os
 import sys
 import time
 
-from PySide6.QtCore import QMessageLogContext, QTimer, QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import (
+    QLocale,
+    QMessageLogContext,
+    QTimer,
+    QtMsgType,
+    qInstallMessageHandler,
+)
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from stickle.app.fonts import ensure_korean_font
@@ -92,6 +98,7 @@ def run(
         mark("fonts")
         translations = Translations()
         translations.apply(None)
+        log.info("interface language: %s", QLocale().name())
         mark("translations")
         if perf is not None:
             open_storage_like_startup(perf)

@@ -212,8 +212,16 @@
         <translation>메모 꺼내기(&amp;E)…</translation>
     </message>
     <message>
-        <source>Open data &amp;folder</source>
-        <translation>데이터 폴더 열기(&amp;F)</translation>
+        <source>For a problem report:</source>
+        <translation>문제 보고용:</translation>
+    </message>
+    <message>
+        <source>Open the log folder</source>
+        <translation>로그 폴더 열기</translation>
+    </message>
+    <message>
+        <source>The log file can be attached to a problem report. It holds no note text.</source>
+        <translation>로그 파일을 문제 보고에 첨부할 수 있습니다. 메모 내용은 들어 있지 않습니다.</translation>
     </message>
     <message>
         <source>&amp;Copy details</source>

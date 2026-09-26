@@ -399,3 +399,36 @@ def test_focus_loss_saves_at_once(manager: NoteManager, repository: NoteReposito
     QApplication.sendEvent(window.editor, QFocusEvent(QEvent.Type.FocusOut))
 
     assert stored(repository) == ["바로"]
+
+
+# The focus leaves while a character is being composed.
+@pytest.mark.parametrize(
+    ("on_focus_loss", "expected"),
+    [
+        ("drops", "포커스 시험"),  # ibus on GNOME throws it away: Stickle keeps it
+        ("commits", "포커스 시험"),  # fcitx5, Windows: committed once, not twice
+        ("keeps", "포커스 시"),  # still composing: left to the input method
+    ],
+)
+def test_focus_loss_keeps_the_composed_character_once(
+    qtbot: QtBot,
+    manager: NoteManager,
+    repository: NoteRepository,
+    on_focus_loss: str,
+    expected: str,
+) -> None:
+    from PySide6.QtGui import QFocusEvent
+
+    window = manager.new_note()
+    type_into(window, "포커스 시")
+    compose(window, "험")
+
+    QApplication.sendEvent(window.editor, QFocusEvent(QEvent.Type.FocusOut))
+    if on_focus_loss == "drops":
+        compose(window, "")
+    elif on_focus_loss == "commits":
+        compose(window, "", commit="험")
+
+    qtbot.wait(300)
+    assert window.text == expected
+    qtbot.waitUntil(lambda: stored(repository) == [expected], timeout=2000)

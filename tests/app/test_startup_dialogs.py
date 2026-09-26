@@ -334,3 +334,25 @@ def test_a_failing_database_open_is_reported_not_raised(
     recovery = Recovery(Choice.QUIT)
     assert open_notes(Unlock(tmp_path, store_of(backend), FAST), never, recovery) is None
     assert recovery.shown[0].problem.kind == "open_failed"
+
+
+def test_log_folder_link_opens_the_logs(
+    qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QDesktopServices
+
+    (tmp_path / "logs").mkdir()
+    opened: list[str] = []
+
+    def open_url(url: QUrl) -> bool:
+        opened.append(url.toLocalFile())
+        return True
+
+    monkeypatch.setattr(QDesktopServices, "openUrl", open_url)
+    dialog = RecoveryDialog(Problem("store_unavailable"), tmp_path)
+    qtbot.addWidget(dialog)
+
+    dialog.log_button.click()
+
+    assert [Path(p) for p in opened] == [tmp_path / "logs"]

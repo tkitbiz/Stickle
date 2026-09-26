@@ -46,6 +46,8 @@ FOREGROUND = QColor(32, 32, 32)
 CORNER_RADIUS = 6
 DEFAULT_SIZE = (260, 240)
 CLOSE_ICON_SIZE = 10
+# How long an input method has to commit a character after the focus left.
+DROP_CHECK_MS = 150
 
 
 def drawn_icon(draw: Callable[[QPainter, float], None]) -> QIcon:
@@ -208,6 +210,7 @@ class NoteWindow(QWidget):
         self.composing = False
         self._preedit = ""
         self._commit_seen = False
+        self._commits = 0  # committed texts seen, to tell a drop from a commit
 
         self.title_bar = TitleBar(self)
         self.title_bar.close_button.clicked.connect(self.hide_requested)
@@ -352,13 +355,34 @@ class NoteWindow(QWidget):
         # Once released the note has been stored (or deleted): closing moves the focus
         # away, and that must not store it again.
         if watched is self.editor and event.type() == QEvent.Type.FocusOut and not self._released:
+            if self.composing:
+                self._watch_for_drop(self._preedit, self._commits)
             self.editing_finished.emit()
         if watched is self.editor and isinstance(event, QInputMethodEvent):
             self._preedit = event.preeditString()
             self.composing = bool(self._preedit)
             if event.commitString():
                 self._commit_seen = True
+                self._commits += 1
         return super().eventFilter(watched, event)
+
+    def _watch_for_drop(self, preedit: str, commits: int) -> None:
+        """Keep the character being composed if the input method drops it on focus loss.
+
+        Some input methods (ibus on GNOME) throw away the character being composed
+        when the focus moves elsewhere, in every application. Most commit it
+        instead. If, shortly after the focus left, the composition has ended
+        without anything being committed, the character is put in the text.
+        """
+
+        def check() -> None:
+            if self._released or self.composing or self._commits != commits:
+                return
+            event = QInputMethodEvent("", [])
+            event.setCommitString(preedit)
+            QCoreApplication.sendEvent(self.editor, event)
+
+        QTimer.singleShot(DROP_CHECK_MS, check)
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
