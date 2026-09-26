@@ -99,6 +99,8 @@ class NoteManager(QObject):
     last_note_closed = Signal()
     # Hidden or deleted notes changed: menus listing them should refresh.
     changed = Signal()
+    # A new note was stored for the first time.
+    note_created = Signal()
 
     def __init__(
         self,
@@ -234,6 +236,7 @@ class NoteManager(QObject):
             if window.note_id is None:
                 if text:
                     window.note_id = self._repository.create(text, window.color).id
+                    self.note_created.emit()
                     self.save_layout(window, force=True)
                     if window.collapsed:
                         self._repository.set_collapsed(window.note_id, True)

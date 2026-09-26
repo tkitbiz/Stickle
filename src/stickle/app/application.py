@@ -23,13 +23,14 @@ from stickle.app.i18n import Translations
 from stickle.app.instance_server import InstanceServer
 from stickle.app.notes import NoteManager
 from stickle.app.perf import SAMPLE_NOTE, PerfMode, open_storage_like_startup
+from stickle.app.recovery_offer import RecoveryOffer
 from stickle.app.signals import SignalWatcher
 from stickle.app.startup import open_notes
 from stickle.app.stickle_window import RecoveryKeys, StickleWindow
 from stickle.app.tray import Tray
 from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
-from stickle.data.settings import Settings
+from stickle.data.settings import RECOVERY_KEY_KEPT, Settings
 from stickle.data.startup import StartupSettings
 from stickle.platform.autostart import Autostart
 from stickle.platform.linux.appimage import AppMenuEntry, running_appimage
@@ -99,13 +100,15 @@ def connect_stickle_window(
     manager.changed.connect(notes_changed)
 
 
-def recovery_keys(unlock: Unlock | None) -> RecoveryKeys | None:
+def recovery_keys(unlock: Unlock | None, settings: Settings | None) -> RecoveryKeys | None:
     """Making recovery keys for the key that opened the notes (none in measurement mode)."""
-    if unlock is None or unlock.opened_key is None:
+    if unlock is None or unlock.opened_key is None or settings is None:
         return None
     key = unlock.opened_key
     return RecoveryKeys(
-        exists=lambda: unlock.has_recovery_key, make=lambda: unlock.make_recovery_key(key)
+        exists=lambda: unlock.has_recovery_key,
+        make=lambda: unlock.make_recovery_key(key),
+        kept=lambda: settings.set(RECOVERY_KEY_KEPT, True),
     )
 
 
@@ -250,7 +253,7 @@ def run(
         app_list = app_list_entry() if perf is None else None
         tray = Tray(manager.new_note, app.quit, translations, manager, autostart, app_list)
         tray.show()
-        recovery = recovery_keys(unlock)
+        recovery = recovery_keys(unlock, Settings(connection) if connection else None)
         stickle_window = StickleWindow(
             manager, translations, app.quit, autostart, app_list, recovery
         )
@@ -281,6 +284,13 @@ def run(
                 entry, settings = app_list, Settings(connection)
                 # Once the notes are up: the first run of this AppImage.
                 QTimer.singleShot(0, lambda: offer_app_list(entry, settings))
+            if recovery is not None and connection is not None:
+                repository = NoteRepository(connection)
+                offer = RecoveryOffer(Settings(connection), repository, recovery.make)
+                # Out of the saving in progress: the offer is a window of its own.
+                manager.note_created.connect(lambda: QTimer.singleShot(0, offer.check))
+                if not (at_login or first_start):
+                    QTimer.singleShot(0, offer.check)
         mark("notes")
         if perf is not None:
             # Runs once the queued show and paint events have been handled.

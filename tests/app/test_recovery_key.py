@@ -241,8 +241,11 @@ def test_a_new_recovery_key_replaces_the_old_one_after_asking(
         asked.append(str(arguments[2]))
         return QMessageBox.StandardButton.Yes
 
-    def show(dialog: RecoveryKeyDialog) -> None:
+    kept: list[None] = []
+
+    def show(dialog: RecoveryKeyDialog) -> bool:
         shown.append(dialog.panel.recovery_key)
+        return True  # Done
 
     monkeypatch.setattr(QMessageBox, "question", question)
     monkeypatch.setattr(stickle_window, "show_recovery_key", show)
@@ -251,7 +254,9 @@ def test_a_new_recovery_key_replaces_the_old_one_after_asking(
         Translations(),
         lambda: None,
         recovery=RecoveryKeys(
-            exists=lambda: unlock.has_recovery_key, make=lambda: unlock.make_recovery_key(key)
+            exists=lambda: unlock.has_recovery_key,
+            make=lambda: unlock.make_recovery_key(key),
+            kept=lambda: kept.append(None),
         ),
     )
     qtbot.addWidget(window)
@@ -260,6 +265,7 @@ def test_a_new_recovery_key_replaces_the_old_one_after_asking(
 
     assert len(asked) == 1 and "no longer open" in asked[0]
     assert len(shown) == 1 and shown[0] != old_key
+    assert kept == [None]  # Done counts as kept
     backend.items.clear()
     old = open_notes(
         Unlock(tmp_path, store_of(backend), FAST),

@@ -45,13 +45,14 @@ class RecoveryKeys:
 
     exists: Callable[[], bool]
     make: Callable[[], str]  # a new one, the old one no longer working
+    kept: Callable[[], None]  # the user said the new one is kept somewhere safe
 
 
-def _exec(dialog: RecoveryKeyDialog) -> None:
-    dialog.exec()
+def _exec(dialog: RecoveryKeyDialog) -> bool:
+    return dialog.exec() == RecoveryKeyDialog.DialogCode.Accepted
 
 
-show_recovery_key: Callable[[RecoveryKeyDialog], None] = _exec  # replaced in tests
+show_recovery_key: Callable[[RecoveryKeyDialog], bool] = _exec  # replaced in tests
 
 
 class StickleWindow(QWidget):
@@ -215,7 +216,8 @@ class StickleWindow(QWidget):
             log.error("could not make a recovery key: %s", type(error).__name__)
             QMessageBox.warning(self, "Stickle", self.tr("The recovery key could not be saved."))
             return
-        show_recovery_key(RecoveryKeyDialog(recovery_key, self))
+        if show_recovery_key(RecoveryKeyDialog(recovery_key, self)):
+            self._recovery.kept()
 
     def _switch_app_list(self, on: bool) -> None:
         if self._app_list is not None:

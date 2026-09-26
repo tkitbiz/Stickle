@@ -189,8 +189,12 @@ class RecoveryKeyPanel(QWidget):
 class RecoveryKeyDialog(QDialog):
     """Shows a new recovery key: Done once it is kept, or Later."""
 
-    def __init__(self, recovery_key: str, parent: QWidget | None = None) -> None:
+    def __init__(self, recovery_key: str, parent: QWidget | None = None, reason: str = "") -> None:
         super().__init__(parent)
+        # Why it is shown now, when Stickle offers it rather than the user asking.
+        self.reason = QLabel(reason)
+        self.reason.setWordWrap(True)
+        self.reason.setVisible(bool(reason))
         self.panel = RecoveryKeyPanel(recovery_key, self)
         self.buttons = QDialogButtonBox()
         self.done_button = self.buttons.addButton("", QDialogButtonBox.ButtonRole.AcceptRole)
@@ -200,6 +204,7 @@ class RecoveryKeyDialog(QDialog):
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         layout = QVBoxLayout(self)
+        layout.addWidget(self.reason)
         layout.addWidget(self.panel)
         layout.addWidget(self.buttons)
         self.setMinimumWidth(480)

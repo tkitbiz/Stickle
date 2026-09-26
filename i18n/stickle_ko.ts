@@ -528,6 +528,13 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     </message>
 </context>
 <context>
+    <name>RecoveryOffer</name>
+    <message>
+        <source>Your notes are adding up. You skipped the recovery key at first start: this is a new one. Keep it now if you can; Stickle will not ask again.</source>
+        <translation>메모가 쌓이고 있습니다. 처음 시작할 때 복구 키를 건너뛰셨기에 새 복구 키를 만들었습니다. 지금 보관해 두세요. 다시 묻지 않습니다.</translation>
+    </message>
+</context>
+<context>
     <name>StickleWindow</name>
     <message>
         <source>All notes are hidden. Closing this window quits Stickle; the hidden notes are listed below, and here again the next time you start it.</source>
