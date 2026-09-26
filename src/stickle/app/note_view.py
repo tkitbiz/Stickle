@@ -302,10 +302,12 @@ def render(text: str, document: QTextDocument, colors: NoteColors) -> list[Block
 
 
 class NoteView(QTextEdit):
-    """Read-only formatted note. A click asks to edit, a drag selects text.
+    """Read-only formatted note. A double-click asks to edit, a drag selects text.
 
-    Clicking a task item's checkbox asks to toggle it instead; the note
-    changes its text, and the view is drawn again from it.
+    A single click only gives the note the focus, so clicking a note to read
+    or scroll it does not start editing (a note with nothing to read is never
+    shown formatted). Clicking a task item's checkbox asks to toggle it; the
+    note changes its text, and the view is drawn again from it.
     """
 
     edit_requested = Signal(int)  # a position in the text, or -1 for its end
@@ -393,7 +395,12 @@ class NoteView(QTextEdit):
         line = self.checkbox_at(point)
         if line is not None:
             self.checkbox_clicked.emit(line)
-        else:
+
+    @override
+    def mouseDoubleClickEvent(self, e: QMouseEvent) -> None:
+        # Not passed on: a double-click here edits rather than selects a word.
+        point = e.position().toPoint()
+        if e.button() == Qt.MouseButton.LeftButton and self.checkbox_at(point) is None:
             self.edit_requested.emit(self.source_position_at(point))
 
     @override

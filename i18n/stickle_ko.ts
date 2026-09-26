@@ -51,7 +51,7 @@
     <name>FirstRun</name>
     <message>
         <source># Welcome to Stickle
-Click this note to edit it; click elsewhere to see it formatted again.
+Double-click this note to edit it; click elsewhere to see it formatted again.
 
 - [ ] Tick a box like this one
 - [ ] Double-click the title bar to fold the note
@@ -60,7 +60,7 @@ Click this note to edit it; click elsewhere to see it formatted again.
 
 The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a new note.</source>
         <translation># Stickle에 오신 것을 환영합니다
-이 메모를 클릭하면 편집할 수 있고, 다른 곳을 클릭하면 다시 서식이 입혀진 모습으로 보입니다.
+이 메모를 더블클릭하면 편집할 수 있고, 다른 곳을 클릭하면 다시 서식이 입혀진 모습으로 보입니다.
 
 - [ ] 이렇게 체크박스를 눌러 보세요
 - [ ] 제목줄을 더블클릭하면 메모가 접힙니다
@@ -179,8 +179,8 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>메모 내용</translation>
     </message>
     <message>
-        <source>Press Enter to edit.</source>
-        <translation>Enter를 누르면 편집합니다.</translation>
+        <source>Double-click or press Enter to edit.</source>
+        <translation>더블클릭하거나 Enter를 누르면 편집합니다.</translation>
     </message>
     <message>
         <source>Hide note</source>

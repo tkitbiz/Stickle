@@ -202,6 +202,12 @@ def click(window: NoteWindow, point: QPoint) -> None:
     QTest.mouseClick(window.view.viewport(), Qt.MouseButton.LeftButton, pos=point)
 
 
+def double_click(window: NoteWindow, point: QPoint) -> None:
+    viewport = window.view.viewport()
+    QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=point)
+    QTest.mouseDClick(viewport, Qt.MouseButton.LeftButton, pos=point)
+
+
 def test_note_with_text_opens_formatted(window: NoteWindow) -> None:
     assert not window.editing
     assert window.view.toPlainText() == "hello world\n\nsecond"
@@ -215,16 +221,23 @@ def test_empty_note_opens_ready_to_type(qtbot: QtBot) -> None:
     window.release()
 
 
-def test_click_edits_where_it_was_clicked(qtbot: QtBot, window: NoteWindow) -> None:
+def test_a_single_click_does_not_edit(window: NoteWindow) -> None:
+    # Clicking to read or scroll a note must not start editing it.
     click(window, point_of(window, "world", 2))
+
+    assert not window.editing
+
+
+def test_double_click_edits_where_it_was_clicked(qtbot: QtBot, window: NoteWindow) -> None:
+    double_click(window, point_of(window, "world", 2))
 
     assert window.editing
     qtbot.waitUntil(window.editor.hasFocus)
     assert window.editor.textCursor().position() == len("hello **wo")
 
 
-def test_click_on_a_later_block_edits_there(window: NoteWindow) -> None:
-    click(window, point_of(window, "second", 3))
+def test_double_click_on_a_later_block_edits_there(window: NoteWindow) -> None:
+    double_click(window, point_of(window, "second", 3))
 
     assert window.editor.textCursor().position() == len("hello **world**\n\nsec")
 
@@ -386,6 +399,13 @@ def test_the_box_shows_its_new_state(tasks: NoteWindow) -> None:
     assert block.blockFormat().marker() == QTextBlockFormat.MarkerType.Checked
 
 
+def test_double_clicking_a_box_neither_edits_nor_toggles_twice(tasks: NoteWindow) -> None:
+    double_click(tasks, box_of(tasks, "우유"))
+
+    assert not tasks.editing
+    assert tasks.text == TASKS.replace("[x] 우유", "[ ] 우유")  # toggled once
+
+
 def test_a_toggle_can_be_undone(tasks: NoteWindow) -> None:
     click(tasks, box_of(tasks, "우유"))
 
@@ -394,20 +414,20 @@ def test_a_toggle_can_be_undone(tasks: NoteWindow) -> None:
     assert tasks.text == TASKS
 
 
-def test_clicking_the_item_text_edits_instead(tasks: NoteWindow) -> None:
-    click(tasks, point_of(tasks, "우유", 1))
+def test_double_clicking_the_item_text_edits_instead(tasks: NoteWindow) -> None:
+    double_click(tasks, point_of(tasks, "우유", 1))
 
     assert tasks.editing
     assert tasks.text == TASKS
 
 
-def test_clicking_beside_a_plain_list_item_edits(qtbot: QtBot) -> None:
+def test_double_clicking_beside_a_plain_list_item_edits(qtbot: QtBot) -> None:
     window = NoteWindow(text="- plain\n- [ ] task")
     qtbot.addWidget(window)
     window.show()
     qtbot.waitExposed(window)
 
-    click(window, box_of(window, "plain"))
+    double_click(window, box_of(window, "plain"))
 
     assert window.text == "- plain\n- [ ] task"
     assert window.editing

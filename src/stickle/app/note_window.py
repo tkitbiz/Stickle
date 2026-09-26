@@ -457,7 +457,7 @@ class NoteWindow(QWidget):
         self.setAccessibleName(self.tr("Note"))
         self.editor.setAccessibleName(self.tr("Note text"))
         self.view.setAccessibleName(self.tr("Note text"))
-        self.view.setAccessibleDescription(self.tr("Press Enter to edit."))
+        self.view.setAccessibleDescription(self.tr("Double-click or press Enter to edit."))
         hide_note = self.tr("Hide note")
         self.title_bar.close_button.setAccessibleName(hide_note)
         self.title_bar.close_button.setToolTip(hide_note)

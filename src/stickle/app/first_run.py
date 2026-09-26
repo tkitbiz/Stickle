@@ -50,7 +50,7 @@ def sample_note() -> str:
     return QCoreApplication.translate(
         "FirstRun",
         "# Welcome to Stickle\n"
-        "Click this note to edit it; click elsewhere to see it formatted again.\n"
+        "Double-click this note to edit it; click elsewhere to see it formatted again.\n"
         "\n"
         "- [ ] Tick a box like this one\n"
         "- [ ] Double-click the title bar to fold the note\n"
