@@ -148,11 +148,11 @@ class NoteManager(QObject):
 
     # Opening
 
-    def open_stored(self, tray_available: bool = True) -> None:
+    def open_stored(self) -> None:
         """Open every note that is neither hidden nor deleted.
 
         With no notes at all, an empty note is opened to start with. Hidden notes
-        alone open nothing, unless there is no tray to bring them back from.
+        alone open nothing: the app shows the Stickle window, which lists them.
         """
         if self._repository is None:
             self.new_note()
@@ -160,7 +160,7 @@ class NoteManager(QObject):
         visible = self._repository.visible()
         for note in visible:
             self._open(note)
-        if not visible and (not self._repository.all() or not tray_available):
+        if not visible and not self._repository.all():
             self.new_note()
         log.info("opened %d notes", len(visible))
 

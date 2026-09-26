@@ -25,14 +25,14 @@ KEY = secrets.token_bytes(32)
 class Session:
     """One run of the app against a database, which can be restarted."""
 
-    def __init__(self, path: Path, tray_available: bool = True) -> None:
+    def __init__(self, path: Path) -> None:
         self.path = path
         self.connection: apsw.Connection = open_store(path, KEY)
         self.repository = NoteRepository(self.connection)
         self.manager = NoteManager(self.repository)
         self.translations = Translations()
         self.tray = Tray(self.manager.new_note, lambda: None, self.translations, self.manager)
-        self.manager.open_stored(tray_available)
+        self.manager.open_stored()
 
     def quit(self) -> None:
         """What happens on quit: the Quit event reaches the manager, then Qt closes windows."""
@@ -43,9 +43,9 @@ class Session:
             window.close()
         self.connection.close()
 
-    def restart(self, tray_available: bool = True) -> Session:
+    def restart(self) -> Session:
         self.quit()
-        return Session(self.path, tray_available)
+        return Session(self.path)
 
     def texts(self) -> list[str]:
         return sorted(window.text for window in self.manager.windows)
@@ -193,23 +193,13 @@ def test_tray_lists_the_latest_hidden_notes(qtbot: QtBot, session: Session) -> N
     assert session.repository.hidden() == []
 
 
-# H. Only hidden notes: nothing new is opened, unless there is no tray to find them.
+# H. Only hidden notes: nothing new is opened (the Stickle window lists them).
 def test_no_empty_note_is_added_while_notes_are_hidden(session: Session) -> None:
     window = only_window(session)
     type_into(window, "숨김")
     window.title_bar.close_button.click()
 
     assert session.restart().manager.windows == ()
-
-
-def test_without_a_tray_an_empty_note_is_opened(session: Session) -> None:
-    window = only_window(session)
-    type_into(window, "숨김")
-    window.title_bar.close_button.click()
-
-    later = session.restart(tray_available=False)
-
-    assert later.texts() == [""]
 
 
 # I. The note menu works from the keyboard.

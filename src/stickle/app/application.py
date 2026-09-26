@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Callable
 
 from PySide6.QtCore import (
     QLocale,
@@ -20,6 +21,7 @@ from stickle.app.notes import NoteManager
 from stickle.app.perf import SAMPLE_NOTE, PerfMode, open_storage_like_startup
 from stickle.app.signals import SignalWatcher
 from stickle.app.startup import open_notes
+from stickle.app.stickle_window import StickleWindow
 from stickle.app.tray import Tray
 from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
@@ -53,6 +55,49 @@ QT_LOG_LEVELS = {
 
 def log_qt_message(kind: QtMsgType, _context: QMessageLogContext, message: str) -> None:
     logging.getLogger("qt").log(QT_LOG_LEVELS.get(kind, logging.WARNING), "%s", message)
+
+
+def connect_stickle_window(
+    window: StickleWindow,
+    manager: NoteManager,
+    tray: Tray | None,
+    quit_app: Callable[[], object],
+) -> None:
+    """When the Stickle window opens, and when closing it ends the app.
+
+    With a tray, the app stays in it when every note is hidden, and clicking
+    the tray icon opens the window. Without one there would be no way back,
+    so the window opens saying all notes are hidden, and closing it quits.
+    """
+    if tray is not None:
+
+        def tray_clicked(reason: QSystemTrayIcon.ActivationReason) -> None:
+            if reason == QSystemTrayIcon.ActivationReason.Trigger:
+                window.open()
+
+        tray.activated.connect(tray_clicked)
+        return
+
+    manager.last_note_closed.connect(lambda: window.open(notice=True))
+
+    def window_closed() -> None:
+        if not manager.windows:
+            quit_app()
+
+    window.closed.connect(window_closed)
+
+    def notes_changed() -> None:
+        if manager.windows:
+            window.notice.hide()  # a note is back: the notice no longer holds
+
+    manager.changed.connect(notes_changed)
+
+
+def open_at_start(manager: NoteManager, window: StickleWindow, tray_available: bool) -> None:
+    """Open the stored notes; with only hidden ones, the Stickle window that lists them."""
+    manager.open_stored()
+    if not manager.windows:
+        window.open(notice=not tray_available)
 
 
 def use_language(translations: Translations, startup: StartupSettings | None) -> None:
@@ -154,16 +199,15 @@ def run(
         sleep_watch = watch_sleep(before_sleep)
         log.info("sleep %s", "watched" if sleep_watch is not None else "not watched")
         tray_available = QSystemTrayIcon.isSystemTrayAvailable()
-        # Without a tray there would be no way back to a hidden app, so quit with the last note.
-        if not tray_available:
-            manager.last_note_closed.connect(app.quit)
         tray = Tray(manager.new_note, app.quit, translations, manager)
         tray.show()
+        stickle_window = StickleWindow(manager, translations, app.quit)
+        connect_stickle_window(stickle_window, manager, tray if tray_available else None, app.quit)
         if perf is not None:
             for _ in range(max(1, perf.notes)):
                 manager.open_unstored(SAMPLE_NOTE)
         else:
-            manager.open_stored(tray_available)
+            open_at_start(manager, stickle_window, tray_available)
         mark("notes")
         if perf is not None:
             # Runs once the queued show and paint events have been handled.

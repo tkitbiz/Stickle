@@ -330,6 +330,65 @@
     </message>
 </context>
 <context>
+    <name>StickleWindow</name>
+    <message>
+        <source>All notes are hidden. Closing this window quits Stickle; the hidden notes are listed below, and here again the next time you start it.</source>
+        <translation>메모를 모두 숨겼습니다. 이 창을 닫으면 Stickle이 종료됩니다. 숨긴 메모는 아래 목록에 있고, 다음에 실행할 때도 여기에서 볼 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>New note</source>
+        <translation>새 메모</translation>
+    </message>
+    <message>
+        <source>Bring all notes to front</source>
+        <translation>모든 메모 앞으로 가져오기</translation>
+    </message>
+    <message>
+        <source>&amp;Hidden notes</source>
+        <translation>숨긴 메모(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Hidden notes</source>
+        <translation>숨긴 메모</translation>
+    </message>
+    <message>
+        <source>Show all hidden notes</source>
+        <translation>숨긴 메모 모두 보이기</translation>
+    </message>
+    <message>
+        <source>&amp;Language</source>
+        <translation>언어(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Language</source>
+        <translation>언어</translation>
+    </message>
+    <message>
+        <source>System language</source>
+        <translation>시스템 설정 따르기</translation>
+    </message>
+    <message>
+        <source>Quit Stickle</source>
+        <translation>Stickle 종료</translation>
+    </message>
+    <message>
+        <source>(empty note)</source>
+        <translation>(빈 메모)</translation>
+    </message>
+    <message>
+        <source>No hidden notes</source>
+        <translation>숨긴 메모가 없습니다</translation>
+    </message>
+    <message>
+        <source>Restore the note just deleted</source>
+        <translation>방금 지운 메모 되살리기</translation>
+    </message>
+    <message>
+        <source>Restore the note just deleted: %1</source>
+        <translation>방금 지운 메모 되살리기: %1</translation>
+    </message>
+</context>
+<context>
     <name>Tray</name>
     <message>
         <source>(empty note)</source>

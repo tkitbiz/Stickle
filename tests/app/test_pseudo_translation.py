@@ -19,6 +19,7 @@ from stickle.app.application import NoteManager
 from stickle.app.i18n import Translations
 from stickle.app.password_dialog import PasswordDialog
 from stickle.app.recovery_dialog import KINDS, Problem, RecoveryDialog
+from stickle.app.stickle_window import StickleWindow
 from stickle.app.tray import Tray
 from stickle.data.schema import NotesDiff
 
@@ -72,6 +73,8 @@ def test_every_visible_text_is_translated(qtbot: QtBot, tmp_path: Path) -> None:
     manager = NoteManager()
     tray = Tray(manager.new_note, lambda: None, translations, manager)
     note = manager.new_note()
+    stickle_window = StickleWindow(manager, translations, lambda: None)
+    qtbot.addWidget(stickle_window)
     try:
         # Switched after the windows exist, so re-application is covered too.
         translations.apply("fr")
@@ -79,6 +82,9 @@ def test_every_visible_text_is_translated(qtbot: QtBot, tmp_path: Path) -> None:
         assert menu is not None
         texts = visible_texts(note) + visible_texts(note.menu) + visible_texts(menu)
         texts += visible_texts(tray.language_menu) + visible_texts(tray.hidden_menu)
+        texts += visible_texts(stickle_window)
+        box = stickle_window.language_box
+        texts += [box.itemText(index) for index in range(box.count())]
 
         untranslated = [text for text in texts if text not in UNTRANSLATED and "~]" not in text]
         assert untranslated == []
