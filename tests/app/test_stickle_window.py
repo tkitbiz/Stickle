@@ -337,6 +337,28 @@ def test_starting_at_login_is_switched_from_the_tray_and_the_window(
     window.deleteLater()
 
 
+def test_a_switch_from_the_tray_shows_in_the_open_window(
+    qtbot: QtBot, connection: apsw.Connection, tmp_path: Path
+) -> None:
+    # The window stayed as it was while the tray changed the setting (Mint).
+    autostart = FakeAutostart(tmp_path)
+    manager = NoteManager(NoteRepository(connection))
+    translations = Translations()
+    tray = Tray(manager.new_note, lambda: None, translations, manager, autostart)
+    window = StickleWindow(manager, translations, lambda: None, autostart)
+    qtbot.addWidget(window)
+    connect_stickle_window(window, manager, tray, lambda: None)
+    window.open()
+    assert not window.autostart_box.isChecked()
+
+    tray.autostart_action.trigger()
+
+    assert window.autostart_box.isChecked()
+    tray.autostart_action.trigger()
+    assert not window.autostart_box.isChecked()
+    window.deleteLater()
+
+
 def test_turned_off_elsewhere_shows_as_off(
     qtbot: QtBot, connection: apsw.Connection, tmp_path: Path
 ) -> None:

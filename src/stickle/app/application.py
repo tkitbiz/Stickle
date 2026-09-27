@@ -103,6 +103,9 @@ def connect_stickle_window(
 
         tray.activated.connect(tray_clicked)
         tray.open_window_action.triggered.connect(lambda: window.open())
+        # Switched from the tray while the window is open: it shows the change.
+        tray.autostart_action.triggered.connect(lambda: window.refresh())
+        tray.app_list_action.triggered.connect(lambda: window.refresh())
         return
 
     manager.last_note_closed.connect(lambda: window.open(notice=True))
