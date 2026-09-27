@@ -42,6 +42,7 @@ CASCADE_ORIGIN = 80
 CASCADE_STEP = 32
 CASCADE_LENGTH = 10
 HIDDEN_LISTED = 15
+FIT_AT_MOST = 0.6  # of the screen's height, for a stored note shown the first time
 IDLE_MS = 1000  # save this long after typing stops
 MAX_MS = 5000  # and at least this often while typing goes on
 RETRY_FIRST_MS = 1000
@@ -211,6 +212,10 @@ class NoteManager(QObject):
         self._windows.append(window)
 
         if not self._restore_place(window):
+            if note is not None and not self._places(window):
+                # Stored but never placed (the note of the first start): shown whole.
+                screen = QGuiApplication.primaryScreen()
+                window.fit_to_text(int(screen.availableGeometry().height() * FIT_AT_MOST))
             window.place(QRect(self._free_cascade_spot(window), window.size()))
         if note is not None and note.collapsed:
             window.set_collapsed(True)

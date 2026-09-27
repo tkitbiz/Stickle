@@ -1,5 +1,6 @@
 """A single sticky note window."""
 
+import math
 import sys
 import time
 from collections.abc import Callable
@@ -512,6 +513,20 @@ class NoteWindow(QWidget):
         action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.addAction(action)
         return action
+
+    def fit_to_text(self, most: int) -> None:
+        """Tall enough to show the formatted text whole, but no taller than most.
+
+        The width stays; a note is never made smaller than it is.
+        """
+        if self.editing:
+            return
+        document = self.view.document().clone(self)
+        document.setTextWidth(self.width())
+        frame = TITLE_BAR_HEIGHT + self.size_grip.sizeHint().height()
+        needed = math.ceil(document.size().height()) + frame
+        document.deleteLater()
+        self.resize(self.width(), max(self.height(), min(needed, most)))
 
     def place(self, geometry: QRect, own_monitor: bool = True) -> None:
         """Put the note somewhere as the app, not the user, decided.

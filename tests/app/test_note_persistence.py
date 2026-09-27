@@ -246,3 +246,26 @@ def test_note_text_is_never_logged(session: Session, caplog: pytest.LogCaptureFi
     later.restart()
 
     assert "비밀" not in caplog.text
+
+
+def test_a_stored_note_never_placed_opens_showing_its_text_whole(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+    connection = open_store(tmp_path / "notes.db", KEY)
+    repository = NoteRepository(connection)
+    repository.create("# Welcome\n" + "\n".join(f"- [ ] step {n}" for n in range(20)))
+    repository.create("# Long\n" + "\n".join(f"line {n}" for n in range(400)))
+    manager = NoteManager(repository)
+
+    manager.open_stored()
+    qtbot.wait(50)
+
+    screen = QApplication.primaryScreen().availableGeometry()
+    welcome, long = manager.windows
+    assert welcome.height() > 240  # more than a new note gets
+    assert welcome.view.verticalScrollBar().maximum() == 0
+    assert welcome.width() == 260
+    assert long.height() <= screen.height() * 0.6
+    for window in manager.windows:
+        window.release()
+    connection.close()
