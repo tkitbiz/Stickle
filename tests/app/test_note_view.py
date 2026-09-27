@@ -20,6 +20,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
+from stickle.app import note_window
 from stickle.app.note_view import LINE_SEPARATOR, render
 from stickle.app.note_window import NoteWindow
 from stickle.app.palette import qcolor
@@ -319,9 +320,12 @@ def test_opening_the_note_menu_keeps_editing(qtbot: QtBot, window: NoteWindow) -
     window.menu.close()
 
 
-def test_character_committed_late_shows_formatted(qtbot: QtBot, window: NoteWindow) -> None:
+def test_character_committed_late_shows_formatted(
+    qtbot: QtBot, window: NoteWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # ibus on GNOME drops the character being composed when the focus leaves;
     # the note keeps it, and the formatted view shows it too.
+    monkeypatch.setattr(note_window, "DROPPING_INPUT_METHODS", True)
     window.edit()
     qtbot.waitUntil(window.editor.hasFocus)
     QApplication.sendEvent(window.editor, QInputMethodEvent("한", []))

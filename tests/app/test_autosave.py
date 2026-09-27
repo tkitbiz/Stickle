@@ -9,11 +9,13 @@ from pathlib import Path
 
 import apsw
 import pytest
-from PySide6.QtCore import QEvent
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QInputMethodEvent, QTextCursor
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
+from stickle.app import note_window
 from stickle.app.note_window import NoteWindow
 from stickle.app.notes import NoteManager
 from stickle.data.notes import NoteRepository
@@ -401,6 +403,12 @@ def test_focus_loss_saves_at_once(manager: NoteManager, repository: NoteReposito
     assert stored(repository) == ["바로"]
 
 
+@pytest.fixture
+def dropping_input_methods(monkeypatch: pytest.MonkeyPatch) -> None:
+    """As on Linux, where ibus may drop the character being composed on focus loss."""
+    monkeypatch.setattr(note_window, "DROPPING_INPUT_METHODS", True)
+
+
 # The focus leaves while a character is being composed.
 @pytest.mark.parametrize(
     ("on_focus_loss", "expected"),
@@ -416,6 +424,7 @@ def test_focus_loss_keeps_the_composed_character_once(
     repository: NoteRepository,
     on_focus_loss: str,
     expected: str,
+    dropping_input_methods: None,
 ) -> None:
     from PySide6.QtGui import QFocusEvent
 
@@ -449,6 +458,7 @@ def test_a_composition_dropped_just_before_the_focus_leaves_is_kept(
     repository: NoteRepository,
     before_focus_loss_s: float,
     expected: str,
+    dropping_input_methods: None,
 ) -> None:
     from PySide6.QtGui import QFocusEvent
 
@@ -464,6 +474,46 @@ def test_a_composition_dropped_just_before_the_focus_leaves_is_kept(
     qtbot.wait(300)
     assert window.text == expected
     qtbot.waitUntil(lambda: stored(repository) == [expected], timeout=2000)
+
+
+@pytest.mark.parametrize("kind", ["commits", "late"])
+def test_escape_while_composing_types_the_character_once(
+    qtbot: QtBot, manager: NoteManager, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    # Windows: "#테스트" then Esc at once gave "#테스트트". The character is now
+    # committed before the editor lets go of the keyboard.
+    window = manager.new_note()
+    type_into(window, "#테스")
+    ime = InputMethod(window, kind, monkeypatch)
+    ime.compose("트")
+
+    QTest.keyClick(window.editor, Qt.Key.Key_Escape)
+    # What a Windows input method may still send once the focus has gone.
+    if window.composing:
+        compose(window, "", commit="트")
+    qtbot.wait(300)
+
+    assert window.text == "#테스트"
+    assert not window.editing
+
+
+def test_where_input_methods_commit_on_focus_loss_nothing_is_put_in_for_them(
+    qtbot: QtBot, manager: NoteManager, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Windows: the input method commits, a moment late; putting the character in
+    # before that made it twice.
+    from PySide6.QtGui import QFocusEvent
+
+    monkeypatch.setattr(note_window, "DROPPING_INPUT_METHODS", False)
+    window = manager.new_note()
+    type_into(window, "#테스")
+    compose(window, "트")
+
+    QApplication.sendEvent(window.editor, QFocusEvent(QEvent.Type.FocusOut))
+    qtbot.wait(300)  # longer than Stickle waited for a commit
+    compose(window, "", commit="트")
+
+    assert window.text == "#테스트"
 
 
 def test_a_committed_character_is_not_added_again_after_the_focus_leaves(

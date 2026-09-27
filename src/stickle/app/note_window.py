@@ -1,5 +1,6 @@
 """A single sticky note window."""
 
+import sys
 import time
 from collections.abc import Callable
 from typing import override
@@ -75,6 +76,10 @@ MAX_HEIGHT = 16_777_215  # Qt's QWIDGETSIZE_MAX: no limit
 DEFAULT_SIZE = (260, 240)
 # How long an input method has to commit a character after the focus left.
 DROP_CHECK_MS = 150
+# Where an input method may drop the character being composed when the focus
+# leaves (ibus on Linux). Elsewhere they commit it, sometimes a moment later: a
+# character put in for them there came out twice.
+DROPPING_INPUT_METHODS = sys.platform.startswith("linux")
 # A composition that ended this shortly before the focus left was dropped by the
 # input method, not erased by the user (too quick for Backspace and a click).
 JUST_DROPPED_S = 0.3
@@ -825,7 +830,9 @@ class NoteWindow(QWidget):
             and event.type() == QEvent.Type.FocusOut
             and not self._released
         ):
-            if self.composing:
+            if not DROPPING_INPUT_METHODS:
+                pass  # input methods here commit on focus loss, if late (Windows)
+            elif self.composing:
                 self._watch_for_drop(self._preedit, self._commits)
             elif (ended := self._ended_unfinished) is not None:
                 # Already dropped: leaving for another application, ibus ends the
@@ -845,6 +852,10 @@ class NoteWindow(QWidget):
             and event.key() == Qt.Key.Key_Escape
             and event.modifiers() == Qt.KeyboardModifier.NoModifier
         ):
+            # Committed while the editor still has the keyboard: left to the
+            # focus change, a Windows input method committed it after Stickle
+            # had put it in itself, and it was typed twice.
+            self.finish_composition(closing=False)
             self.show_formatted()
             return True
         if watched is self.editor and isinstance(event, QInputMethodEvent):
