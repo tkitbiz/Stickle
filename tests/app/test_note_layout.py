@@ -151,6 +151,28 @@ def test_a_note_off_screen_is_brought_back_when_monitors_change(qtbot: QtBot, ap
     assert window.geometry() == remembered
 
 
+def test_a_move_by_the_system_while_monitors_change_is_not_remembered(
+    qtbot: QtBot, app: App
+) -> None:
+    # A monitor goes away: the system moves the note onto another one before
+    # Stickle places the notes again. Taken for the user's move, it replaced the
+    # note's own place, and the note stayed away when its monitor came back (Mint).
+    window = stored_note(app)
+    note_id = window.note_id or ""
+    app.manager.save_layout(window, force=True)
+    remembered = window.geometry()
+    before = app.layouts.places(note_id)
+
+    watch = app.manager._monitor_watch  # pyright: ignore[reportPrivateUsage]
+    watch._settle.start()  # pyright: ignore[reportPrivateUsage]
+    window.move(window.pos() + QPoint(200, 120))  # by the system
+    qtbot.wait(SETTLE_MS + 100)
+
+    assert app.layouts.places(note_id) == before
+    qtbot.waitUntil(lambda: not watch.changing)
+    assert window.geometry() == remembered  # placed again where it belongs
+
+
 def test_a_note_never_stored_is_kept_on_screen_when_monitors_change(app: App) -> None:
     window = app.manager.new_note()
     window.move(-5000, -5000)

@@ -290,6 +290,10 @@ class NoteManager(QObject):
             return
         if not force and not window.moved_by_user:
             return
+        # The system moves notes off a monitor that went away; that is not the
+        # user's doing, and taken for it, it replaced the note's own place there.
+        if not force and self._monitor_watch.changing:
+            return
         places = self._places(window)
         if can_place_windows():
             window_rect = rect(window.expanded_geometry())  # folded or not, the full size

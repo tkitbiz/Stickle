@@ -59,6 +59,11 @@ class MonitorWatch(QObject):
         for screen in QGuiApplication.screens():
             self._watch(screen)
 
+    @property
+    def changing(self) -> bool:
+        """Monitors changed a moment ago and notes are still to be placed again."""
+        return self._settle.isActive()
+
     def _screen_added(self, screen: QScreen) -> None:
         self._watch(screen)
         self._settle.start()
