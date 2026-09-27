@@ -11,18 +11,18 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import override
 
-from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QFont, QGuiApplication
+from PySide6.QtCore import QEvent, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QCloseEvent, QFont, QGuiApplication, QPainter, QPaintEvent, QPalette, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QSpacerItem,
     QVBoxLayout,
     QWidget,
 )
@@ -31,6 +31,7 @@ from stickle.app.app_list import switch_app_list
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.notes import HIDDEN_LISTED, NoteManager
 from stickle.app.recovery_key_dialog import RecoveryKeyDialog
+from stickle.app.sizing import grow_to_fit
 from stickle.app.tray import switch_autostart
 from stickle.app.window_flags import set_stays_on_top, stays_on_top
 from stickle.core.markdown import note_title
@@ -39,6 +40,8 @@ from stickle.platform.linux.appimage import AppMenuEntry
 from stickle.platform.linux.x11 import activate
 
 NOTE_ID = Qt.ItemDataRole.UserRole
+NOTICE_PADDING = 10  # inside the notice's frame
+NOTICE_BORDER = 2
 log = logging.getLogger(__name__)
 
 
@@ -90,31 +93,34 @@ class StickleWindow(QWidget):
 
         # Shown only when there is no tray and every note was hidden: the window
         # then opened by itself, so it says why at the top, where it is seen, and
-        # offers the two ways on (a single line was passed over in testing).
-        self.notice = QFrame(self)
-        self.notice.setObjectName("notice")
-        self.notice.setStyleSheet(
-            "QFrame#notice { border: 2px solid palette(highlight); border-radius: 6px; }"
-        )
-        self.notice_heading = QLabel(self.notice)
+        # offers the two ways on (a single line was passed over in testing). Its
+        # parts sit in the window's own layout, framed by paintEvent: inside a
+        # box with a layout of its own, the wrapped text's last line was cut off.
+        self.notice_heading = QLabel(self)
         heading_font = QFont(self.notice_heading.font())
         heading_font.setBold(True)
         heading_font.setPointSizeF(heading_font.pointSizeF() * 1.2)
         self.notice_heading.setFont(heading_font)
-        self.notice_text = QLabel(self.notice)
+        self.notice_heading.setContentsMargins(NOTICE_PADDING, NOTICE_PADDING, NOTICE_PADDING, 0)
+        self.notice_text = QLabel(self)
         self.notice_text.setWordWrap(True)
-        self.notice_show_button = QPushButton(self.notice)
+        self.notice_text.setContentsMargins(NOTICE_PADDING, 0, NOTICE_PADDING, 0)
+        self.notice_buttons = QWidget(self)
+        self.notice_show_button = QPushButton(self.notice_buttons)
         self.notice_show_button.clicked.connect(notes.show_all_hidden)
-        self.notice_quit_button = QPushButton(self.notice)
+        self.notice_quit_button = QPushButton(self.notice_buttons)
         self.notice_quit_button.clicked.connect(on_quit)
-        notice_buttons = QHBoxLayout()
+        notice_buttons = QHBoxLayout(self.notice_buttons)
+        notice_buttons.setContentsMargins(NOTICE_PADDING, 0, NOTICE_PADDING, NOTICE_PADDING)
         notice_buttons.addWidget(self.notice_show_button)
         notice_buttons.addWidget(self.notice_quit_button)
-        notice_layout = QVBoxLayout(self.notice)
-        notice_layout.addWidget(self.notice_heading)
-        notice_layout.addWidget(self.notice_text)
-        notice_layout.addLayout(notice_buttons)
-        self.notice.hide()
+        self._notice_parts: tuple[QWidget, ...] = (
+            self.notice_heading,
+            self.notice_text,
+            self.notice_buttons,
+        )
+        for part in self._notice_parts:
+            part.hide()
 
         self.new_note_button = QPushButton(self)
         self.new_note_button.clicked.connect(notes.new_note)
@@ -146,7 +152,10 @@ class StickleWindow(QWidget):
         language.addWidget(self.language_label)
         language.addWidget(self.language_box, 1)
         layout = QVBoxLayout(self)
-        layout.addWidget(self.notice)
+        for part in self._notice_parts:
+            layout.addWidget(part)
+        self._after_notice = QSpacerItem(0, 0)  # room below the frame, while shown
+        layout.addItem(self._after_notice)
         layout.addLayout(buttons)
         layout.addWidget(self.hidden_label)
         layout.addWidget(self.hidden_list, 1)
@@ -258,13 +267,40 @@ class StickleWindow(QWidget):
             switch_autostart(self._autostart, on)
             self.autostart_box.setChecked(self._autostart.enabled)
 
+    @property
+    def notice_shown(self) -> bool:
+        return self.notice_text.isVisibleTo(self)
+
     def show_notice(self, shown: bool) -> None:
         """The "all notes are hidden" notice, in the window and its title."""
-        self.notice.setVisible(shown)
+        for part in self._notice_parts:
+            part.setVisible(shown)
+        self._after_notice.changeSize(0, NOTICE_PADDING if shown else 0)
+        layout = self.layout()
+        if layout is not None:
+            layout.invalidate()
         self._set_title()
+        self.update()
+        if shown:
+            grow_to_fit(self)  # opened before at its smaller size: the text was cut off
+
+    @override
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        if not self.notice_shown:
+            return
+        frame = QRect()
+        for part in self._notice_parts:
+            frame = frame.united(part.geometry())
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(self.palette().color(QPalette.ColorRole.Highlight), NOTICE_BORDER)
+        painter.setPen(pen)
+        half = NOTICE_BORDER / 2
+        painter.drawRoundedRect(QRectF(frame).adjusted(half, half, -half, -half), 6, 6)
 
     def _set_title(self) -> None:
-        if self.notice.isVisibleTo(self):
+        if self.notice_shown:
             self.setWindowTitle(self.tr("All notes are hidden - Stickle"))
         else:
             self.setWindowTitle("Stickle")
@@ -278,6 +314,8 @@ class StickleWindow(QWidget):
         # until the user moves on from it, it is at least seen.
         set_stays_on_top(self, True)
         self.showNormal()
+        if notice:
+            grow_to_fit(self)  # shown again at the size it had before the notice
         self.raise_()
         self.activateWindow()
         if QGuiApplication.platformName() == "xcb":

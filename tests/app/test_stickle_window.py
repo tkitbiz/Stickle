@@ -163,7 +163,7 @@ def test_starting_with_only_hidden_notes_opens_it(app: App) -> None:
 
     assert app.manager.windows == ()
     assert app.window.isVisible()
-    assert not app.window.notice.isVisible()
+    assert not app.window.notice_shown
 
 
 def test_starting_with_notes_to_show_does_not(app: App) -> None:
@@ -226,7 +226,7 @@ def test_without_a_tray_hiding_the_last_note_opens_it_with_a_notice(trayless: Ap
     trayless.manager.hide(note)
 
     assert trayless.window.isVisible()
-    assert trayless.window.notice.isVisible()
+    assert trayless.window.notice_shown
     assert listed(trayless.window) == ["마지막"]
     assert trayless.quits == []
     # Says why it opened, in the window and its title, with the two ways on.
@@ -236,13 +236,38 @@ def test_without_a_tray_hiding_the_last_note_opens_it_with_a_notice(trayless: Ap
     assert trayless.window.notice_quit_button.isVisible()
 
 
+@pytest.mark.parametrize("shown_before", ["open", "closed"])
+def test_the_notice_is_shown_whole_in_a_window_that_was_open_before(
+    qtbot: QtBot, trayless: App, translations: Translations, shown_before: str
+) -> None:
+    # Opened before at the size it needs without the notice, the window kept
+    # that size and the notice's last line was hidden (Fedora).
+    translations.apply("ko")
+    window = trayless.window
+    note = open_note(trayless, "마지막")
+    window.open()
+    qtbot.waitExposed(window)
+    window.resize(window.minimumSizeHint())
+    if shown_before == "closed":
+        window.hide()
+
+    trayless.manager.hide(note)
+    qtbot.waitExposed(window)
+    qtbot.wait(50)  # the layout is redone from the event loop
+
+    text = window.notice_text
+    assert text.isVisible()
+    assert text.height() >= text.heightForWidth(text.width())
+    assert window.notice_buttons.geometry().bottom() <= window.height()
+
+
 def test_the_notice_buttons_bring_the_notes_back_or_quit(trayless: App) -> None:
     trayless.manager.hide(open_note(trayless, "마지막"))
 
     trayless.window.notice_show_button.click()
 
     assert len(trayless.manager.windows) == 1
-    assert not trayless.window.notice.isVisible()
+    assert not trayless.window.notice_shown
     assert trayless.window.windowTitle() == "Stickle"
 
     trayless.manager.hide(trayless.manager.windows[0])
@@ -263,7 +288,7 @@ def test_without_a_tray_a_note_brought_back_keeps_stickle_running(trayless: App)
     trayless.manager.hide(open_note(trayless, "마지막"))
 
     trayless.window.hidden_list.itemActivated.emit(trayless.window.hidden_list.item(0))
-    assert not trayless.window.notice.isVisible()
+    assert not trayless.window.notice_shown
     trayless.window.close()
 
     assert trayless.quits == []
@@ -357,4 +382,4 @@ def test_started_at_login_without_a_tray_still_shows_the_way_back(trayless: App)
     open_at_start(trayless.manager, trayless.window, tray_available=False, at_login=True)
 
     assert trayless.window.isVisible()
-    assert trayless.window.notice.isVisible()
+    assert trayless.window.notice_shown
