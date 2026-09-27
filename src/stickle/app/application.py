@@ -60,8 +60,19 @@ QT_LOG_LEVELS = {
 }
 
 
+# Warnings Qt gives that say nothing is wrong with Stickle, kept out of the log's warnings.
+HARMLESS_QT_WARNINGS = (
+    # Qt registers with the desktop portal, which knows the app already on some
+    # desktops; Stickle uses nothing the registration is for.
+    "Failed to register with host portal",
+)
+
+
 def log_qt_message(kind: QtMsgType, _context: QMessageLogContext, message: str) -> None:
-    logging.getLogger("qt").log(QT_LOG_LEVELS.get(kind, logging.WARNING), "%s", message)
+    level = QT_LOG_LEVELS.get(kind, logging.WARNING)
+    if level == logging.WARNING and message.startswith(HARMLESS_QT_WARNINGS):
+        level = logging.DEBUG
+    logging.getLogger("qt").log(level, "%s", message)
 
 
 def connect_stickle_window(
