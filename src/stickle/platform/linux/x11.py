@@ -1,4 +1,6 @@
-"""Keeping notes out of the taskbar under X11 without tying them together.
+"""Talking to the X11 window manager where Qt does not say what is needed.
+
+Keeping notes out of the taskbar without tying them together:
 
 Qt turns a tool window into a window transient for the application's group,
 and window managers such as GNOME's Mutter lift every such window to the
@@ -8,6 +10,10 @@ module asks the window manager to leave them out of the taskbar, the window
 switcher and the pager, as tool windows are, through the window's
 _NET_WM_STATE. Set before the window is mapped, the state is read when the
 window manager takes the window; Qt keeps states it does not manage itself.
+
+Bringing the Stickle window forward when Stickle is started again: Qt asks as
+the application, which window managers refuse when another program was used
+last, so it is asked as a taskbar would (see activate).
 
 This talks to the X server through its own libxcb connection (the library Qt
 itself uses on X11), so it needs nothing beyond what is already loaded.
@@ -72,6 +78,7 @@ class _ClientMessage(ctypes.Structure):
 CLIENT_MESSAGE = 33
 STATE_ADD = 1
 SOURCE_APPLICATION = 1
+SOURCE_PAGER = 2
 # SubstructureNotify | SubstructureRedirect: how EWMH requests reach the window manager.
 TO_WINDOW_MANAGER = (1 << 19) | (1 << 20)
 
@@ -169,9 +176,18 @@ class _Xcb:
 
     def ask_window_manager(self, window: int, atoms: list[int]) -> None:
         """The way to change the state of a window that is already mapped."""
-        message = _ClientMessage(CLIENT_MESSAGE, 32, 0, window, self.state)
         first, second = [*atoms, 0][:2]  # one message changes at most two states
-        message.data[:] = [STATE_ADD, first, second, SOURCE_APPLICATION, 0]
+        self._send(window, self.state, [STATE_ADD, first, second, SOURCE_APPLICATION, 0])
+
+    def activate(self, window: int) -> None:
+        """Ask for the window to be brought forward and given the keyboard."""
+        # As a taskbar asks, on behalf of the user; an application's own request
+        # is refused when another program had the user's attention last.
+        self._send(window, self._atom(b"_NET_ACTIVE_WINDOW"), [SOURCE_PAGER, 0, 0, 0, 0])
+
+    def _send(self, window: int, message_type: int, data: list[int]) -> None:
+        message = _ClientMessage(CLIENT_MESSAGE, 32, 0, window, message_type)
+        message.data[:] = data
         self._xcb.xcb_send_event(
             self._connection, 0, self.root, TO_WINDOW_MANAGER, ctypes.byref(message)
         )
@@ -189,18 +205,38 @@ def keep_off_taskbar(window: int, mapped: bool) -> None:
     window) and again once it is (the window manager may have read it too
     early, so it is asked outright).
     """
+    server = _server()
+    if server is None:
+        return  # the notes then show in the taskbar: a nuisance, not a failure
+    states = server.atoms(window, server.state)
+    missing = [atom for atom in server.skip if atom not in states]
+    if missing and mapped:
+        server.ask_window_manager(window, missing)
+    elif missing:
+        server.set_atoms(window, server.state, states + missing)
+
+
+def activate(window: int) -> None:
+    """Bring an X11 window forward with the keyboard, as a taskbar would.
+
+    For a window the user asked for through another program (starting Stickle
+    again): window managers refuse an application's own request then.
+    """
+    server = _server()
+    if server is not None:
+        server.activate(window)
+
+
+def _server() -> _Xcb | None:
+    """The connection to the X server, or None if there is none to be had."""
     global _xcb, _unavailable
     if _unavailable:
-        return
+        return None
     try:
         if _xcb is None:
             _xcb = _Xcb()
-        states = _xcb.atoms(window, _xcb.state)
-        missing = [atom for atom in _xcb.skip if atom not in states]
-        if missing and mapped:
-            _xcb.ask_window_manager(window, missing)
-        elif missing:
-            _xcb.set_atoms(window, _xcb.state, states + missing)
     except (OSError, AttributeError) as error:
-        _unavailable = True  # the notes then show in the taskbar: a nuisance, not a failure
+        _unavailable = True
         log.warning("cannot reach the X server directly: %s", type(error).__name__)
+        return None
+    return _xcb

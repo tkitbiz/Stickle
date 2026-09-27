@@ -205,10 +205,12 @@ def test_it_stays_above_other_windows_only_until_it_is_used(app: App) -> None:
     # Opened by a second start, the window manager may not let it take the
     # keyboard; above the others, it is still seen.
     app.window.open()
-    assert stays_on_top(app.window) != app.window.isActiveWindow()
+    assert stays_on_top(app.window)
 
-    set_stays_on_top(app.window, True)
+    # Being made active is not enough: that can be reported before it is in front.
     QCoreApplication.sendEvent(app.window, QEvent(QEvent.Type.WindowActivate))
+    assert stays_on_top(app.window)
+    QCoreApplication.sendEvent(app.window, QEvent(QEvent.Type.WindowDeactivate))
     assert not stays_on_top(app.window)
 
     app.window.open()

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import override
 
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QGuiApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -35,6 +35,7 @@ from stickle.app.window_flags import set_stays_on_top, stays_on_top
 from stickle.core.markdown import note_title
 from stickle.platform.autostart import Autostart
 from stickle.platform.linux.appimage import AppMenuEntry
+from stickle.platform.linux.x11 import activate
 
 NOTE_ID = Qt.ItemDataRole.UserRole
 log = logging.getLogger(__name__)
@@ -236,16 +237,21 @@ class StickleWindow(QWidget):
         self.refresh()
         # Window managers may refuse to hand over the keyboard to a window
         # asked for by another program (a second start): kept above the others
-        # until it is used, it is at least seen.
+        # until the user moves on from it, it is at least seen.
         set_stays_on_top(self, True)
         self.showNormal()
         self.raise_()
         self.activateWindow()
+        if QGuiApplication.platformName() == "xcb":
+            # Asked for as a taskbar would; the application's own request above
+            # may be refused.
+            activate(int(self.winId()))
 
     @override
     def event(self, event: QEvent) -> bool:
+        # Not on activation: that can be reported before the window is in front.
         if (
-            event.type() == QEvent.Type.WindowActivate or event.type() == QEvent.Type.Hide
+            event.type() == QEvent.Type.WindowDeactivate or event.type() == QEvent.Type.Hide
         ) and stays_on_top(self):
             set_stays_on_top(self, False)
         return super().event(event)

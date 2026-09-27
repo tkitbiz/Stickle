@@ -36,6 +36,34 @@ def test_without_an_x_server_nothing_fails_and_it_is_tried_once(
     assert "cannot reach the X server" in caplog.text
 
 
+def test_activating_without_an_x_server_does_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_server() -> x11._Xcb:  # pyright: ignore[reportPrivateUsage]
+        raise OSError("cannot connect to the X server")
+
+    monkeypatch.setattr(x11, "_Xcb", no_server)
+
+    x11.activate(0x400001)  # no exception
+
+
+def test_activation_is_asked_for_as_a_taskbar_would(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[tuple[int, int, list[int]]] = []
+
+    def atom(name: bytes) -> int:
+        return 500 if name == b"_NET_ACTIVE_WINDOW" else 0
+
+    def send(window: int, kind: int, data: list[int]) -> None:
+        sent.append((window, kind, data))
+
+    server = x11._Xcb.__new__(x11._Xcb)  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setattr(server, "_atom", atom)
+    monkeypatch.setattr(server, "_send", send)
+    monkeypatch.setattr(x11, "_xcb", server)
+
+    x11.activate(0x400001)
+
+    assert sent == [(0x400001, 500, [x11.SOURCE_PAGER, 0, 0, 0, 0])]
+
+
 class FakeServer:
     def __init__(self, states: list[int]) -> None:
         self.state = 300
