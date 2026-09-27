@@ -89,6 +89,13 @@ class EnterRecoveryKeyDialog(QDialog):
     def show_error(self, message: str) -> None:
         self.error.setText(message)
         self.error.show()
+        # A wrapped message needs more height than the window had; Qt does not
+        # grow a window for text that wraps, so the message was cut off.
+        layout = self.layout()
+        if layout is not None:
+            layout.activate()
+            needed = self.heightForWidth(self.width())
+            self.resize(self.width(), max(self.height(), needed, self.sizeHint().height()))
         self.key.setAccessibleDescription(message)
         self.key.setFocus()
         self.key.selectAll()

@@ -124,6 +124,24 @@ def test_mistyped_and_wrong_keys_are_explained_and_change_nothing(
     }
 
 
+def test_an_explanation_is_shown_whole(qtbot: QtBot, translations: Translations) -> None:
+    # A wrapped message was cut off at the bottom (Korean wraps to more lines).
+    translations.apply("ko")
+    dialog = EnterRecoveryKeyDialog(lambda _: dialog.typo())
+    qtbot.addWidget(dialog)
+    dialog.show()
+    qtbot.waitExposed(dialog)
+
+    dialog.key.setText("abc")
+    dialog.ok_button.click()
+
+    error = dialog.error
+    assert error.isVisible()
+    assert error.height() >= error.heightForWidth(error.width())
+    assert error.geometry().bottom() < dialog.buttons.geometry().top()
+    assert dialog.isVisible()
+
+
 def test_going_back_from_the_recovery_key_changes_nothing(qtbot: QtBot, tmp_path: Path) -> None:
     backend = Backend()
     notes_with_recovery_key(tmp_path, backend)
