@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from stickle.platform import autostart
 from stickle.platform.autostart import (
     AUTOSTART_FLAG,
     Autostart,
@@ -116,6 +117,19 @@ def test_desktop_exec_quoting(command: list[str], exec_line: str) -> None:
 def test_the_appimage_is_what_starts_stickle_when_there_is_one() -> None:
     assert launch_command({"APPIMAGE": "/tmp/Stickle.AppImage"}) == ["/tmp/Stickle.AppImage"]
     assert launch_command({}) == [sys.executable, "-m", "stickle"]
+
+
+def test_a_built_program_is_started_as_itself(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A Nuitka build names a python.exe that does not exist as sys.executable;
+    # the login shortcut pointed there and never started Stickle (Windows 11).
+    program = tmp_path / "Stickle" / "stickle.exe"
+    monkeypatch.setattr(autostart, "__compiled__", object(), raising=False)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "Stickle" / "python.exe"))
+    monkeypatch.setattr(sys, "argv", [str(program), "--autostart"])
+
+    assert launch_command({}) == [str(program.resolve())]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows shortcuts")

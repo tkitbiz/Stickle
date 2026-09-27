@@ -73,7 +73,16 @@ def run_checks() -> list[tuple[str, str]]:
     results.append(password_check())
     results += credential_checks()
     results += font_checks()
+    results.append(start_at_login_check())
     return results
+
+
+def start_at_login_check() -> tuple[str, str]:
+    """The program a login entry would start exists (a build once named one that did not)."""
+    from stickle.platform.autostart import launch_command
+
+    program = Path(launch_command()[0])
+    return ("PASS" if program.is_file() else "FAIL", "start at login names this program")
 
 
 def font_checks() -> list[tuple[str, str]]:

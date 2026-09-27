@@ -30,8 +30,10 @@ def launch_command(env: Mapping[str, str] | None = None) -> list[str]:
 
         launcher = launch_path(Path(appimage), data_home(env))
         return [appimage if launcher == Path(appimage) else str(launcher)]
-    if "__compiled__" in globals():  # a Nuitka build: sys.executable is the program
-        return [sys.executable]
+    if "__compiled__" in globals():
+        # A Nuitka build: the program is argv[0]. Its sys.executable names a
+        # python.exe that does not exist, and a shortcut to that never ran.
+        return [str(Path(sys.argv[0]).resolve())]
     return [sys.executable, "-m", "stickle"]
 
 
