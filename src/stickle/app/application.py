@@ -51,6 +51,14 @@ def report_ready(perf: PerfMode, manager: NoteManager) -> None:
 
 
 log = logging.getLogger(__name__)
+_ended_by_signal = False
+
+
+def ended_by_signal() -> bool:
+    """Whether the last run was ended by a signal (a logout, a shutdown, kill)."""
+    return _ended_by_signal
+
+
 QT_LOG_LEVELS = {
     QtMsgType.QtDebugMsg: logging.DEBUG,
     QtMsgType.QtInfoMsg: logging.INFO,
@@ -227,6 +235,8 @@ def run(
 
     def on_signal() -> None:
         nonlocal ended_early
+        global _ended_by_signal
+        _ended_by_signal = True
         if main_loop_running:
             app.quit()
         else:

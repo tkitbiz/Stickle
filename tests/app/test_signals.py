@@ -51,8 +51,10 @@ def test_without_the_watcher_ctrl_c_is_not_handled_while_idle() -> None:
     assert run_child(watch=False) != 0
 
 
-def sigterm_exit_code(data: Path) -> int:
+def sigterm_exit_code(data: Path, appimage: bool = False) -> int:
     env = {**os.environ, "QT_QPA_PLATFORM": "offscreen", "STICKLE_DATA_DIR": str(data)}
+    if appimage:
+        env["APPIMAGE"] = str(data / "Stickle.AppImage")
     app = subprocess.Popen([sys.executable, "-m", "stickle"], env=env)
     try:
         time.sleep(3)
@@ -68,6 +70,18 @@ def test_app_quits_on_sigterm_at_first_start(tmp_path: Path) -> None:
     # An empty data folder: the welcome is open when the signal comes, and closing
     # it must end the app, not lead on into the main loop.
     assert sigterm_exit_code(tmp_path) == 0
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals from another process")
+def test_an_appimage_ends_at_once_after_saving_on_sigterm(tmp_path: Path) -> None:
+    # A shutdown ends the AppImage's launcher too, and with it the files the
+    # usual clean-up would read: it crashed with a bus error.
+    slot = wrap_with_password(bytes(32), "correct horse", opslimit=1, memlimit=8192)
+    write_key_file(tmp_path / "keys.json", KeyFile(slot, {}))
+
+    assert sigterm_exit_code(tmp_path, appimage=True) == 0
+    log = (tmp_path / "logs" / "stickle.log").read_text(encoding="utf-8")
+    assert log.index("stickle.app.application: quit") < log.index("ending at once")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals from another process")

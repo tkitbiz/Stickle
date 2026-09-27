@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 import time
 
@@ -67,11 +68,11 @@ def main(argv: list[str] | None = None) -> int:
     # Before Qt is loaded below, so that a credential store lookup overlaps it.
     unlock = Unlock(folder)
 
-    from stickle.app.application import run
+    from stickle.app.application import ended_by_signal, run
     from stickle.data.startup import StartupSettings
 
     try:
-        return run(
+        code = run(
             args,
             unlock=unlock,
             started=started,
@@ -81,6 +82,15 @@ def main(argv: list[str] | None = None) -> int:
         )
     finally:
         lock.release()
+    if os.environ.get("APPIMAGE") and ended_by_signal():
+        # An AppImage runs from files its launcher serves; a shutdown ends the
+        # launcher at the same moment, and the usual clean-up would then read
+        # code that is no longer there and crash. The notes are saved and
+        # closed by now, so end here.
+        log.info("ending at once: the AppImage's files may be gone")
+        logging.shutdown()
+        os._exit(code)
+    return code
 
 
 if __name__ == "__main__":
