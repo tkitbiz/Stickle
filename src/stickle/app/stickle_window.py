@@ -11,8 +11,17 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import override
 
-from PySide6.QtCore import QEvent, QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QFont, QGuiApplication, QPainter, QPaintEvent, QPalette, QPen
+from PySide6.QtCore import QEvent, QRect, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import (
+    QCloseEvent,
+    QFont,
+    QGuiApplication,
+    QPainter,
+    QPaintEvent,
+    QPalette,
+    QPen,
+    QShowEvent,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -33,7 +42,7 @@ from stickle.app.notes import HIDDEN_LISTED, NoteManager
 from stickle.app.recovery_key_dialog import RecoveryKeyDialog
 from stickle.app.sizing import grow_to_fit
 from stickle.app.tray import switch_autostart
-from stickle.app.window_flags import set_stays_on_top, stays_on_top
+from stickle.app.window_flags import keep_stays_on_top, set_stays_on_top, stays_on_top
 from stickle.core.markdown import note_title
 from stickle.platform.autostart import Autostart
 from stickle.platform.linux.appimage import AppMenuEntry
@@ -346,6 +355,13 @@ class StickleWindow(QWidget):
     def _choose_language(self, index: int) -> None:
         code = self.language_box.itemData(index)
         self._translations.apply(code if isinstance(code, str) else None)
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        if not event.spontaneous():
+            # Once shown: Qt may have put back an on-top state since changed.
+            QTimer.singleShot(0, self, lambda: keep_stays_on_top(self))
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:

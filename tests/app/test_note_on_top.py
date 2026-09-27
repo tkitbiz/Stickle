@@ -1,12 +1,15 @@
 """Keeping a note above other windows, with the pin in its title bar."""
 
+import ctypes
 import secrets
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
 import apsw
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
 from pytestqt.qtbot import QtBot
 
 from stickle.app.i18n import Translations
@@ -98,14 +101,35 @@ def test_the_pin_changes_the_window_without_remaking_it(manager: NoteManager) ->
 
     assert window.windowHandle() is native
     assert not on_top_flag(window)
-    assert not native.flags() & Qt.WindowType.WindowStaysOnTopHint
+    assert not really_on_top(window)
     assert not any(hidden)
 
     window.title_bar.pin_button.click()
 
     assert window.windowHandle() is native
-    assert native.flags() & Qt.WindowType.WindowStaysOnTopHint
+    assert really_on_top(window)
     assert not any(hidden)
+
+
+def test_a_note_unpinned_stays_so_when_shown_again(qtbot: QtBot, manager: NoteManager) -> None:
+    # Qt shows a window with the on-top state it last applied itself.
+    window = stored_note(manager)
+    window.title_bar.pin_button.click()
+
+    window.hide()
+    window.show()
+    qtbot.wait(50)
+
+    assert not really_on_top(window)
+
+
+def really_on_top(window: NoteWindow) -> bool:
+    """What the window system has, not only what the widget says."""
+    if sys.platform == "win32" and QGuiApplication.platformName() == "windows":
+        ws_ex_topmost = 0x0008
+        styles = ctypes.windll.user32.GetWindowLongW(int(window.winId()), -20)  # GWL_EXSTYLE
+        return bool(styles & ws_ex_topmost)
+    return bool(window.windowHandle().flags() & Qt.WindowType.WindowStaysOnTopHint)
 
 
 def test_the_menu_does_the_same_as_the_pin(manager: NoteManager) -> None:

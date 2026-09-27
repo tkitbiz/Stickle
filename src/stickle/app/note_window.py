@@ -57,7 +57,7 @@ from PySide6.QtWidgets import (
 from stickle.app.note_highlight import MarkdownHighlighter
 from stickle.app.note_view import NoteView, utf16_length
 from stickle.app.palette import color_name, qcolor, swatch_icon
-from stickle.app.window_flags import set_stays_on_top, stays_on_top
+from stickle.app.window_flags import keep_stays_on_top, set_stays_on_top, stays_on_top
 from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
 from stickle.core.markdown import note_title, task_box
 from stickle.platform.linux.x11 import keep_off_taskbar
@@ -592,6 +592,9 @@ class NoteWindow(QWidget):
     @override
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
+        if not event.spontaneous():
+            # Once shown: Qt may have put back an on-top state since changed.
+            QTimer.singleShot(0, self, lambda: keep_stays_on_top(self))
         if self._x11 and not event.spontaneous():
             # Before the window is mapped, and again once it is.
             QGuiApplication.sync()  # the window exists on the X server
