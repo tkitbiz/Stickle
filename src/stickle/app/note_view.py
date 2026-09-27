@@ -334,6 +334,11 @@ class NoteView(QTextEdit):
         # Drawn again when a checkbox is toggled: stay where the reader was.
         scrolled = self.verticalScrollBar().value()
         self._blocks = render(text, self.document(), self.colors)
+        # The (hidden) cursor is left at the end by the drawing; the view would
+        # scroll there the moment it is shown or given the keyboard.
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
+        self.setTextCursor(cursor)
         self.verticalScrollBar().setValue(scrolled)
 
     def set_colors(self, colors: NoteColors) -> None:

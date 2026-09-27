@@ -450,3 +450,17 @@ def test_double_clicking_beside_a_plain_list_item_edits(qtbot: QtBot) -> None:
     assert window.text == "- plain\n- [ ] task"
     assert window.editing
     window.release()
+
+
+def test_a_long_note_opens_at_its_top(qtbot: QtBot) -> None:
+    window = NoteWindow(text="# Title\n" + "\n".join(f"line {n}" for n in range(60)))
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    window.activateWindow()
+    qtbot.wait(50)
+
+    scroll = window.view.verticalScrollBar()
+    assert scroll.maximum() > 0
+    assert scroll.value() == 0
+    window.release()
