@@ -373,6 +373,26 @@ def test_turned_off_elsewhere_shows_as_off(
     assert not tray.autostart_action.isChecked()
 
 
+def test_the_open_window_shows_a_change_made_elsewhere_when_it_is_used(
+    qtbot: QtBot, connection: apsw.Connection, tmp_path: Path
+) -> None:
+    # Turned off in the system's settings, or on from the app list question,
+    # while the window was open: it showed the old state until opened again.
+    autostart = FakeAutostart(tmp_path)
+    autostart.enable()
+    manager = NoteManager(NoteRepository(connection))
+    window = StickleWindow(manager, Translations(), lambda: None, autostart)
+    qtbot.addWidget(window)
+    window.open()
+    assert window.autostart_box.isChecked()
+
+    autostart.path.unlink()
+    QCoreApplication.sendEvent(window, QEvent(QEvent.Type.WindowActivate))
+
+    assert not window.autostart_box.isChecked()
+    window.deleteLater()
+
+
 def test_a_file_that_cannot_be_written_leaves_it_off(
     qtbot: QtBot, connection: apsw.Connection, tmp_path: Path
 ) -> None:

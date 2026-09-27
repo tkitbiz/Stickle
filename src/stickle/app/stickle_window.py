@@ -227,6 +227,10 @@ class StickleWindow(QWidget):
         self.language_box.setCurrentIndex(
             max(0, self.language_box.findData(self._translations.language))
         )
+        self.refresh_switches()
+
+    def refresh_switches(self) -> None:
+        """Show what the files say: they may have changed outside Stickle, or elsewhere in it."""
         if self._autostart is not None:
             self.autostart_box.setChecked(self._autostart.enabled)
         if self._app_list is not None:
@@ -325,6 +329,8 @@ class StickleWindow(QWidget):
 
     @override
     def event(self, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.WindowActivate:
+            self.refresh_switches()  # as the tray does each time its menu opens
         # Not on activation: that can be reported before the window is in front.
         if (
             event.type() == QEvent.Type.WindowDeactivate or event.type() == QEvent.Type.Hide
