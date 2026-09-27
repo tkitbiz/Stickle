@@ -150,6 +150,17 @@ def test_new_notes_cascade_instead_of_stacking(manager: NoteManager) -> None:
     assert second.pos() != first.pos()
 
 
+def test_a_new_note_skips_a_spot_a_note_already_has(manager: NoteManager) -> None:
+    # The cascade starts over with each run: a note made in an earlier run can
+    # sit where the next new note would go, which then covered it exactly (Mint).
+    earlier = manager.new_note()
+    manager._created = 0  # pyright: ignore[reportPrivateUsage]  # as after a restart
+
+    new = manager.new_note()
+
+    assert new.pos() != earlier.pos()
+
+
 def test_new_note_gets_keyboard_focus(qtbot: QtBot, manager: NoteManager) -> None:
     window = manager.new_note()
     qtbot.waitUntil(lambda: window.editor.hasFocus())

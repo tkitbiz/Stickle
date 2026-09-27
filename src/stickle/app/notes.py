@@ -211,10 +211,7 @@ class NoteManager(QObject):
         self._windows.append(window)
 
         if not self._restore_place(window):
-            offset = CASCADE_ORIGIN + CASCADE_STEP * (self._created % CASCADE_LENGTH)
-            self._created += 1
-            area = QGuiApplication.primaryScreen().availableGeometry()
-            window.place(QRect(area.topLeft() + QPoint(offset, offset), window.size()))
+            window.place(QRect(self._free_cascade_spot(window), window.size()))
         if note is not None and note.collapsed:
             window.set_collapsed(True)
             window.mark_placed()
@@ -376,6 +373,25 @@ class NoteManager(QObject):
             log.error("could not store a note being folded: %s", type(error).__name__)
 
     # Colour
+
+    def _free_cascade_spot(self, window: NoteWindow) -> QPoint:
+        """The next step of the cascade where no note already sits.
+
+        The cascade starts over with each run of the app, so its next step can
+        be where a note made in an earlier run still is.
+        """
+        area = QGuiApplication.primaryScreen().availableGeometry()
+        taken = {
+            other.pos() for other in self._windows if other is not window and other.isVisible()
+        }
+        spots: list[QPoint] = []
+        for _ in range(CASCADE_LENGTH):
+            offset = CASCADE_ORIGIN + CASCADE_STEP * (self._created % CASCADE_LENGTH)
+            self._created += 1
+            spots.append(area.topLeft() + QPoint(offset, offset))
+            if spots[-1] not in taken:
+                return spots[-1]
+        return spots[0]  # every step taken: the cascade goes on over them
 
     def _new_note_color(self) -> str:
         return self._settings.get(DEFAULT_NOTE_COLOR) if self._settings else DEFAULT_COLOR
