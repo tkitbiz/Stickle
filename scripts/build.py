@@ -8,6 +8,7 @@ executable packing, both of which make antivirus products suspicious of
 Python applications.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -21,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILD_DIR = ROOT / "build"
 DIST_DIR = BUILD_DIR / "stickle.dist"
 FONTS_DIR = ROOT / "src" / "stickle" / "fonts"
+ICON_FILE = BUILD_DIR / "stickle.ico"
 
 # Fallback font for Linux systems without a Korean font (SIL Open Font License,
 # which must ship next to it). Pinned release, checked against its digest.
@@ -43,6 +45,26 @@ def fetch_linux_fonts() -> None:
     FONTS_DIR.mkdir(exist_ok=True)
     for url, sha256, name in LINUX_FONT_FILES:
         shutil.copy2(fetch(url, sha256), FONTS_DIR / name)
+
+
+def write_icon() -> None:
+    """The app's icon as a Windows .ico, from the same drawing the tray uses."""
+    subprocess.run(
+        [sys.executable, "-c", ICON_SCRIPT, str(ICON_FILE)],
+        check=True,
+        env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+    )
+
+
+ICON_SCRIPT = """
+import sys
+from PySide6.QtWidgets import QApplication
+from stickle.app.tray import make_icon
+app = QApplication([])
+icon = make_icon()
+if not icon.pixmap(256, 256).save(sys.argv[1], "ICO"):
+    raise SystemExit("could not write the icon")
+"""
 
 
 def nuitka_command() -> list[str]:
@@ -76,6 +98,9 @@ def nuitka_command() -> list[str]:
             # prints when started from a terminal.
             "--windows-console-mode=attach",
             "--output-filename=stickle",
+            # The program's own icon: shown for it in Explorer and in the list of
+            # apps started at login, which showed none.
+            f"--windows-icon-from-ico={ICON_FILE}",
         ]
     elif sys.platform == "linux":
         command += [
@@ -107,6 +132,9 @@ def main() -> int:
     )
     if sys.platform == "linux":
         fetch_linux_fonts()
+    if sys.platform == "win32":
+        BUILD_DIR.mkdir(exist_ok=True)
+        write_icon()
     subprocess.run(nuitka_command(), check=True, cwd=ROOT)
     print(f"Built {DIST_DIR}")
     if sys.platform == "linux":
