@@ -38,8 +38,10 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QResizeEvent,
+    QScreen,
     QShowEvent,
     QTextCursor,
+    QWindow,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -364,6 +366,8 @@ class NoteWindow(QWidget):
 
         # Where the app last put the note; anything else is the user's doing.
         self._placed: QRect | None = None
+        self._scale_watched: QWindow | None = None
+        self._screen_watched: QScreen | None = None
         # False while shown in its spare place because its own monitor is missing.
         self.own_monitor = True
         self.collapsed = False
@@ -595,11 +599,40 @@ class NoteWindow(QWidget):
         if not event.spontaneous():
             # Once shown: Qt may have put back an on-top state since changed.
             QTimer.singleShot(0, self, lambda: keep_stays_on_top(self))
+            self._watch_scale()
         if self._x11 and not event.spontaneous():
             # Before the window is mapped, and again once it is.
             QGuiApplication.sync()  # the window exists on the X server
             keep_off_taskbar(int(self.winId()), mapped=False)
             QTimer.singleShot(0, self, self._keep_off_taskbar_mapped)
+
+    def _watch_scale(self) -> None:
+        """Follow the display scale of the monitor the note is on."""
+        window = self.windowHandle()
+        if self._scale_watched is not window:
+            self._scale_watched = window
+            window.screenChanged.connect(self._watch_screen)
+            self._watch_screen()
+
+    def _watch_screen(self, _moved_to: QScreen | None = None) -> None:
+        screen = self.screen()
+        if screen is not self._screen_watched:
+            if self._screen_watched is not None:
+                self._screen_watched.logicalDotsPerInchChanged.disconnect(self._scale_changed)
+            self._screen_watched = screen
+            screen.logicalDotsPerInchChanged.connect(self._scale_changed)
+
+    def _scale_changed(self) -> None:
+        # Changing the display scale while a note was open left its right end,
+        # icons and all, outside what was drawn (a see-through window on a
+        # Windows VM). Setting its size again and drawing it whole fixes that.
+        QTimer.singleShot(0, self, self._redo_size)
+
+    def _redo_size(self) -> None:
+        geometry = self.geometry()
+        self.setGeometry(geometry.adjusted(0, 0, 1, 0))
+        self.setGeometry(geometry)
+        self.update()
 
     def _keep_off_taskbar_mapped(self) -> None:
         if self.isVisible():

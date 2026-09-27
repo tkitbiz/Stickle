@@ -1,7 +1,8 @@
 from collections.abc import Iterator
+from typing import override
 
 import pytest
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QEvent, QObject, QSize, Qt
 from PySide6.QtGui import QContextMenuEvent, QIcon, QImage, QPalette
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QWidget
@@ -131,6 +132,36 @@ def test_right_click_opens_the_menu_without_opening_colors(qtbot: QtBot) -> None
     assert window.menu.activeAction() is None
     assert not window.color_menu.isVisible()
     window.menu.close()
+
+
+def test_a_change_of_display_scale_redoes_the_notes_size(qtbot: QtBot) -> None:
+    # Changing the scale while a note was open cut off its right end, icons and
+    # all (Windows VM). The note sets its size again and is drawn whole.
+    window = NoteWindow(text="배율")
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    geometry = window.geometry()
+    sizes: list[int] = []
+    window.installEventFilter(filter_resizes := ResizeCounter(sizes))
+
+    window.screen().logicalDotsPerInchChanged.emit(144.0)
+    qtbot.waitUntil(lambda: len(sizes) >= 2)
+
+    assert window.geometry() == geometry
+    window.removeEventFilter(filter_resizes)
+
+
+class ResizeCounter(QObject):
+    def __init__(self, sizes: list[int]) -> None:
+        super().__init__()
+        self._sizes = sizes
+
+    @override
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.Resize:
+            self._sizes.append(1)
+        return False
 
 
 def test_every_control_has_an_accessible_name(qtbot: QtBot) -> None:
