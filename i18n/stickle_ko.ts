@@ -549,10 +549,6 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
 <context>
     <name>StickleWindow</name>
     <message>
-        <source>All notes are hidden. Closing this window quits Stickle; the hidden notes are listed below, and here again the next time you start it.</source>
-        <translation>메모를 모두 숨겼습니다. 이 창을 닫으면 Stickle이 종료됩니다. 숨긴 메모는 아래 목록에 있고, 다음에 실행할 때도 여기에서 볼 수 있습니다.</translation>
-    </message>
-    <message>
         <source>New note</source>
         <translation>새 메모</translation>
     </message>
@@ -589,6 +585,14 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>Stickle 종료</translation>
     </message>
     <message>
+        <source>All notes are hidden</source>
+        <translation>메모를 모두 숨겼습니다</translation>
+    </message>
+    <message>
+        <source>Closing this window quits Stickle. The hidden notes are listed below, and here again the next time you start it.</source>
+        <translation>이 창을 닫으면 Stickle이 종료됩니다. 숨긴 메모는 아래 목록에 있고, 다음에 실행할 때도 여기에서 볼 수 있습니다.</translation>
+    </message>
+    <message>
         <source>&amp;Start Stickle when I log in</source>
         <translation>로그인할 때 Stickle 시작(&amp;S)</translation>
     </message>
@@ -623,6 +627,10 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>The recovery key could not be saved.</source>
         <translation>복구 키를 저장하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>All notes are hidden - Stickle</source>
+        <translation>메모를 모두 숨김 - Stickle</translation>
     </message>
 </context>
 <context>

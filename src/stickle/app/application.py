@@ -115,7 +115,7 @@ def connect_stickle_window(
 
     def notes_changed() -> None:
         if manager.windows:
-            window.notice.hide()  # a note is back: the notice no longer holds
+            window.show_notice(False)  # a note is back: the notice no longer holds
 
     manager.changed.connect(notes_changed)
 

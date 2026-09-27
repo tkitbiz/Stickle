@@ -12,10 +12,11 @@ from dataclasses import dataclass
 from typing import override
 
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QGuiApplication
+from PySide6.QtGui import QCloseEvent, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -87,9 +88,32 @@ class StickleWindow(QWidget):
         self.recovery_button.setVisible(recovery is not None)
         self.recovery_button.clicked.connect(self.new_recovery_key)
 
-        # Shown only when there is no tray and every note was hidden.
-        self.notice = QLabel(self)
-        self.notice.setWordWrap(True)
+        # Shown only when there is no tray and every note was hidden: the window
+        # then opened by itself, so it says why at the top, where it is seen, and
+        # offers the two ways on (a single line was passed over in testing).
+        self.notice = QFrame(self)
+        self.notice.setObjectName("notice")
+        self.notice.setStyleSheet(
+            "QFrame#notice { border: 2px solid palette(highlight); border-radius: 6px; }"
+        )
+        self.notice_heading = QLabel(self.notice)
+        heading_font = QFont(self.notice_heading.font())
+        heading_font.setBold(True)
+        heading_font.setPointSizeF(heading_font.pointSizeF() * 1.2)
+        self.notice_heading.setFont(heading_font)
+        self.notice_text = QLabel(self.notice)
+        self.notice_text.setWordWrap(True)
+        self.notice_show_button = QPushButton(self.notice)
+        self.notice_show_button.clicked.connect(notes.show_all_hidden)
+        self.notice_quit_button = QPushButton(self.notice)
+        self.notice_quit_button.clicked.connect(on_quit)
+        notice_buttons = QHBoxLayout()
+        notice_buttons.addWidget(self.notice_show_button)
+        notice_buttons.addWidget(self.notice_quit_button)
+        notice_layout = QVBoxLayout(self.notice)
+        notice_layout.addWidget(self.notice_heading)
+        notice_layout.addWidget(self.notice_text)
+        notice_layout.addLayout(notice_buttons)
         self.notice.hide()
 
         self.new_note_button = QPushButton(self)
@@ -139,13 +163,16 @@ class StickleWindow(QWidget):
         self.retranslate()
 
     def retranslate(self) -> None:
-        self.setWindowTitle("Stickle")
-        self.notice.setText(
+        self._set_title()
+        self.notice_heading.setText(self.tr("All notes are hidden"))
+        self.notice_text.setText(
             self.tr(
-                "All notes are hidden. Closing this window quits Stickle; the hidden "
-                "notes are listed below, and here again the next time you start it."
+                "Closing this window quits Stickle. The hidden notes are listed below, "
+                "and here again the next time you start it."
             )
         )
+        self.notice_show_button.setText(self.tr("Show all hidden notes"))
+        self.notice_quit_button.setText(self.tr("Quit Stickle"))
         self.new_note_button.setText(self.tr("New note"))
         self.raise_button.setText(self.tr("Bring all notes to front"))
         self.hidden_label.setText(self.tr("&Hidden notes"))
@@ -231,9 +258,20 @@ class StickleWindow(QWidget):
             switch_autostart(self._autostart, on)
             self.autostart_box.setChecked(self._autostart.enabled)
 
+    def show_notice(self, shown: bool) -> None:
+        """The "all notes are hidden" notice, in the window and its title."""
+        self.notice.setVisible(shown)
+        self._set_title()
+
+    def _set_title(self) -> None:
+        if self.notice.isVisibleTo(self):
+            self.setWindowTitle(self.tr("All notes are hidden - Stickle"))
+        else:
+            self.setWindowTitle("Stickle")
+
     def open(self, notice: bool = False) -> None:
         """Show the window in front, with the "all notes are hidden" notice or not."""
-        self.notice.setVisible(notice)
+        self.show_notice(notice)
         self.refresh()
         # Window managers may refuse to hand over the keyboard to a window
         # asked for by another program (a second start): kept above the others
