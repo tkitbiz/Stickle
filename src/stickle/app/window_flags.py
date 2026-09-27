@@ -26,7 +26,9 @@ def set_stays_on_top(widget: QWidget, on_top: bool) -> None:
     else:
         flags &= ~Qt.WindowType.WindowStaysOnTopHint
     widget.overrideWindowFlags(flags)
-    if _native_windows():
+    # sys.platform first, spelled out: type checkers on other systems then skip
+    # the Windows-only module.
+    if sys.platform == "win32" and _native_windows():
         # Only the stacking order: Qt would restyle the window, and a see-through
         # one lost what was drawn in it (see platform/windows/topmost.py).
         from stickle.platform.windows.topmost import set_topmost
@@ -38,12 +40,16 @@ def set_stays_on_top(widget: QWidget, on_top: bool) -> None:
 
 def _native_windows() -> bool:
     """Real Windows windows (not, say, the off-screen ones of tests)."""
-    return sys.platform == "win32" and QGuiApplication.platformName() == "windows"
+    return QGuiApplication.platformName() == "windows"
 
 
 def keep_stays_on_top(widget: QWidget) -> None:
     """After a window is shown again: as it is meant to be, whatever Qt restored."""
-    if _native_windows() and widget.testAttribute(Qt.WidgetAttribute.WA_WState_Created):
+    if (
+        sys.platform == "win32"
+        and _native_windows()
+        and widget.testAttribute(Qt.WidgetAttribute.WA_WState_Created)
+    ):
         from stickle.platform.windows.topmost import set_topmost
 
         # Qt shows a window with the flags it last applied itself, which the
