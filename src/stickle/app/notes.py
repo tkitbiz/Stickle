@@ -167,18 +167,23 @@ class NoteManager(QObject):
         log.info("opened %d notes", len(visible))
 
     def new_note(self) -> NoteWindow:
+        """A new note in the colour last chosen (from the tray or the Stickle window)."""
         return self._open(None)
+
+    def new_note_from(self, window: NoteWindow) -> NoteWindow:
+        """A new note asked for from a note (Ctrl+N): in that note's colour."""
+        return self._open(None, color=window.color)
 
     def open_unstored(self, text: str) -> NoteWindow:
         """A note with text that is not stored until it changes (measurement mode)."""
         return self._open(None, text)
 
-    def _open(self, note: Note | None, text: str = "") -> NoteWindow:
+    def _open(self, note: Note | None, text: str = "", color: str | None = None) -> NoteWindow:
         if note is not None:
             window = NoteWindow(note.id, note.body, note.color, note.always_on_top)
         else:
-            window = NoteWindow(None, text, self._new_note_color())
-        window.new_note_requested.connect(self.new_note)
+            window = NoteWindow(None, text, color or self._new_note_color())
+        window.new_note_requested.connect(lambda: self.new_note_from(window))
 
         def color_requested(color: str) -> None:
             self.set_color(window, color)

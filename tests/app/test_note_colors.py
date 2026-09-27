@@ -85,6 +85,25 @@ def test_choosing_a_colour_stores_it_and_new_notes_take_it(
     assert manager.new_note().color == "sky"
 
 
+def test_ctrl_n_in_a_note_takes_that_notes_colour(
+    qtbot: QtBot, manager: NoteManager, connection: apsw.Connection
+) -> None:
+    # The colour last chosen is for notes made from the tray or the Stickle window;
+    # from a note, the new one matches the note in front of the user.
+    first = manager.new_note()
+    first.color_requested.emit("pink")
+    second = manager.new_note()
+    second.color_requested.emit("yellow")
+    assert Settings(connection).get(DEFAULT_NOTE_COLOR) == "yellow"
+
+    first.show()
+    qtbot.waitExposed(first)
+    first.new_note_action.trigger()
+
+    assert manager.windows[-1].color == "pink"
+    assert manager.new_note().color == "yellow"
+
+
 def test_a_new_note_keeps_its_colour_when_first_stored(
     manager: NoteManager, connection: apsw.Connection
 ) -> None:
