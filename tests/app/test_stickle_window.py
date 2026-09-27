@@ -190,6 +190,17 @@ def test_clicking_the_tray_icon_opens_it(app: App) -> None:
     assert app.window.isVisible()
 
 
+def test_the_tray_menu_opens_it_too(app: App) -> None:
+    # Where the tray only shows its menu (GNOME), this is the way to the window.
+    actions = app.tray.contextMenu().actions()
+    assert actions[0] is app.tray.open_window_action
+    assert app.tray.open_window_action.text()
+
+    app.tray.open_window_action.trigger()
+
+    assert app.window.isVisible()
+
+
 def test_it_stays_above_other_windows_only_until_it_is_used(app: App) -> None:
     # Opened by a second start, the window manager may not let it take the
     # keyboard; above the others, it is still seen.

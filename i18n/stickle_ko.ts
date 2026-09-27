@@ -644,6 +644,10 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>방금 지운 메모 되살리기: %1</translation>
     </message>
     <message>
+        <source>Open Stickle</source>
+        <translation>Stickle 창 열기</translation>
+    </message>
+    <message>
         <source>New note</source>
         <translation>새 메모</translation>
     </message>

@@ -73,6 +73,10 @@ class Tray(QSystemTrayIcon):
 
         # QSystemTrayIcon does not own its menu, so keep a reference.
         self._menu = QMenu()
+        # Some desktops (GNOME's AppIndicator) open this menu on any click, so the
+        # Stickle window must be reachable from it, not only from a click on the icon.
+        self.open_window_action = self._menu.addAction("")
+        self._menu.addSeparator()
         self.new_note_action = self._menu.addAction("")
         self.new_note_action.triggered.connect(on_new_note)
         self.hidden_menu = self._menu.addMenu("")
@@ -173,6 +177,7 @@ class Tray(QSystemTrayIcon):
             self._notes.raise_all()
 
     def retranslate(self) -> None:
+        self.open_window_action.setText(self.tr("Open Stickle"))
         self.new_note_action.setText(self.tr("New note"))
         self.hidden_menu.setTitle(self.tr("Hidden notes"))
         self.raise_action.setText(self.tr("Bring all notes to front"))

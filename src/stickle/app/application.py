@@ -83,6 +83,7 @@ def connect_stickle_window(
                 window.open()
 
         tray.activated.connect(tray_clicked)
+        tray.open_window_action.triggered.connect(lambda: window.open())
         return
 
     manager.last_note_closed.connect(lambda: window.open(notice=True))
