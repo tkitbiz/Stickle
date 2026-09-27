@@ -1,5 +1,6 @@
 """A single sticky note window."""
 
+import time
 from collections.abc import Callable
 from typing import override
 
@@ -72,6 +73,9 @@ MAX_HEIGHT = 16_777_215  # Qt's QWIDGETSIZE_MAX: no limit
 DEFAULT_SIZE = (260, 240)
 # How long an input method has to commit a character after the focus left.
 DROP_CHECK_MS = 150
+# A composition that ended this shortly before the focus left was dropped by the
+# input method, not erased by the user (too quick for Backspace and a click).
+JUST_DROPPED_S = 0.3
 # Moving and resizing report a stream of positions: the place is kept once they stop.
 SETTLE_MS = 500
 
@@ -354,6 +358,9 @@ class NoteWindow(QWidget):
         self._preedit = ""
         self._commit_seen = False
         self._commits = 0  # committed texts seen, to tell a drop from a commit
+        # A composition that just ended with nothing committed: (character, when,
+        # commits then). ibus drops it just before the focus leaves for another app.
+        self._ended_unfinished: tuple[str, float, int] | None = None
 
         # Where the app last put the note; anything else is the user's doing.
         self._placed: QRect | None = None
@@ -784,6 +791,13 @@ class NoteWindow(QWidget):
         ):
             if self.composing:
                 self._watch_for_drop(self._preedit, self._commits)
+            elif (ended := self._ended_unfinished) is not None:
+                # Already dropped: leaving for another application, ibus ends the
+                # composition before this window hears that the focus is going.
+                character, when, commits = ended
+                if time.monotonic() - when <= JUST_DROPPED_S:
+                    self._watch_for_drop(character, commits)
+            self._ended_unfinished = None
             self.editing_finished.emit()
             # A menu opened from the note leaves it being edited.
             if event.reason() != Qt.FocusReason.PopupFocusReason:
@@ -798,11 +812,15 @@ class NoteWindow(QWidget):
             self.show_formatted()
             return True
         if watched is self.editor and isinstance(event, QInputMethodEvent):
+            previous = self._preedit
             self._preedit = event.preeditString()
             self.composing = bool(self._preedit)
             if event.commitString():
                 self._commit_seen = True
                 self._commits += 1
+                self._ended_unfinished = None
+            elif previous and not self._preedit:
+                self._ended_unfinished = (previous, time.monotonic(), self._commits)
         return super().eventFilter(watched, event)
 
     def _watch_for_drop(self, preedit: str, commits: int) -> None:

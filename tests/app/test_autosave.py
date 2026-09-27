@@ -432,3 +432,51 @@ def test_focus_loss_keeps_the_composed_character_once(
     qtbot.wait(300)
     assert window.text == expected
     qtbot.waitUntil(lambda: stored(repository) == [expected], timeout=2000)
+
+
+# Leaving for another application, ibus ends the composition first, then the
+# focus goes: the character was lost this way (Fedora).
+@pytest.mark.parametrize(
+    ("before_focus_loss_s", "expected"),
+    [
+        (0.0, "포커스 이탈"),  # dropped as the focus went: kept
+        (1.0, "포커스 이"),  # ended a second before: the user erased it
+    ],
+)
+def test_a_composition_dropped_just_before_the_focus_leaves_is_kept(
+    qtbot: QtBot,
+    manager: NoteManager,
+    repository: NoteRepository,
+    before_focus_loss_s: float,
+    expected: str,
+) -> None:
+    from PySide6.QtGui import QFocusEvent
+
+    window = manager.new_note()
+    type_into(window, "포커스 이")
+    compose(window, "탈")
+    compose(window, "")  # ended, nothing committed
+    if before_focus_loss_s:
+        qtbot.wait(int(before_focus_loss_s * 1000))
+
+    QApplication.sendEvent(window.editor, QFocusEvent(QEvent.Type.FocusOut))
+
+    qtbot.wait(300)
+    assert window.text == expected
+    qtbot.waitUntil(lambda: stored(repository) == [expected], timeout=2000)
+
+
+def test_a_committed_character_is_not_added_again_after_the_focus_leaves(
+    qtbot: QtBot, manager: NoteManager
+) -> None:
+    from PySide6.QtGui import QFocusEvent
+
+    window = manager.new_note()
+    type_into(window, "포커스 이")
+    compose(window, "탈")
+    compose(window, "", commit="탈")
+
+    QApplication.sendEvent(window.editor, QFocusEvent(QEvent.Type.FocusOut))
+
+    qtbot.wait(300)
+    assert window.text == "포커스 이탈"
