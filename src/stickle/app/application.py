@@ -3,6 +3,7 @@
 import logging
 import os
 import sys
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -33,7 +34,13 @@ from stickle.data.notes import NoteRepository
 from stickle.data.settings import RECOVERY_KEY_KEPT, Settings
 from stickle.data.startup import StartupSettings
 from stickle.platform.autostart import Autostart
-from stickle.platform.linux.appimage import AppMenuEntry, point_launcher, running_appimage
+from stickle.platform.linux.appimage import (
+    AppMenuEntry,
+    mounted_appdir,
+    point_launcher,
+    read_mapped_files,
+    running_appimage,
+)
 from stickle.platform.linux.display import preferred_qt_platform
 from stickle.platform.power import watch_sleep
 from stickle.unlock import Unlock
@@ -135,6 +142,24 @@ def recovery_keys(unlock: Unlock | None, settings: Settings | None) -> RecoveryK
     )
 
 
+def read_appimage_files() -> None:
+    """For an AppImage, read the files it runs from in the background (see read_mapped_files)."""
+    appdir = mounted_appdir()
+    if appdir is None:
+        return
+
+    def read() -> None:
+        started = time.perf_counter()
+        try:
+            total = read_mapped_files(appdir)
+        except OSError as error:
+            log.warning("could not read the AppImage's files: %s", type(error).__name__)
+            return
+        log.debug("read %d MB of the AppImage in %.2fs", total >> 20, time.perf_counter() - started)
+
+    threading.Thread(target=read, name="appimage-files", daemon=True).start()
+
+
 def point_launcher_here() -> None:
     """For an AppImage, make the launcher the entries start lead to this one."""
     appimage = running_appimage()
@@ -224,6 +249,9 @@ def run(
     app.setApplicationName("Stickle")
     app.setDesktopFileName(APP_ID)
     app.setQuitOnLastWindowClosed(False)
+    # Qt and Python are loaded now; read again below once the notes are up, for
+    # what was loaded after (a second read is served from memory).
+    read_appimage_files()
     # Listening at once: a second start may come while a password is being asked for.
     instance_server = InstanceServer(instance) if instance is not None else None
     mark("qt")
@@ -350,6 +378,7 @@ def run(
             manager.save_all()
             return 0
         main_loop_running = True
+        QTimer.singleShot(0, read_appimage_files)
         try:
             return app.exec()
         finally:

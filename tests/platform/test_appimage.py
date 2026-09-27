@@ -12,7 +12,10 @@ from stickle.platform.linux.appimage import (
     data_home,
     launch_path,
     launcher_path,
+    mapped_files,
+    mounted_appdir,
     point_launcher,
+    read_mapped_files,
     running_appimage,
 )
 
@@ -134,3 +137,33 @@ def test_where_things_are() -> None:
     assert running_appimage({"APPIMAGE": "/opt/Stickle.AppImage"}) == Path("/opt/Stickle.AppImage")
     assert running_appimage({}) is None
     assert data_home({"XDG_DATA_HOME": "/data"}) == Path("/data")
+    appimage = {"APPIMAGE": "/opt/Stickle.AppImage", "APPDIR": "/tmp/.mount_Stick1"}
+    assert mounted_appdir(appimage) == Path("/tmp/.mount_Stick1")
+    assert mounted_appdir({"APPDIR": "/tmp/somewhere"}) is None  # not from an AppImage
+    assert mounted_appdir({}) is None
+
+
+def test_the_mapped_files_of_the_appimage_are_read_once_each(tmp_path: Path) -> None:
+    appdir = tmp_path / "mount"
+    (appdir / "usr" / "lib").mkdir(parents=True)
+    library = appdir / "usr" / "lib" / "libQt6Core.so.6"
+    library.write_bytes(b"x" * 3000)
+    spaced = appdir / "usr" / "lib" / "a name with spaces.so"
+    spaced.write_bytes(b"y" * 500)
+    elsewhere = tmp_path / "libc.so.6"
+    elsewhere.write_bytes(b"z" * 7000)
+    gone = appdir / "usr" / "lib" / "gone.so"
+    maps = tmp_path / "maps"
+    maps.write_text(
+        f"7f00-7f10 r--p 00000000 00:2a 11 {library}\n"
+        f"7f10-7f20 r-xp 00001000 00:2a 11 {library}\n"
+        f"7f20-7f30 r--p 00000000 00:2a 12 {spaced}\n"
+        f"7f30-7f40 r--p 00000000 08:01 13 {elsewhere}\n"
+        f"7f40-7f50 r--p 00000000 00:2a 14 {gone}\n"
+        "7f50-7f60 rw-p 00000000 00:00 0 [heap]\n"
+        "7f60-7f70 rw-p 00000000 00:00 0\n",
+        encoding="utf-8",
+    )
+
+    assert mapped_files(appdir, maps.read_text(encoding="utf-8")) == [library, spaced, gone]
+    assert read_mapped_files(appdir, maps) == 3500  # the missing one is skipped

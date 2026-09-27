@@ -67,6 +67,43 @@ def running_appimage(env: Mapping[str, str] | None = None) -> Path | None:
     return Path(value) if value else None
 
 
+def mounted_appdir(env: Mapping[str, str] | None = None) -> Path | None:
+    """The folder an AppImage's files are served in while it runs, if it runs from one."""
+    env = os.environ if env is None else env
+    value = env.get("APPDIR")
+    return Path(value) if value and env.get("APPIMAGE") else None
+
+
+def mapped_files(appdir: Path, maps: str) -> list[Path]:
+    """The files under appdir in a /proc/<pid>/maps listing, each once."""
+    prefix = f"{appdir}{os.sep}"
+    found: dict[str, None] = {}
+    for line in maps.splitlines():
+        fields = line.split(maxsplit=5)
+        if len(fields) == 6 and fields[5].startswith(prefix):
+            found[fields[5]] = None
+    return [Path(name) for name in found]
+
+
+def read_mapped_files(appdir: Path, maps_file: Path = Path("/proc/self/maps")) -> int:
+    """Read through the files of the AppImage that this process has mapped; bytes read.
+
+    A logout or shutdown ends the AppImage's file server together with Stickle.
+    A part of a mapped file never used before (the code that handles the very
+    signal to end, say) would then be read from a server that is gone, and the
+    process would crash. Read once, those parts are served from memory instead.
+    """
+    total = 0
+    for path in mapped_files(appdir, maps_file.read_text(encoding="utf-8", errors="replace")):
+        try:
+            with path.open("rb") as file:
+                while chunk := file.read(1 << 20):
+                    total += len(chunk)
+        except OSError:
+            continue
+    return total
+
+
 class AppMenuEntry:
     def __init__(self, appimage: Path, icon_png: bytes, data: Path | None = None) -> None:
         self._appimage = appimage
