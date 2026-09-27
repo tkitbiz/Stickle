@@ -221,6 +221,20 @@ def test_empty_note_opens_ready_to_type(qtbot: QtBot) -> None:
     window.release()
 
 
+def test_the_formatted_note_shows_no_caret_but_still_copies(
+    qtbot: QtBot, window: NoteWindow
+) -> None:
+    # A blinking caret made it look as if the note were being edited.
+    assert window.view.cursorWidth() == 0
+    window.view.setFocus()
+    window.view.selectAll()
+
+    QTest.keyClick(window.view, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
+
+    assert QApplication.clipboard().text() == "hello world\n\nsecond"
+    assert not window.editing
+
+
 def test_a_single_click_does_not_edit(window: NoteWindow) -> None:
     # Clicking to read or scroll a note must not start editing it.
     click(window, point_of(window, "world", 2))

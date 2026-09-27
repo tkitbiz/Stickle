@@ -322,6 +322,8 @@ class NoteView(QTextEdit):
             Qt.TextInteractionFlag.TextSelectableByMouse
             | Qt.TextInteractionFlag.TextSelectableByKeyboard
         )
+        # No blinking caret: it made the formatted note look as if it were being edited.
+        self.setCursorWidth(0)
         self._source = ""
         self._blocks: list[BlockSource] = []
         self._press: QPoint | None = None
