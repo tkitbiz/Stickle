@@ -852,10 +852,11 @@ class NoteWindow(QWidget):
             and event.key() == Qt.Key.Key_Escape
             and event.modifiers() == Qt.KeyboardModifier.NoModifier
         ):
-            # Committed while the editor still has the keyboard: left to the
-            # focus change, a Windows input method committed it after Stickle
-            # had put it in itself, and it was typed twice.
-            self.finish_composition(closing=False)
+            # Finished while the editor still has the keyboard, as when the note
+            # closes (nothing more is typed there after Esc): left to the focus
+            # change, a Windows input method committed it after Stickle had put
+            # it in itself, and it was typed twice.
+            self.finish_composition(closing=True)
             self.show_formatted()
             return True
         if watched is self.editor and isinstance(event, QInputMethodEvent):

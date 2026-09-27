@@ -476,23 +476,28 @@ def test_a_composition_dropped_just_before_the_focus_leaves_is_kept(
     qtbot.waitUntil(lambda: stored(repository) == [expected], timeout=2000)
 
 
-@pytest.mark.parametrize("kind", ["commits", "late"])
+@pytest.mark.parametrize("dropping", [True, False], ids=["linux", "elsewhere"])
+@pytest.mark.parametrize("kind", KINDS)
 def test_escape_while_composing_types_the_character_once(
-    qtbot: QtBot, manager: NoteManager, monkeypatch: pytest.MonkeyPatch, kind: str
+    qtbot: QtBot,
+    manager: NoteManager,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    dropping: bool,
 ) -> None:
-    # Windows: "#테스트" then Esc at once gave "#테스트트". The character is now
-    # committed before the editor lets go of the keyboard.
+    # Windows: "#테스트" then Esc at once gave "#테스트트". Whatever the input
+    # method does, the composition is finished before the editor lets go of the
+    # keyboard, and nothing is left to happen after the focus moved.
+    monkeypatch.setattr(note_window, "DROPPING_INPUT_METHODS", dropping)
     window = manager.new_note()
     type_into(window, "#테스")
     ime = InputMethod(window, kind, monkeypatch)
     ime.compose("트")
 
     QTest.keyClick(window.editor, Qt.Key.Key_Escape)
-    # What a Windows input method may still send once the focus has gone.
-    if window.composing:
-        compose(window, "", commit="트")
-    qtbot.wait(300)
 
+    assert not window.composing
+    qtbot.wait(300)  # longer than any wait for an input method
     assert window.text == "#테스트"
     assert not window.editing
 
