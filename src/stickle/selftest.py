@@ -17,6 +17,7 @@ import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 
 from stickle.data.database import KEY_BYTES, WrongKeyError, open_database
 from stickle.data.notes import NoteRepository
@@ -73,7 +74,42 @@ def run_checks() -> list[tuple[str, str]]:
     results.append(password_check())
     results += credential_checks()
     results += font_checks()
+    results += input_method_checks()
     results.append(start_at_login_check())
+    return results
+
+
+# The input method frameworks Linux desktops use for Korean, Chinese and Japanese.
+# Qt picks a plugin by the name the desktop sets (QT_IM_MODULE); without one that
+# loads, typing in these languages does nothing.
+INPUT_METHODS = ("ibus", "fcitx")
+
+
+def input_method_checks() -> list[tuple[str, str]]:
+    """Each input method's plugin is shipped and loads into this Qt (Linux only)."""
+    if sys.platform != "linux":
+        return []
+    from PySide6.QtCore import QCoreApplication, QLibraryInfo, QPluginLoader
+
+    # Where Qt itself looks: a build sets these paths when it starts.
+    folders = {Path(folder) for folder in QCoreApplication.libraryPaths()}
+    folders.add(Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath)))
+    files = {path for folder in folders for path in folder.glob("platforminputcontexts/*.so")}
+    loaded: set[str] = set()
+    for path in sorted(files):
+        loader = QPluginLoader(str(path))
+        if loader.load():
+            meta = cast(dict[str, Any], loader.metaData()).get("MetaData", {})
+            loaded.update(str(key).lower() for key in cast(dict[str, Any], meta).get("Keys", []))
+    # A development environment has only the plugins PySide6 comes with; a build must
+    # have them all.
+    packaged = "__compiled__" in globals()
+    results: list[tuple[str, str]] = []
+    for name in INPUT_METHODS:
+        if name in loaded:
+            results.append(("PASS", f"{name} input method plugin loads"))
+        else:
+            results.append(("FAIL" if packaged else "INFO", f"no {name} input method plugin"))
     return results
 
 

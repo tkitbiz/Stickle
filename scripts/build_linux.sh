@@ -11,8 +11,9 @@
 # (the host's .venv is never touched) and the results land in /out.
 set -eu
 
-# Development headers are not needed, only the libraries Qt links against, so
-# they can be found and bundled; patchelf rewrites library search paths.
+# The libraries Qt links against, so they can be found and bundled; patchelf
+# rewrites library search paths. The development files and tools after them
+# build the fcitx5 input method plugin (scripts/build_fcitx5_qt.py).
 # A nearby mirror sometimes serves broken metadata. After a failure, switch from
 # the location-based mirror list to AlmaLinux's own repository server.
 for attempt in 1 2 3; do
@@ -23,7 +24,9 @@ for attempt in 1 2 3; do
     if dnf install -y -q patchelf file \
         libxkbcommon-x11 xcb-util-cursor xcb-util-image xcb-util-keysyms \
         xcb-util-renderutil xcb-util-wm libEGL mesa-libGL fontconfig dbus-libs \
-        libwayland-client libwayland-cursor libwayland-egl >/dev/null; then
+        libwayland-client libwayland-cursor libwayland-egl \
+        cmake extra-cmake-modules gettext libxkbcommon-devel libxcb-devel libX11-devel \
+        mesa-libGL-devel mesa-libEGL-devel wayland-devel >/dev/null; then
         break
     fi
     [ "$attempt" = 3 ] && exit 1

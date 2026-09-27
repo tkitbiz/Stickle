@@ -61,3 +61,17 @@ def test_database_key_is_never_written_to_a_file(tmp_path: Path) -> None:
         if path.is_file() and any(form in path.read_bytes() for form in forms)
     ]
     assert leaks == []
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="input method plugins: Linux")
+def test_the_input_method_plugin_pyside_ships_loads() -> None:
+    from stickle.selftest import input_method_checks
+
+    assert ("PASS", "ibus input method plugin loads") in input_method_checks()
+
+
+@pytest.mark.skipif(sys.platform == "linux", reason="other systems have no such plugins")
+def test_input_methods_are_only_checked_on_linux() -> None:
+    from stickle.selftest import input_method_checks
+
+    assert input_method_checks() == []

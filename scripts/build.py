@@ -105,7 +105,8 @@ def nuitka_command() -> list[str]:
     elif sys.platform == "linux":
         command += [
             # Input method plugins (ibus, compose) are not in Nuitka's default set,
-            # and without them there is no Korean, Chinese or Japanese input.
+            # and without them there is no Korean, Chinese or Japanese input. The
+            # fcitx5 one is built and added afterwards (build_fcitx5_qt.py).
             "--include-qt-plugins=sensible,platforminputcontexts",
             # Plugins for things notes never use, whose dependencies are not shipped:
             # printing (CUPS), embedded displays (EGLFS), the GTK 3 theme bridge,
@@ -138,7 +139,8 @@ def main() -> int:
     subprocess.run(nuitka_command(), check=True, cwd=ROOT)
     print(f"Built {DIST_DIR}")
     if sys.platform == "linux":
-        for script in ("bundle_linux_libs.py", "build_appimage.py"):
+        # The fcitx5 plugin first, so its libraries are bundled with the rest.
+        for script in ("build_fcitx5_qt.py", "bundle_linux_libs.py", "build_appimage.py"):
             script_path = ROOT / "scripts" / script
             subprocess.run([sys.executable, str(script_path), str(DIST_DIR)], check=True)
     return 0
