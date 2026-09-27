@@ -186,7 +186,7 @@ class FirstRunDialog(QDialog):
         self.usage_label.setText(self.tr("Where will you use your notes?"))
         self.this_device.setText(self.tr("On this &computer only"))
         self.several_devices.setText(
-            self.tr("On &several devices (syncing through your own cloud comes later)")
+            self.tr("On several &devices (syncing through your own cloud comes later)")
         )
         self.start_at_login.setText(self.tr("&Start Stickle when I log in"))
         self.app_list.setText(self.tr("Show Stickle in the &app list"))

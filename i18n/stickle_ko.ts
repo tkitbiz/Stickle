@@ -105,8 +105,8 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>이 컴퓨터에서만(&amp;C)</translation>
     </message>
     <message>
-        <source>On &amp;several devices (syncing through your own cloud comes later)</source>
-        <translation>여러 기기에서(&amp;S) (내 클라우드를 통한 동기화는 나중에 설정)</translation>
+        <source>On several &amp;devices (syncing through your own cloud comes later)</source>
+        <translation>여러 기기에서(&amp;D) (내 클라우드를 통한 동기화는 나중에 설정)</translation>
     </message>
     <message>
         <source>&amp;Start Stickle when I log in</source>

@@ -224,3 +224,34 @@ def test_everything_has_a_name_and_a_key(qtbot: QtBot) -> None:
     assert "&" in dialog.language_label.text()
     assert dialog.language_label.buddy() is dialog.language_box
     assert dialog.language_box.accessibleName()
+
+
+def mnemonics(texts: list[str]) -> list[str]:
+    """The letter after each "&" (an "&&" is a plain ampersand)."""
+    keys: list[str] = []
+    for text in texts:
+        cleaned = text.replace("&&", "")
+        if "&" in cleaned:
+            keys.append(cleaned[cleaned.index("&") + 1].lower())
+    return keys
+
+
+@pytest.mark.parametrize("language", ["en", "ko"])
+def test_each_choice_has_a_key_of_its_own(
+    qtbot: QtBot, translations: Translations, language: str
+) -> None:
+    translations.apply(language)
+    dialog = FirstRunDialog(generate(), True, True, translations=translations)
+    qtbot.addWidget(dialog)
+
+    page_one = [
+        dialog.language_label.text(),
+        dialog.this_device.text(),
+        dialog.several_devices.text(),
+        dialog.start_at_login.text(),
+        dialog.app_list.text(),
+        dialog.next_button.text(),
+    ]
+    keys = mnemonics(page_one)
+    assert len(keys) == len(page_one)
+    assert len(set(keys)) == len(keys), page_one
