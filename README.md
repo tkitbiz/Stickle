@@ -44,7 +44,11 @@ Previews are under [Releases](https://github.com/tkitbiz/Stickle/releases), mark
 
 - **Windows** (10 or 11): download the zip for your computer (`x64`, or `arm64` for ARM
   laptops), unzip it anywhere and run `stickle.exe`. The program is not signed yet, so Windows
-  may say it protected your PC: choose **More info → Run anyway**.
+  may say it protected your PC: choose **More info → Run anyway**. Microsoft Defender has
+  also been seen to block it as `Trojan:Win32/Bearfoos.A!ml`, a guess its machine learning
+  makes about unsigned programs built from Python. This is a false positive, which we are
+  reporting to Microsoft; signed builds are planned. If it happens to you, please
+  [open an issue](https://github.com/tkitbiz/Stickle/issues/new) so we know.
 - **Linux**: download the AppImage, make it executable (`chmod +x Stickle-x86_64.AppImage`,
   or in its file properties) and run it. Stickle offers to add itself to your application list.
 - The first start asks a few questions and shows a **recovery key**. Keep it somewhere safe,
