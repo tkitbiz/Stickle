@@ -90,8 +90,19 @@ CREATE TABLE local_counters (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
 INSERT INTO local_counters (key, value) VALUES ('change_seq', 0);
 """
 
+V2 = """
+-- A note emptied from the trash leaves only this: when it was deleted and
+-- when emptied. Sync will pass it on, so another device does not take the
+-- note it still has for a new one. Kept a year after emptying.
+CREATE TABLE deletion_records (
+    note_id TEXT PRIMARY KEY,
+    deleted_at TEXT NOT NULL,
+    purged_at TEXT NOT NULL
+);
+"""
+
 # MIGRATIONS[n] brings the database from version n to version n + 1.
-MIGRATIONS: list[str] = [V1]
+MIGRATIONS: list[str] = [V1, V2]
 BACKUPS_KEPT = 3
 
 

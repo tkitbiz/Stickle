@@ -1,12 +1,16 @@
-"""The list of notes in the Stickle window: every note not deleted, shown or hidden.
+"""The list of notes in the Stickle window: every note not deleted, shown or
+hidden, and the trash.
 
-It only reads the notes; opening, hiding and deleting go through the note
-manager, as they do from a note's own window.
+It only reads the notes; opening, hiding, deleting, restoring and emptying go
+through the note manager, as they do from a note's own window. Emptying from
+the trash cannot be undone, so it is asked for first; deleting is not, as the
+trash keeps the note.
 """
 
+from collections.abc import Callable
 from typing import override
 
-from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer
+from PySide6.QtCore import QDateTime, QEvent, QLocale, QObject, QPoint, Qt, QTimer
 from PySide6.QtGui import QAction, QKeyEvent
 from PySide6.QtWidgets import (
     QComboBox,
@@ -15,6 +19,8 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMenu,
+    QMessageBox,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -26,9 +32,29 @@ from stickle.core.markdown import note_title
 from stickle.core.note import Note
 
 NOTE_ID = Qt.ItemDataRole.UserRole
-ALL, SHOWN, HIDDEN = "all", "shown", "hidden"
+ALL, SHOWN, HIDDEN, TRASH = "all", "shown", "hidden", "trash"
 # A note's text is stored a second after typing stops; the list follows a moment later.
 REFRESH_DELAY_MS = 300
+
+
+def _ask(parent: QWidget, question: str) -> bool:
+    answer = QMessageBox.question(
+        parent,
+        "Stickle",
+        question,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    return answer == QMessageBox.StandardButton.Yes
+
+
+confirm: Callable[[QWidget, str], bool] = _ask  # replaced in tests
+
+
+def deleted_on(note: Note) -> str:
+    """The day the note was deleted, in the user's own way of writing dates."""
+    moment = QDateTime.fromString(note.deleted_at or "", Qt.DateFormat.ISODateWithMs)
+    return QLocale().toString(moment.toLocalTime().date(), QLocale.FormatType.ShortFormat)
 
 
 class NoteList(QWidget):
@@ -37,15 +63,17 @@ class NoteList(QWidget):
         self._notes = notes
         self.label = QLabel(self)
         self.filter_box = QComboBox(self)
-        for key in (ALL, SHOWN, HIDDEN):
+        for key in (ALL, SHOWN, HIDDEN, TRASH):
             self.filter_box.addItem("", key)
         self.filter_box.currentIndexChanged.connect(self.refresh)
         self.list = QListWidget(self)
         self.label.setBuddy(self.list)
-        self.list.itemActivated.connect(self._open)  # double-click or Enter
+        self.list.itemActivated.connect(self._activate)  # double-click or Enter
         self.list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list.customContextMenuRequested.connect(self._menu_at)
         self.list.installEventFilter(self)
+        self.empty_button = QPushButton(self)
+        self.empty_button.clicked.connect(self.empty_trash)
 
         self._refresh_soon = QTimer(self)
         self._refresh_soon.setSingleShot(True)
@@ -61,18 +89,22 @@ class NoteList(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(top)
         layout.addWidget(self.list, 1)
+        layout.addWidget(self.empty_button)
         self.retranslate()
+
+    @property
+    def in_trash(self) -> bool:
+        return self.filter_box.currentData() == TRASH
 
     def retranslate(self) -> None:
         self.label.setText(self.tr("&Notes"))
         self.list.setAccessibleName(self.tr("Notes"))
-        self.list.setAccessibleDescription(
-            self.tr("Enter opens the note, Delete deletes it; more in the context menu.")
-        )
         self.filter_box.setAccessibleName(self.tr("Show"))
         self.filter_box.setItemText(0, self.tr("All notes"))
         self.filter_box.setItemText(1, self.tr("Notes on screen"))
         self.filter_box.setItemText(2, self.tr("Hidden notes"))
+        self.filter_box.setItemText(3, self.tr("Trash"))
+        self.empty_button.setText(self.tr("Empty the trash…"))
         self.refresh()
 
     def _wanted(self, note: Note) -> bool:
@@ -81,6 +113,8 @@ class NoteList(QWidget):
 
     def _text(self, note: Note) -> str:
         title = note_title(note.body) or self.tr("(empty note)")
+        if self.in_trash:
+            return " · ".join([title, self.tr("deleted %1").replace("%1", deleted_on(note))])
         states: list[str] = []
         if note.hidden:
             states.append(self.tr("hidden"))
@@ -92,7 +126,16 @@ class NoteList(QWidget):
         """Show the notes as they are stored now, keeping the one selected."""
         selected = self.selected_id()
         self.list.clear()
-        notes = [note for note in self._notes.listed_notes() if self._wanted(note)]
+        if self.in_trash:
+            notes = self._notes.trash_notes()
+            self.list.setAccessibleDescription(
+                self.tr("Enter brings the note back; Delete empties it from the trash for good.")
+            )
+        else:
+            notes = [note for note in self._notes.listed_notes() if self._wanted(note)]
+            self.list.setAccessibleDescription(
+                self.tr("Enter opens the note, Delete deletes it; more in the context menu.")
+            )
         for note in notes:
             item = QListWidgetItem(self._text(note))
             item.setIcon(swatch_icon(note.color if note.color in PALETTE else DEFAULT_COLOR))
@@ -101,21 +144,42 @@ class NoteList(QWidget):
             if note.id == selected:
                 self.list.setCurrentItem(item)
         if not notes:
-            empty = QListWidgetItem(self.tr("No notes here"))
+            text = self.tr("The trash is empty") if self.in_trash else self.tr("No notes here")
+            empty = QListWidgetItem(text)
             empty.setFlags(Qt.ItemFlag.NoItemFlags)
             self.list.addItem(empty)
         elif self.list.currentRow() < 0:
             self.list.setCurrentRow(0)
+        self.empty_button.setVisible(self.in_trash)
+        self.empty_button.setEnabled(bool(notes))
 
     def selected_id(self) -> str | None:
         row = self.list.currentRow()
         note_id = self.list.item(row).data(NOTE_ID) if row >= 0 else None
         return note_id if isinstance(note_id, str) else None
 
-    def _open(self, item: QListWidgetItem) -> None:
+    def _activate(self, item: QListWidgetItem) -> None:
         note_id = item.data(NOTE_ID)
-        if isinstance(note_id, str):
+        if not isinstance(note_id, str):
+            return
+        if self.in_trash:
+            self._notes.restore_note(note_id)
+        else:
             self._notes.open_note(note_id)
+
+    def _remove(self, note_id: str) -> None:
+        """Delete key: into the trash, or out of it for good once confirmed."""
+        if not self.in_trash:
+            self._notes.delete_note(note_id)
+            return
+        question = self.tr("Empty this note from the trash? This cannot be undone.")
+        if confirm(self, question):
+            self._notes.purge_note(note_id)
+
+    def empty_trash(self) -> None:
+        question = self.tr("Empty the trash? Its notes will be gone for good.")
+        if confirm(self, question):
+            self._notes.empty_trash()
 
     @override
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
@@ -127,7 +191,7 @@ class NoteList(QWidget):
         ):
             note_id = self.selected_id()
             if note_id is not None:
-                self._notes.delete_note(note_id)
+                self._remove(note_id)
             return True
         return super().eventFilter(watched, event)
 
@@ -138,25 +202,27 @@ class NoteList(QWidget):
         self.list.setCurrentItem(item)
         self.menu_for(item).popup(self.list.viewport().mapToGlobal(position))
 
+    def _add(self, menu: QMenu, text: str, action: Callable[[], object]) -> None:
+        item = QAction(text, menu)
+        item.triggered.connect(action)
+        menu.addAction(item)
+
     def menu_for(self, item: QListWidgetItem) -> QMenu:
-        """Open, hide or show, and delete, for the note on this row."""
+        """What can be done to the note on this row."""
         note_id = str(item.data(NOTE_ID))
-        note = next((n for n in self._notes.listed_notes() if n.id == note_id), None)
         menu = QMenu(self)
         menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        if self.in_trash:
+            self._add(menu, self.tr("Restore"), lambda: self._notes.restore_note(note_id))
+            menu.addSeparator()
+            self._add(menu, self.tr("Empty from the trash…"), lambda: self._remove(note_id))
+            return menu
+        note = next((n for n in self._notes.listed_notes() if n.id == note_id), None)
         if note is not None and note.hidden:
-            show = QAction(self.tr("Show"), menu)
-            show.triggered.connect(lambda: self._notes.open_note(note_id))
-            menu.addAction(show)
+            self._add(menu, self.tr("Show"), lambda: self._notes.open_note(note_id))
         else:
-            open_action = QAction(self.tr("Open"), menu)
-            open_action.triggered.connect(lambda: self._notes.open_note(note_id))
-            menu.addAction(open_action)
-            hide = QAction(self.tr("Hide"), menu)
-            hide.triggered.connect(lambda: self._notes.hide_note(note_id))
-            menu.addAction(hide)
+            self._add(menu, self.tr("Open"), lambda: self._notes.open_note(note_id))
+            self._add(menu, self.tr("Hide"), lambda: self._notes.hide_note(note_id))
         menu.addSeparator()
-        delete = QAction(self.tr("Delete"), menu)
-        delete.triggered.connect(lambda: self._notes.delete_note(note_id))
-        menu.addAction(delete)
+        self._add(menu, self.tr("Delete"), lambda: self._notes.delete_note(note_id))
         return menu

@@ -63,6 +63,17 @@ def test_every_note_opens_as_the_preview_left_it(copy: Path) -> None:
         connection.close()
 
 
+def test_a_note_deleted_in_the_preview_is_in_the_trash(copy: Path) -> None:
+    connection = open_store(copy, KEY)
+    try:
+        notes = NoteRepository(connection)
+        trash = [note.body for note in notes.deleted()]
+        assert trash == [expected.body for expected in NOTES if expected.deleted]
+        assert notes.deletion_records() == []
+    finally:
+        connection.close()
+
+
 def test_settings_stay(copy: Path) -> None:
     connection = open_store(copy, KEY)
     try:

@@ -1,15 +1,16 @@
 """Reading and changing notes in the local database.
 
-Nothing is ever removed: deleting only marks a note (kept 365 days), and
-every change stamps the note with this device's next change number, which
-never goes backwards even if the clock does.
+Deleting only marks a note, which then sits in the trash (kept 365 days).
+A note is removed only when emptied from the trash, and then a deletion
+record takes its place. Every change stamps the note with this device's
+next change number, which never goes backwards even if the clock does.
 """
 
 import uuid
 
 import apsw
 
-from stickle.core.clock import Clock, utc_now
+from stickle.core.clock import Clock, days_before, utc_now
 from stickle.core.note import DEFAULT_COLOR, Note, content_hash
 
 COLUMNS = (
@@ -25,6 +26,14 @@ class NoteNotFoundError(KeyError):
 
 class NoteDeletedError(ValueError):
     """Deleted notes can only be restored."""
+
+
+class NoteNotDeletedError(ValueError):
+    """Only a note in the trash can be emptied from it."""
+
+
+# Notes stay in the trash this long, and deletion records this long after emptying.
+KEEP_DAYS = 365
 
 
 def _note(row: apsw.SQLiteValues) -> Note:
@@ -162,8 +171,10 @@ class NoteRepository:
             return note
         return self._change(note_id, {"deleted_at": None})
 
-    def _list(self, where: str, order: str) -> list[Note]:
-        rows = self._db.execute(f"SELECT {COLUMNS} FROM notes WHERE {where} ORDER BY {order}")
+    def _list(self, where: str, order: str, params: tuple[str, ...] = ()) -> list[Note]:
+        rows = self._db.execute(
+            f"SELECT {COLUMNS} FROM notes WHERE {where} ORDER BY {order}", params
+        )
         return [_note(row) for row in rows]
 
     def visible(self) -> list[Note]:
@@ -172,6 +183,54 @@ class NoteRepository:
     def hidden(self) -> list[Note]:
         """Most recently changed first."""
         return self._list("deleted_at IS NULL AND hidden = 1", "change_seq DESC")
+
+    def deleted(self) -> list[Note]:
+        """The trash: most recently deleted first."""
+        return self._list("deleted_at IS NOT NULL", "deleted_at DESC, change_seq DESC")
+
+    def purge(self, note_id: str) -> None:
+        """Empty a deleted note from the trash for good: only a deletion record stays.
+
+        The note, its places on screen and its search entry go, in one transaction.
+        """
+        with self._db:
+            note = self._require(note_id)
+            if note.deleted_at is None:
+                raise NoteNotDeletedError(note_id)
+            self._db.execute(
+                "INSERT INTO deletion_records (note_id, deleted_at, purged_at) VALUES (?, ?, ?)"
+                " ON CONFLICT (note_id) DO UPDATE SET deleted_at = excluded.deleted_at,"
+                " purged_at = excluded.purged_at",
+                (note_id, note.deleted_at, self._clock()),
+            )
+            self._db.execute("DELETE FROM note_layouts WHERE note_id = ?", (note_id,))
+            self._db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+
+    def empty_trash(self) -> int:
+        """Purge every deleted note, all or none; how many there were."""
+        notes = self.deleted()
+        with self._db:
+            for note in notes:
+                self.purge(note.id)
+        return len(notes)
+
+    def purge_expired(self, days: int = KEEP_DAYS) -> int:
+        """Purge notes in the trash longer than days, and forget deletion records
+        emptied longer ago than that; how many notes were purged."""
+        cutoff = days_before(self._clock(), days)
+        expired = self._list("deleted_at IS NOT NULL AND deleted_at < ?", "seq", (cutoff,))
+        with self._db:
+            for note in expired:
+                self.purge(note.id)
+            self._db.execute("DELETE FROM deletion_records WHERE purged_at < ?", (cutoff,))
+        return len(expired)
+
+    def deletion_records(self) -> list[tuple[str, str, str]]:
+        """(note id, deleted at, emptied at) of notes emptied from the trash."""
+        rows = self._db.execute(
+            "SELECT note_id, deleted_at, purged_at FROM deletion_records ORDER BY purged_at"
+        )
+        return [(str(a), str(b), str(c)) for a, b, c in rows]
 
     def live(self) -> list[Note]:
         """Every note not deleted, shown or hidden; most recently changed first."""

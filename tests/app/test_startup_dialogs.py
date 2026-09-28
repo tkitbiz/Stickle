@@ -232,6 +232,7 @@ def test_failed_upgrade_lists_the_notes_then_continues(
     qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     backend = Backend()
+    monkeypatch.setattr(schema, "MIGRATIONS", [V1])  # the notes as an older version left them
     notes_folder(tmp_path, backend)
     monkeypatch.setattr(schema, "MIGRATIONS", [V1, "DELETE FROM notes"])
 

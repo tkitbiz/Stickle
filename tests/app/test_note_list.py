@@ -10,8 +10,9 @@ from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtTest import QTest
 from pytestqt.qtbot import QtBot
 
+from stickle.app import note_list
 from stickle.app.i18n import Translations
-from stickle.app.note_list import ALL, HIDDEN, REFRESH_DELAY_MS, SHOWN
+from stickle.app.note_list import ALL, HIDDEN, REFRESH_DELAY_MS, SHOWN, TRASH
 from stickle.app.note_window import NoteWindow
 from stickle.app.notes import NoteManager
 from stickle.app.stickle_window import DEFAULT_SIZE, StickleWindow
@@ -193,3 +194,140 @@ def test_the_window_size_is_kept_on_this_computer(app: App, qtbot: QtBot) -> Non
     again = StickleWindow(app.manager, Translations(), lambda: None, settings=app.settings)
     assert (again.width(), again.height()) == (520, 700)
     again.deleteLater()
+
+
+# The trash
+
+
+class Answers:
+    """Stands in for the confirmation box: records each question, answers as set."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, yes: bool) -> None:
+        self.yes = yes
+        self.asked: list[str] = []
+        monkeypatch.setattr(note_list, "confirm", self.answer)
+
+    def answer(self, _parent: object, question: str) -> bool:
+        self.asked.append(question)
+        return self.yes
+
+
+def deleted(app: App, *texts: str) -> None:
+    for text in texts:
+        app.manager.delete(app.note(text))
+
+
+def stay_put(_window: NoteWindow) -> None:
+    """In place of bringing a note to the front, which tests need not see."""
+
+
+def test_the_trash_lists_deleted_notes_latest_first_with_their_day(app: App) -> None:
+    app.note("남긴 것")
+    deleted(app, "먼저 지운 것", "나중에 지운 것")
+    app.window.open()
+    app.show_only(TRASH)
+
+    rows = app.rows()
+    assert [row.split(" · ")[0] for row in rows] == ["나중에 지운 것", "먼저 지운 것"]
+    assert all(" · " in row for row in rows)  # with the day it was deleted
+    assert app.window.note_list.empty_button.isVisible()
+
+
+def test_enter_in_the_trash_brings_a_note_back_on_screen(
+    app: App, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(NoteWindow, "bring_to_front", stay_put)
+    note = app.note("숨긴 채 지운 것")
+    app.manager.hide(note)
+    app.manager.delete_note(str(app.notes.hidden()[0].id))
+    app.window.open()
+    app.show_only(TRASH)
+
+    app.select("숨긴 채 지운 것")
+    QTest.keyClick(app.window.note_list.list, Qt.Key.Key_Return)
+
+    assert app.rows() == ["The trash is empty"]
+    assert [w.text for w in app.manager.windows] == ["숨긴 채 지운 것"]
+
+
+def test_delete_in_the_trash_asks_and_empties_only_on_yes(
+    app: App, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    deleted(app, "지울 것")
+    app.window.open()
+    app.show_only(TRASH)
+
+    answers = Answers(monkeypatch, yes=False)
+    app.select("지울 것")
+    QTest.keyClick(app.window.note_list.list, Qt.Key.Key_Delete)
+    assert len(answers.asked) == 1 and "cannot be undone" in answers.asked[0]
+    assert len(app.manager.trash_notes()) == 1
+
+    answers.yes = True
+    app.select("지울 것")
+    QTest.keyClick(app.window.note_list.list, Qt.Key.Key_Delete)
+    assert app.manager.trash_notes() == []
+    assert app.rows() == ["The trash is empty"]
+    assert len(app.notes.deletion_records()) == 1
+
+
+def test_emptying_the_whole_trash_asks_first(app: App, monkeypatch: pytest.MonkeyPatch) -> None:
+    kept = app.note("남긴 것")
+    deleted(app, "하나", "둘")
+    app.window.open()
+    app.show_only(TRASH)
+
+    answers = Answers(monkeypatch, yes=True)
+    app.window.note_list.empty_button.click()
+
+    assert len(answers.asked) == 1
+    assert app.manager.trash_notes() == []
+    assert [n.id for n in app.notes.all()] == [kept.note_id]
+    assert not app.window.note_list.empty_button.isEnabled()
+
+
+def test_an_emptied_note_does_not_come_back_anywhere(
+    app: App, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    deleted(app, "회의록")
+    Answers(monkeypatch, yes=True)
+    app.window.open()
+    app.show_only(TRASH)
+    app.select("회의록")
+    QTest.keyClick(app.window.note_list.list, Qt.Key.Key_Delete)
+
+    assert app.manager.last_deleted() is None
+    assert not app.window.restore_button.isEnabled()
+    app.show_only(ALL)
+    assert app.rows() == ["No notes here"]
+
+
+def test_the_trash_menu_restores_and_empties(app: App, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(NoteWindow, "bring_to_front", stay_put)
+    deleted(app, "메모")
+    Answers(monkeypatch, yes=True)
+    app.window.open()
+    app.show_only(TRASH)
+    rows = app.window.note_list.list
+
+    def act(label: str) -> None:
+        menu = app.window.note_list.menu_for(rows.currentItem())
+        next(a for a in menu.actions() if a.text() == label).trigger()
+        menu.close()
+
+    app.select("메모")
+    act("Restore")
+    assert len(app.manager.windows) == 1
+    app.manager.delete(app.manager.windows[0])
+    app.show_only(TRASH)
+    app.select("메모")
+    act("Empty from the trash…")
+    assert app.manager.trash_notes() == []
+
+
+def test_the_empty_button_shows_only_in_the_trash(app: App) -> None:
+    app.window.open()
+    assert not app.window.note_list.empty_button.isVisible()
+    app.show_only(TRASH)
+    assert app.window.note_list.empty_button.isVisible()
+    assert not app.window.note_list.empty_button.isEnabled()  # nothing to empty

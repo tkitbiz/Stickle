@@ -299,6 +299,7 @@ def run(
         )
         manager.watch_quit(app)
         app.aboutToQuit.connect(manager.save_all)
+        manager.empty_old_trash()
 
         # Logging out or shutting down: save first. No quitting yet, since another
         # program may still cancel the logout.

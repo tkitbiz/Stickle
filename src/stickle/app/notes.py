@@ -518,10 +518,61 @@ class NoteManager(QObject):
 
     def restore_last_deleted(self) -> None:
         note = self.last_deleted()
-        if self._repository is None or note is None:
+        if note is not None:
+            self.restore_note(note.id)
+
+    # The trash
+
+    def trash_notes(self) -> list[Note]:
+        """Deleted notes, most recently deleted first."""
+        return self._repository.deleted() if self._repository else []
+
+    def restore_note(self, note_id: str) -> None:
+        """Take a note out of the trash, onto the screen."""
+        if self._repository is None:
             return
-        self._repository.restore(note.id)
-        # Brought back to be seen, even if it was hidden when deleted.
-        note = self._repository.set_hidden(note.id, False)
-        self._open(note)
+        try:
+            self._repository.restore(note_id)
+            # Brought back to be seen, even if it was hidden when deleted.
+            note = self._repository.set_hidden(note_id, False)
+        except apsw.Error as error:
+            log.error("could not restore a note: %s", type(error).__name__)
+            return
+        self._open(note).bring_to_front()
         self.changed.emit()
+
+    def purge_note(self, note_id: str) -> None:
+        """Empty one note from the trash for good (the user confirmed it)."""
+        if self._repository is None:
+            return
+        try:
+            self._repository.purge(note_id)
+        except apsw.Error as error:
+            log.error("could not empty a note from the trash: %s", type(error).__name__)
+            return
+        log.info("a note was emptied from the trash")
+        self.changed.emit()
+
+    def empty_trash(self) -> None:
+        """Empty the whole trash for good (the user confirmed it)."""
+        if self._repository is None:
+            return
+        try:
+            emptied = self._repository.empty_trash()
+        except apsw.Error as error:
+            log.error("could not empty the trash: %s", type(error).__name__)
+            return
+        log.info("trash emptied: %d notes", emptied)
+        self.changed.emit()
+
+    def empty_old_trash(self) -> None:
+        """At start: empty notes a year in the trash, forget old deletion records."""
+        if self._repository is None:
+            return
+        try:
+            emptied = self._repository.purge_expired()
+        except apsw.Error as error:
+            log.error("could not empty old notes from the trash: %s", type(error).__name__)
+            return
+        if emptied:
+            log.info("emptied %d notes kept a year in the trash", emptied)

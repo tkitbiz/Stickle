@@ -211,8 +211,20 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>숨긴 메모</translation>
     </message>
     <message>
+        <source>Trash</source>
+        <translation>휴지통</translation>
+    </message>
+    <message>
+        <source>Empty the trash…</source>
+        <translation>휴지통 비우기…</translation>
+    </message>
+    <message>
         <source>(empty note)</source>
         <translation>(빈 메모)</translation>
+    </message>
+    <message>
+        <source>deleted %1</source>
+        <translation>%1에 지움</translation>
     </message>
     <message>
         <source>hidden</source>
@@ -223,8 +235,32 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>위에 고정 안 함</translation>
     </message>
     <message>
+        <source>Enter brings the note back; Delete empties it from the trash for good.</source>
+        <translation>Enter로 메모를 되살리고, Delete로 휴지통에서 영구히 지웁니다.</translation>
+    </message>
+    <message>
         <source>No notes here</source>
         <translation>여기에는 메모가 없습니다</translation>
+    </message>
+    <message>
+        <source>The trash is empty</source>
+        <translation>휴지통이 비어 있습니다</translation>
+    </message>
+    <message>
+        <source>Empty this note from the trash? This cannot be undone.</source>
+        <translation>이 메모를 휴지통에서 영구히 지울까요? 되돌릴 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Empty the trash? Its notes will be gone for good.</source>
+        <translation>휴지통을 비울까요? 안의 메모가 영구히 지워집니다.</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation>되살리기</translation>
+    </message>
+    <message>
+        <source>Empty from the trash…</source>
+        <translation>휴지통에서 영구 삭제…</translation>
     </message>
     <message>
         <source>Open</source>

@@ -35,7 +35,13 @@ def ticking_clock() -> Iterator[str]:
 
 
 def make_v1(path: Path, bodies: list[str]) -> list[str]:
-    connection = open_store(path, KEY)
+    """A database at version 1, whatever the app's latest (the tests' steps follow it)."""
+    latest = schema.MIGRATIONS
+    schema.MIGRATIONS = [V1]
+    try:
+        connection = open_store(path, KEY)
+    finally:
+        schema.MIGRATIONS = latest
     ids = [NoteRepository(connection).create(body).id for body in bodies]
     connection.close()
     return ids
@@ -74,7 +80,9 @@ def test_new_database_reaches_the_latest_version_without_a_backup(path: Path) ->
 
 
 def test_opening_the_latest_version_changes_nothing(path: Path) -> None:
-    ids = make_v1(path, ["회의록", "장보기"])
+    connection = open_store(path, KEY)
+    ids = [NoteRepository(connection).create(body).id for body in ["회의록", "장보기"]]
+    connection.close()
     connection = open_store(path, KEY)
     connection.close()
     assert set(bodies(path)) == set(ids)
