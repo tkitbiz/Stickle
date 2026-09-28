@@ -19,6 +19,10 @@
   connection the app makes is a daily update check that you can turn off.
 - **Works offline.** Every feature works without a network, and notes sync by themselves
   once you are back online.
+- **Notes are plain Markdown.** Type `# heading`, `**bold**`, `==highlight==` or `- [ ]` and
+  the note shows it formatted, with boxes you can tick; double-click to edit the text. Your
+  notes stay ordinary text you can read anywhere — no special format to be locked into.
+  Not into Markdown? Just write.
 - **Notes never disappear without you knowing.** When two computers change the same note, both versions
   are kept. Deleted notes stay in the trash for a year, and a recovery key opens your notes
   if you forget your password.
