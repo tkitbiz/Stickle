@@ -1,9 +1,8 @@
-"""The Stickle window: what the tray menu offers, in a window of its own.
+"""The Stickle window: the list of notes, and what the tray menu offers.
 
 It opens when Stickle starts with only hidden notes, when it is started
 again while already running, and, where there is no tray, when the last
-note is hidden: then it says so, and closing it ends Stickle. It will grow
-into the list of all notes.
+note is hidden: then it says so, and closing it ends Stickle.
 """
 
 import logging
@@ -11,11 +10,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import override
 
-from PySide6.QtCore import QEvent, QRect, QRectF, Qt, QTimer, Signal
+import apsw
+from PySide6.QtCore import QEvent, QRect, QRectF, QTimer, Signal
 from PySide6.QtGui import (
     QCloseEvent,
     QFont,
     QGuiApplication,
+    QHideEvent,
     QPainter,
     QPaintEvent,
     QPalette,
@@ -27,8 +28,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QSpacerItem,
@@ -38,17 +37,19 @@ from PySide6.QtWidgets import (
 
 from stickle.app.app_list import switch_app_list
 from stickle.app.i18n import LANGUAGES, Translations
-from stickle.app.notes import HIDDEN_LISTED, NoteManager
+from stickle.app.note_list import NoteList
+from stickle.app.notes import NoteManager
 from stickle.app.recovery_key_dialog import RecoveryKeyDialog
 from stickle.app.sizing import grow_to_fit
 from stickle.app.tray import switch_autostart
 from stickle.app.window_flags import keep_stays_on_top, set_stays_on_top, stays_on_top
 from stickle.core.markdown import note_title
+from stickle.data.settings import LIST_WINDOW_SIZE, Settings
 from stickle.platform.autostart import Autostart
 from stickle.platform.linux.appimage import AppMenuEntry
 from stickle.platform.linux.x11 import activate
 
-NOTE_ID = Qt.ItemDataRole.UserRole
+DEFAULT_SIZE = (460, 620)
 NOTICE_PADDING = 10  # inside the notice's frame
 NOTICE_BORDER = 2
 log = logging.getLogger(__name__)
@@ -81,6 +82,7 @@ class StickleWindow(QWidget):
         autostart: Autostart | None = None,
         app_list: AppMenuEntry | None = None,
         recovery: RecoveryKeys | None = None,
+        settings: Settings | None = None,
     ) -> None:
         super().__init__()
         self._notes = notes
@@ -88,7 +90,10 @@ class StickleWindow(QWidget):
         self._autostart = autostart
         self._app_list = app_list
         self._recovery = recovery
+        self._settings = settings
         self.setMinimumWidth(320)
+        size = settings.get(LIST_WINDOW_SIZE) if settings else None
+        self.resize(*(size or DEFAULT_SIZE))
 
         self.autostart_box = QCheckBox(self)
         self.autostart_box.setVisible(autostart is not None)
@@ -136,10 +141,7 @@ class StickleWindow(QWidget):
         self.raise_button = QPushButton(self)
         self.raise_button.clicked.connect(notes.raise_all)
 
-        self.hidden_label = QLabel(self)
-        self.hidden_list = QListWidget(self)
-        self.hidden_label.setBuddy(self.hidden_list)
-        self.hidden_list.itemActivated.connect(self._show_note)
+        self.note_list = NoteList(notes, self)
         self.show_all_button = QPushButton(self)
         self.show_all_button.clicked.connect(notes.show_all_hidden)
         self.restore_button = QPushButton(self)
@@ -166,8 +168,7 @@ class StickleWindow(QWidget):
         self._after_notice = QSpacerItem(0, 0)  # room below the frame, while shown
         layout.addItem(self._after_notice)
         layout.addLayout(buttons)
-        layout.addWidget(self.hidden_label)
-        layout.addWidget(self.hidden_list, 1)
+        layout.addWidget(self.note_list, 1)
         layout.addWidget(self.show_all_button)
         layout.addWidget(self.restore_button)
         layout.addLayout(language)
@@ -193,8 +194,7 @@ class StickleWindow(QWidget):
         self.notice_quit_button.setText(self.tr("Quit Stickle"))
         self.new_note_button.setText(self.tr("New note"))
         self.raise_button.setText(self.tr("Bring all notes to front"))
-        self.hidden_label.setText(self.tr("&Hidden notes"))
-        self.hidden_list.setAccessibleName(self.tr("Hidden notes"))
+        self.note_list.retranslate()
         self.show_all_button.setText(self.tr("Show all hidden notes"))
         self.language_label.setText(self.tr("&Language"))
         self.language_box.setAccessibleName(self.tr("Language"))
@@ -212,17 +212,9 @@ class StickleWindow(QWidget):
         super().changeEvent(event)
 
     def refresh(self) -> None:
-        """Show the current hidden notes, note just deleted and language."""
-        self.hidden_list.clear()
-        hidden = self._notes.hidden_notes()
-        for note in hidden[:HIDDEN_LISTED]:
-            item = QListWidgetItem(note_title(note.body) or self.tr("(empty note)"))
-            item.setData(NOTE_ID, note.id)
-            self.hidden_list.addItem(item)
-        if not hidden:
-            self.hidden_list.addItem(self.tr("No hidden notes"))
-        self.hidden_list.setEnabled(bool(hidden))
-        self.show_all_button.setEnabled(bool(hidden))
+        """Show the notes, the note just deleted and the language as they are now."""
+        self.note_list.refresh()
+        self.show_all_button.setEnabled(bool(self._notes.hidden_notes()))
 
         deleted = self._notes.last_deleted()
         self.restore_button.setEnabled(deleted is not None)
@@ -335,6 +327,7 @@ class StickleWindow(QWidget):
             # Asked for as a taskbar would; the application's own request above
             # may be refused.
             activate(int(self.winId()))
+        self.note_list.list.setFocus()  # arrow keys and Enter work at once
 
     @override
     def event(self, event: QEvent) -> bool:
@@ -347,11 +340,6 @@ class StickleWindow(QWidget):
             set_stays_on_top(self, False)
         return super().event(event)
 
-    def _show_note(self, item: QListWidgetItem) -> None:
-        note_id = item.data(NOTE_ID)
-        if isinstance(note_id, str):
-            self._notes.show_hidden(note_id)
-
     def _choose_language(self, index: int) -> None:
         code = self.language_box.itemData(index)
         self._translations.apply(code if isinstance(code, str) else None)
@@ -362,6 +350,17 @@ class StickleWindow(QWidget):
         if not event.spontaneous():
             # Once shown: Qt may have put back an on-top state since changed.
             QTimer.singleShot(0, self, lambda: keep_stays_on_top(self))
+
+    @override
+    def hideEvent(self, event: QHideEvent) -> None:
+        super().hideEvent(event)
+        if self._settings is not None and not self.isMinimized():
+            size = [self.width(), self.height()]
+            if size != list(DEFAULT_SIZE) or self._settings.get(LIST_WINDOW_SIZE):
+                try:
+                    self._settings.set(LIST_WINDOW_SIZE, size)
+                except apsw.Error as error:  # a size not kept is not worth more than a log line
+                    log.warning("could not keep the window size: %s", type(error).__name__)
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:

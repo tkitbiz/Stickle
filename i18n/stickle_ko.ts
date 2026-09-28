@@ -181,6 +181,65 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     </message>
 </context>
 <context>
+    <name>NoteList</name>
+    <message>
+        <source>&amp;Notes</source>
+        <translation>메모 목록(&amp;N)</translation>
+    </message>
+    <message>
+        <source>Notes</source>
+        <translation>메모 목록</translation>
+    </message>
+    <message>
+        <source>Enter opens the note, Delete deletes it; more in the context menu.</source>
+        <translation>Enter로 메모를 열고 Delete로 지웁니다. 나머지는 오른쪽 클릭 메뉴에 있습니다.</translation>
+    </message>
+    <message>
+        <source>Show</source>
+        <translation>보이기</translation>
+    </message>
+    <message>
+        <source>All notes</source>
+        <translation>모든 메모</translation>
+    </message>
+    <message>
+        <source>Notes on screen</source>
+        <translation>화면에 있는 메모</translation>
+    </message>
+    <message>
+        <source>Hidden notes</source>
+        <translation>숨긴 메모</translation>
+    </message>
+    <message>
+        <source>(empty note)</source>
+        <translation>(빈 메모)</translation>
+    </message>
+    <message>
+        <source>hidden</source>
+        <translation>숨김</translation>
+    </message>
+    <message>
+        <source>not on top</source>
+        <translation>위에 고정 안 함</translation>
+    </message>
+    <message>
+        <source>No notes here</source>
+        <translation>여기에는 메모가 없습니다</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>열기</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>숨기기</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>지우기</translation>
+    </message>
+</context>
+<context>
     <name>NoteWindow</name>
     <message>
         <source>Note</source>
@@ -557,14 +616,6 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>모든 메모 앞으로 가져오기</translation>
     </message>
     <message>
-        <source>&amp;Hidden notes</source>
-        <translation>숨긴 메모(&amp;H)</translation>
-    </message>
-    <message>
-        <source>Hidden notes</source>
-        <translation>숨긴 메모</translation>
-    </message>
-    <message>
         <source>Show all hidden notes</source>
         <translation>숨긴 메모 모두 보이기</translation>
     </message>
@@ -607,10 +658,6 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>(empty note)</source>
         <translation>(빈 메모)</translation>
-    </message>
-    <message>
-        <source>No hidden notes</source>
-        <translation>숨긴 메모가 없습니다</translation>
     </message>
     <message>
         <source>Restore the note just deleted</source>

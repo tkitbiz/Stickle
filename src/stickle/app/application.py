@@ -329,7 +329,13 @@ def run(
         tray.show()
         recovery = recovery_keys(unlock, Settings(connection) if connection else None)
         stickle_window = StickleWindow(
-            manager, translations, app.quit, autostart, app_list, recovery
+            manager,
+            translations,
+            app.quit,
+            autostart,
+            app_list,
+            recovery,
+            Settings(connection) if connection else None,
         )
         connect_stickle_window(stickle_window, manager, tray if tray_available else None, app.quit)
         if instance_server is not None:

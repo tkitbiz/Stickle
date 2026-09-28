@@ -102,6 +102,8 @@ class NoteManager(QObject):
     changed = Signal()
     # A new note was stored for the first time.
     note_created = Signal()
+    # A note's text was stored: lists showing titles may want to refresh.
+    note_saved = Signal()
 
     def __init__(
         self,
@@ -256,6 +258,8 @@ class NoteManager(QObject):
             window.set_unsaved(True)
             return False
         window.set_unsaved(False)
+        if window.note_id is not None:
+            self.note_saved.emit()
         return True
 
     def flush(self, window: NoteWindow, closing: bool = False) -> bool:
@@ -473,6 +477,44 @@ class NoteManager(QObject):
     def show_all_hidden(self) -> None:
         for note in reversed(self.hidden_notes()):
             self.show_hidden(note.id)
+
+    # By note, for the list of notes
+
+    def listed_notes(self) -> list[Note]:
+        """Every note not deleted, shown or hidden; most recently changed first."""
+        return self._repository.live() if self._repository else []
+
+    def window_for(self, note_id: str) -> NoteWindow | None:
+        return next((w for w in self._windows if w.note_id == note_id), None)
+
+    def open_note(self, note_id: str) -> None:
+        """Bring a note to the front with the keyboard, showing it again if it was hidden."""
+        window = self.window_for(note_id)
+        if window is None:
+            self.show_hidden(note_id)
+            window = self.window_for(note_id)
+            if window is None:
+                return
+        window.bring_to_front()
+
+    def hide_note(self, note_id: str) -> None:
+        window = self.window_for(note_id)
+        if window is not None:
+            self.hide(window)
+
+    def delete_note(self, note_id: str) -> None:
+        window = self.window_for(note_id)
+        if window is not None:
+            self.delete(window)
+            return
+        if self._repository is None:
+            return
+        try:
+            self._repository.delete(note_id)
+        except apsw.Error as error:
+            log.error("could not delete a note: %s", type(error).__name__)
+            return
+        self.changed.emit()
 
     def restore_last_deleted(self) -> None:
         note = self.last_deleted()

@@ -119,6 +119,15 @@ def test_hidden_list_puts_the_latest_first(repo: NoteRepository) -> None:
     assert [n.id for n in repo.hidden()] == [c.id, a.id, b.id]
 
 
+def test_live_notes_are_shown_and_hidden_ones_latest_change_first(repo: NoteRepository) -> None:
+    a, b, c, gone = (repo.create(t) for t in "abcd")
+    repo.set_hidden(a.id, True)
+    repo.update_body(b.id, "b, changed")
+    repo.delete(gone.id)
+
+    assert [n.id for n in repo.live()] == [b.id, a.id, c.id]
+
+
 def test_delete_only_marks_and_can_be_undone(repo: NoteRepository, db: apsw.Connection) -> None:
     note = repo.create("회의록을 내일까지")
 

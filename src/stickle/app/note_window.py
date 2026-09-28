@@ -65,7 +65,7 @@ from stickle.app.palette import color_name, qcolor, swatch_icon
 from stickle.app.window_flags import keep_stays_on_top, set_stays_on_top, stays_on_top
 from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
 from stickle.core.markdown import note_title, task_box
-from stickle.platform.linux.x11 import keep_off_taskbar
+from stickle.platform.linux.x11 import activate, keep_off_taskbar
 
 CORNER_RADIUS = 6
 TITLE_BAR_HEIGHT = 22  # also the height of a folded note
@@ -514,6 +514,16 @@ class NoteWindow(QWidget):
         action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.addAction(action)
         return action
+
+    def bring_to_front(self) -> None:
+        """In front of other windows, with the keyboard (asked for from the list of notes)."""
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        if self._x11:
+            # Asked for as a taskbar would; the application's own request may be refused.
+            activate(int(self.winId()))
+        self.setFocus()
 
     def fit_to_text(self, most: int) -> None:
         """Tall enough to show the formatted text whole, but no taller than most.

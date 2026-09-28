@@ -73,7 +73,8 @@ def hidden_note(app: App, text: str) -> str:
 
 
 def listed(window: StickleWindow) -> list[str]:
-    return [window.hidden_list.item(row).text() for row in range(window.hidden_list.count())]
+    rows = window.note_list.list
+    return [rows.item(row).text() for row in range(rows.count())]
 
 
 def open_note(app: App, text: str) -> NoteWindow:
@@ -88,18 +89,19 @@ def test_hidden_notes_are_listed_by_title_and_come_back(app: App) -> None:
     note_id = hidden_note(app, "- [ ] 전화하기")
     app.window.open()
 
-    assert listed(app.window) == ["전화하기", "장보기"]  # the most recently hidden first
-    app.window.hidden_list.itemActivated.emit(app.window.hidden_list.item(0))
+    # The most recently changed first, each marked hidden.
+    assert listed(app.window) == ["전화하기 · hidden", "장보기 · hidden"]
+    rows = app.window.note_list.list
+    rows.itemActivated.emit(rows.item(0))
 
     assert [w.note_id for w in app.manager.windows] == [note_id]
-    assert listed(app.window) == ["장보기"]
+    assert listed(app.window) == ["전화하기", "장보기 · hidden"]
 
 
-def test_with_nothing_hidden_the_list_says_so(app: App) -> None:
+def test_with_no_notes_the_list_says_so(app: App) -> None:
     app.window.open()
 
-    assert listed(app.window) == ["No hidden notes"]
-    assert not app.window.hidden_list.isEnabled()
+    assert listed(app.window) == ["No notes here"]
     assert not app.window.show_all_button.isEnabled()
 
 
@@ -146,11 +148,12 @@ def test_the_language_can_be_chosen(app: App) -> None:
 
 def test_everything_has_a_name_and_a_key(app: App) -> None:
     window = app.window
-    assert window.hidden_list.accessibleName()
+    assert window.note_list.list.accessibleName()
+    assert window.note_list.filter_box.accessibleName()
     assert window.language_box.accessibleName()
-    assert window.hidden_label.buddy() is window.hidden_list
+    assert window.note_list.label.buddy() is window.note_list.list
     assert window.language_label.buddy() is window.language_box
-    assert "&" in window.hidden_label.text()
+    assert "&" in window.note_list.label.text()
 
 
 # When it opens
@@ -227,7 +230,7 @@ def test_without_a_tray_hiding_the_last_note_opens_it_with_a_notice(trayless: Ap
 
     assert trayless.window.isVisible()
     assert trayless.window.notice_shown
-    assert listed(trayless.window) == ["마지막"]
+    assert listed(trayless.window) == ["마지막 · hidden"]
     assert trayless.quits == []
     # Says why it opened, in the window and its title, with the two ways on.
     assert trayless.window.notice_heading.text()
@@ -287,7 +290,8 @@ def test_without_a_tray_closing_it_then_quits(trayless: App) -> None:
 def test_without_a_tray_a_note_brought_back_keeps_stickle_running(trayless: App) -> None:
     trayless.manager.hide(open_note(trayless, "마지막"))
 
-    trayless.window.hidden_list.itemActivated.emit(trayless.window.hidden_list.item(0))
+    rows = trayless.window.note_list.list
+    rows.itemActivated.emit(rows.item(0))
     assert not trayless.window.notice_shown
     trayless.window.close()
 

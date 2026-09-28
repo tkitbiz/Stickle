@@ -14,7 +14,7 @@ import json
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal, TypeGuard
+from typing import Literal, TypeGuard, cast
 
 import apsw
 
@@ -52,6 +52,18 @@ def _color_key(value: object) -> TypeGuard[str]:
     return isinstance(value, str) and value.isidentifier()
 
 
+def _size_or_none(value: object) -> TypeGuard[list[int] | None]:
+    """[width, height] in pixels, within what any screen could show."""
+    if value is None:
+        return True
+    if not isinstance(value, list) or len(cast(list[object], value)) != 2:
+        return False
+    return all(
+        isinstance(n, int) and not isinstance(n, bool) and 100 <= n <= 20000
+        for n in cast(list[object], value)
+    )
+
+
 def _uuid_or_none(value: object) -> TypeGuard[str | None]:
     if value is None:
         return True
@@ -73,6 +85,8 @@ USAGE = Setting[str | None]("usage", "device", None, _usage)
 RECOVERY_KEY_KEPT = Setting[bool]("recovery_key_kept", "device", False, _flag)
 # Skipped at first start, the recovery key is offered once more, never again after.
 RECOVERY_KEY_OFFERED_AGAIN = Setting[bool]("recovery_key_offered_again", "device", False, _flag)
+# The Stickle window's size as the user left it (screens differ between devices).
+LIST_WINDOW_SIZE = Setting[list[int] | None]("list_window_size", "device", None, _size_or_none)
 
 SETTINGS: dict[str, Setting[object]] = {
     s.key: s  # pyright: ignore[reportAssignmentType]
@@ -83,6 +97,7 @@ SETTINGS: dict[str, Setting[object]] = {
         USAGE,
         RECOVERY_KEY_KEPT,
         RECOVERY_KEY_OFFERED_AGAIN,
+        LIST_WINDOW_SIZE,
     )
 }
 

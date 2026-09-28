@@ -173,6 +173,10 @@ class NoteRepository:
         """Most recently changed first."""
         return self._list("deleted_at IS NULL AND hidden = 1", "change_seq DESC")
 
+    def live(self) -> list[Note]:
+        """Every note not deleted, shown or hidden; most recently changed first."""
+        return self._list("deleted_at IS NULL", "change_seq DESC")
+
     def last_deleted(self) -> Note | None:
         notes = self._list("deleted_at IS NOT NULL", "change_seq DESC LIMIT 1")
         return notes[0] if notes else None
