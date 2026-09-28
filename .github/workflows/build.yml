@@ -105,7 +105,7 @@ jobs:
           case "$GITHUB_REF_NAME" in
             *-*)
               flags="--prerelease"
-              notes="Test build for installation checks. Not for everyday use: notes are not saved yet.
+              notes="Preview build for trying Stickle out. It keeps notes on this computer only: there is no syncing or backup yet, and later versions may change how notes are stored.
 
           $notes"
               ;;
