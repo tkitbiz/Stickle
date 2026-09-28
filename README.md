@@ -4,8 +4,9 @@
 
 [한국어](README.ko.md)
 
-> **Status: in development.** Stickle is not ready for everyday notes yet. To hear when the
-> first test build (0.1) is out, click **Watch → Custom → Releases** at the top of this page.
+> **Status: preview.** The first preview (0.1.2) is out: sticky notes on one computer, for
+> Windows and Linux. Syncing between computers is not there yet — see [Try the preview](#try-the-preview).
+> To hear about new versions, click **Watch → Custom → Releases** at the top of this page.
 > A star tells us you are interested, but does not notify you.
 
 ## Why Stickle
@@ -31,17 +32,30 @@
 
 | Version | What you get |
 | --- | --- |
-| 0.1 *(in progress)* | Everyday sticky notes on a single computer: colours, formatting, notes that remember where they were, always on top, tray icon, start with your computer |
+| 0.1 *(preview out)* | Everyday sticky notes on a single computer: colours, formatting, notes that remember where they were, always on top, tray icon, start with your computer |
 | 0.2 | Search, trash, keyboard shortcuts, portable mode |
 | 1.0 | Sync between your computers through a synced folder; packages for Windows (Microsoft Store), Linux (Flathub, AppImage, deb) and macOS (Homebrew) |
 | Later | WebDAV and S3 storage, what-you-see-is-what-you-get editing, tags, shared notes and a browser extension, a read-only viewer for phones |
 
-## Try a test build
+## Try the preview
 
-Test builds will appear under [Releases](https://github.com/tkitbiz/Stickle/releases),
-marked *pre-release*: a zip for Windows (x64 or ARM64) and an AppImage for Linux; macOS
-builds are on the way. Test builds can have bugs that lose notes, so keep anything important
-elsewhere too. The builds there today are technical checks and do not keep notes yet.
+Previews are under [Releases](https://github.com/tkitbiz/Stickle/releases), marked
+*pre-release*. macOS builds are on the way.
+
+- **Windows** (10 or 11): download the zip for your computer (`x64`, or `arm64` for ARM
+  laptops), unzip it anywhere and run `stickle.exe`. The program is not signed yet, so Windows
+  may say it protected your PC: choose **More info → Run anyway**.
+- **Linux**: download the AppImage, make it executable (`chmod +x Stickle-x86_64.AppImage`,
+  or in its file properties) and run it. Stickle offers to add itself to your application list.
+- The first start asks a few questions and shows a **recovery key**. Keep it somewhere safe,
+  away from this computer: it opens your notes if the key stored on this computer is ever lost.
+- Downloads can be checked against `SHA256SUMS.txt` in the same release.
+
+What a preview is, and is not:
+
+- Notes are kept on this computer only, encrypted. There is no syncing or backup yet.
+- Later versions are meant to open notes made with a preview, but the way notes are stored
+  may still change, and a preview can have bugs. Keep anything important elsewhere too.
 
 ## Help test
 
