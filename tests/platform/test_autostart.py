@@ -153,3 +153,10 @@ def test_on_windows_it_is_a_shortcut_in_the_startup_folder(tmp_path: Path) -> No
     moved = Autostart(places(tmp_path), "win32", [os.fspath(program), "-m", "stickle", "-X"])
     assert moved.refresh()
     assert not moved.refresh()
+
+
+def test_only_an_unpackaged_windows_build_may_be_blocked_for_starting_at_login() -> None:
+    from stickle.platform.autostart import may_be_blocked
+
+    # Tests run from Python, not from a Store package: blocked only on Windows.
+    assert may_be_blocked() == (sys.platform == "win32")

@@ -130,6 +130,13 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     </message>
 </context>
 <context>
+    <name>LoginNote</name>
+    <message>
+        <source>Windows Security has been seen to block Stickle by mistake when this is on. A signed version will put that right.</source>
+        <translation>이 항목을 켜면 Windows 보안이 Stickle을 잘못 막는 경우가 있습니다. 서명된 버전에서 해결됩니다.</translation>
+    </message>
+</context>
+<context>
     <name>NoteColor</name>
     <message>
         <source>Yellow</source>

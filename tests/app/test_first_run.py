@@ -45,7 +45,12 @@ class Place:
         write_recovery(self.folder, KEY, recovery_key)
         return recovery_key
 
-    def welcome(self, ask: Callable[[FirstRunDialog], object], offers: bool = True) -> None:
+    def welcome(
+        self,
+        ask: Callable[[FirstRunDialog], object],
+        offers: bool = True,
+        login_may_be_blocked: bool = False,
+    ) -> None:
         def record(dialog: FirstRunDialog) -> object:
             self.shown.append(dialog.recovery.recovery_key)
             return ask(dialog)
@@ -57,6 +62,7 @@ class Place:
             self.autostart if offers else None,
             self.app_list if offers else None,
             record,
+            login_may_be_blocked=login_may_be_blocked,
         )
 
 
@@ -153,7 +159,10 @@ def test_without_a_recovery_key_the_welcome_ends_after_the_first_page(
         assert dialog.result() == FirstRunDialog.DialogCode.Rejected
         return None
 
-    welcome(place.notes, place.settings, fail, place.autostart, None, answer)
+    welcome(
+        place.notes, place.settings, fail, place.autostart, None, answer,
+        login_may_be_blocked=False,
+    )  # fmt: skip
     assert place.autostart.enabled
     assert not place.settings.get(RECOVERY_KEY_KEPT)
     place.connection.close()
@@ -255,3 +264,24 @@ def test_each_choice_has_a_key_of_its_own(
     keys = mnemonics(page_one)
     assert len(keys) == len(page_one)
     assert len(set(keys)) == len(keys), page_one
+
+
+def test_where_starting_at_login_may_get_it_blocked_the_box_starts_unticked(
+    qtbot: QtBot,
+) -> None:
+    blocked = FirstRunDialog(generate(), True, True, login_may_be_blocked=True)
+    usual = FirstRunDialog(generate(), True, True, login_may_be_blocked=False)
+    for dialog in (blocked, usual):
+        qtbot.addWidget(dialog)
+        dialog.show()
+
+    assert not blocked.start_at_login.isChecked()
+    assert blocked.login_note.isVisible() and "block" in blocked.login_note.text()
+    assert usual.start_at_login.isChecked()
+    assert not usual.login_note.isVisible()
+
+
+def test_left_unticked_nothing_is_added_to_the_startup_folder(place: Place) -> None:
+    place.welcome(go_through(kept=True), login_may_be_blocked=True)
+
+    assert not place.autostart.enabled

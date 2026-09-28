@@ -37,6 +37,20 @@ def launch_command(env: Mapping[str, str] | None = None) -> list[str]:
     return [sys.executable, "-m", "stickle"]
 
 
+def may_be_blocked() -> bool:
+    """Whether adding the login entry may get Stickle blocked by mistake.
+
+    Microsoft Defender's machine learning has taken an unsigned program that
+    puts itself in the Startup folder for a trojan and stopped it from running.
+    Installed from the Store, Stickle is signed and starts at login its own way.
+    """
+    if sys.platform != "win32":
+        return False
+    from stickle.platform.windows.package import is_packaged
+
+    return not is_packaged()
+
+
 def desktop_exec(command: list[str]) -> str:
     """A command line as a .desktop Exec value (quoting and % as the spec asks)."""
 

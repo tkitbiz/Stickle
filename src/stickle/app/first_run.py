@@ -43,7 +43,7 @@ from stickle.data.settings import (
     USAGE,
     Settings,
 )
-from stickle.platform.autostart import Autostart
+from stickle.platform.autostart import Autostart, may_be_blocked
 from stickle.platform.linux.appimage import AppMenuEntry
 
 log = logging.getLogger(__name__)
@@ -74,6 +74,33 @@ class FirstRunChoices:
     recovery_key_kept: bool
 
 
+class LoginNote(QLabel):
+    """Under the "start at login" box, where turning it on may get Stickle blocked."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWordWrap(True)
+        self.setIndent(24)  # under the box's text, not its tick
+        font = QFont(self.font())
+        font.setPointSizeF(font.pointSizeF() * 0.9)
+        self.setFont(font)
+        self.retranslate()
+
+    def retranslate(self) -> None:
+        self.setText(
+            self.tr(
+                "Windows Security has been seen to block Stickle by mistake when this is on. "
+                "A signed version will put that right."
+            )
+        )
+
+    @override
+    def changeEvent(self, event: QEvent) -> None:
+        if event.type() == QEvent.Type.LanguageChange:
+            self.retranslate()
+        super().changeEvent(event)
+
+
 class FirstRunDialog(QDialog):
     def __init__(
         self,
@@ -82,6 +109,7 @@ class FirstRunDialog(QDialog):
         offer_app_list: bool,
         translations: Translations | None = None,
         parent: QWidget | None = None,
+        login_may_be_blocked: bool = False,
     ) -> None:
         super().__init__(parent)
         self._offers = (offer_start_at_login, offer_app_list)
@@ -120,8 +148,11 @@ class FirstRunDialog(QDialog):
         self.usage.addButton(self.this_device)
         self.usage.addButton(self.several_devices)
         self.start_at_login = QCheckBox()
-        self.start_at_login.setChecked(True)
+        # Left for the user to choose where the login entry may get Stickle blocked.
+        self.start_at_login.setChecked(not login_may_be_blocked)
         self.start_at_login.setVisible(offer_start_at_login)
+        self.login_note = LoginNote(self)
+        self.login_note.setVisible(offer_start_at_login and login_may_be_blocked)
         self.app_list = QCheckBox()
         self.app_list.setChecked(True)
         self.app_list.setVisible(offer_app_list)
@@ -137,6 +168,7 @@ class FirstRunDialog(QDialog):
         welcome_layout.addWidget(self.several_devices)
         welcome_layout.addSpacing(8)
         welcome_layout.addWidget(self.start_at_login)
+        welcome_layout.addWidget(self.login_note)
         welcome_layout.addWidget(self.app_list)
         welcome_layout.addStretch()
 
@@ -241,6 +273,7 @@ def welcome(
     app_list: AppMenuEntry | None,
     ask: Callable[[FirstRunDialog], object] = FirstRunDialog.exec,
     translations: Translations | None = None,
+    login_may_be_blocked: bool | None = None,
 ) -> FirstRunChoices:
     """The first start: the choices, carried out, then the sample note."""
     try:
@@ -248,7 +281,15 @@ def welcome(
     except OSError as error:
         log.error("no recovery key at first start: %s", type(error).__name__)
         recovery_key = ""
-    dialog = FirstRunDialog(recovery_key, autostart is not None, app_list is not None, translations)
+    if login_may_be_blocked is None:
+        login_may_be_blocked = may_be_blocked()
+    dialog = FirstRunDialog(
+        recovery_key,
+        autostart is not None,
+        app_list is not None,
+        translations,
+        login_may_be_blocked=login_may_be_blocked,
+    )
     ask(dialog)
     choices = dialog.choices()
     # In the language chosen in the welcome, if one was.

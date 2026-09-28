@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from stickle.app.app_list import switch_app_list
+from stickle.app.first_run import LoginNote
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.note_list import NoteList
 from stickle.app.notes import NoteManager
@@ -45,7 +46,7 @@ from stickle.app.tray import switch_autostart
 from stickle.app.window_flags import keep_stays_on_top, set_stays_on_top, stays_on_top
 from stickle.core.markdown import note_title
 from stickle.data.settings import LIST_WINDOW_SIZE, Settings
-from stickle.platform.autostart import Autostart
+from stickle.platform.autostart import Autostart, may_be_blocked
 from stickle.platform.linux.appimage import AppMenuEntry
 from stickle.platform.linux.x11 import activate
 
@@ -83,6 +84,7 @@ class StickleWindow(QWidget):
         app_list: AppMenuEntry | None = None,
         recovery: RecoveryKeys | None = None,
         settings: Settings | None = None,
+        login_may_be_blocked: bool | None = None,
     ) -> None:
         super().__init__()
         self._notes = notes
@@ -98,6 +100,10 @@ class StickleWindow(QWidget):
         self.autostart_box = QCheckBox(self)
         self.autostart_box.setVisible(autostart is not None)
         self.autostart_box.clicked.connect(self._switch_autostart)
+        if login_may_be_blocked is None:
+            login_may_be_blocked = may_be_blocked()
+        self.login_note = LoginNote(self)
+        self.login_note.setVisible(autostart is not None and login_may_be_blocked)
         self.app_list_box = QCheckBox(self)
         self.app_list_box.setVisible(app_list is not None)
         self.app_list_box.clicked.connect(self._switch_app_list)
@@ -173,6 +179,7 @@ class StickleWindow(QWidget):
         layout.addWidget(self.restore_button)
         layout.addLayout(language)
         layout.addWidget(self.autostart_box)
+        layout.addWidget(self.login_note)
         layout.addWidget(self.app_list_box)
         layout.addWidget(self.recovery_button)
         layout.addWidget(self.quit_button)
