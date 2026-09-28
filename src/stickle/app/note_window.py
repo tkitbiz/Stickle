@@ -57,6 +57,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import Shiboken
 
 from stickle.app.note_highlight import MarkdownHighlighter
 from stickle.app.note_view import NoteView, utf16_length
@@ -657,7 +658,10 @@ class NoteWindow(QWidget):
     def _keep_off_taskbar_mapped(self) -> None:
         if self.isVisible():
             QGuiApplication.sync()
-            keep_off_taskbar(int(self.winId()), mapped=True)
+            # Waiting for the window system lets pending events run: a note hidden
+            # at once (and so deleted) may be gone by now.
+            if Shiboken.isValid(self) and self.isVisible():
+                keep_off_taskbar(int(self.winId()), mapped=True)
 
     @override
     def moveEvent(self, event: QMoveEvent) -> None:

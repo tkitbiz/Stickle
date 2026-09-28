@@ -241,3 +241,28 @@ def test_closing_the_last_note_is_announced(qtbot: QtBot, manager: NoteManager) 
         first.close()
     with qtbot.waitSignal(manager.last_note_closed):
         second.close()
+
+
+def test_a_note_gone_while_waiting_for_the_window_system_is_left_alone(
+    qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from shiboken6 import Shiboken
+
+    import stickle.app.note_window as module
+
+    window = NoteWindow(text="hello")
+    window.show()
+    qtbot.waitExposed(window)
+    marked: list[int] = []
+    # Under X11, waiting lets pending events run; one of them closed and deleted the note.
+    monkeypatch.setattr(module.QGuiApplication, "sync", lambda: Shiboken.delete(window))
+
+    def keep_off_taskbar(window_id: int, mapped: bool) -> None:
+        marked.append(window_id)
+
+    monkeypatch.setattr(module, "keep_off_taskbar", keep_off_taskbar)
+
+    window._keep_off_taskbar_mapped()  # pyright: ignore[reportPrivateUsage]
+
+    assert not Shiboken.isValid(window)
+    assert marked == []
