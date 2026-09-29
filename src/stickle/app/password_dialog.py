@@ -33,10 +33,12 @@ class PasswordDialog(QDialog):
         parent: QWidget | None = None,
         can_recover: bool = False,
         after_recovery: bool = False,
+        portable: bool = False,
     ) -> None:
         super().__init__(parent)
         self.creating = create
         self.after_recovery = after_recovery
+        self.portable = portable  # notes in a stickle-data folder, carried between computers
         self.forgot = False
         self._submit = submit
 
@@ -102,13 +104,19 @@ class PasswordDialog(QDialog):
             self.ok_button.setText(self.tr("Set password"))
         elif self.creating:
             self.setWindowTitle(self.tr("Protect your notes with a password"))
-            self.intro.setText(
-                self.tr(
+            if self.portable:
+                intro = self.tr(
+                    "These notes are kept in the stickle-data folder next to Stickle, to go"
+                    " with it from computer to computer. They are locked with a password,"
+                    " which you will enter each time Stickle starts."
+                )
+            else:
+                intro = self.tr(
                     "This computer has no keychain where Stickle can keep the key to your"
                     " notes, so they are locked with a password instead. You will enter it"
                     " each time Stickle starts."
                 )
-            )
+            self.intro.setText(intro)
             self.ok_button.setText(self.tr("Create password"))
         else:
             self.setWindowTitle(self.tr("Unlock your notes"))

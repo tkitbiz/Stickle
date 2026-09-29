@@ -65,7 +65,9 @@ def _password_key(unlock: Unlock, create: bool, ask: AskPassword) -> tuple[bytes
             return dialog.key_file_failed(type(error).__name__)
         return None
 
-    dialog = PasswordDialog(create, submit, can_recover=unlock.has_recovery_key)
+    dialog = PasswordDialog(
+        create, submit, can_recover=unlock.has_recovery_key, portable=unlock.portable
+    )
     accepted = ask(dialog)
     return (key if accepted else None), dialog.forgot
 

@@ -199,3 +199,18 @@ def test_the_stickle_window_says_where_portable_notes_are(qtbot: QtBot, tmp_path
     assert not usual.portable_label.isVisibleTo(usual)
     window.deleteLater()
     usual.deleteLater()
+
+
+def test_the_password_is_asked_for_as_portable_notes_need_it(
+    qtbot: QtBot,
+) -> None:
+    from stickle.app.password_dialog import PasswordDialog
+
+    portable = PasswordDialog(True, lambda _password: None, portable=True)
+    usual = PasswordDialog(True, lambda _password: None)
+
+    assert "stickle-data" in portable.intro.text()
+    assert "keychain" not in portable.intro.text()
+    assert "keychain" in usual.intro.text()
+    portable.deleteLater()
+    usual.deleteLater()

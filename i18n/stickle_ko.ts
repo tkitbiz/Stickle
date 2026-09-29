@@ -440,6 +440,10 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>암호로 메모 보호하기</translation>
     </message>
     <message>
+        <source>These notes are kept in the stickle-data folder next to Stickle, to go with it from computer to computer. They are locked with a password, which you will enter each time Stickle starts.</source>
+        <translation>이 메모는 Stickle 옆의 stickle-data 폴더에 두어, Stickle과 함께 이 컴퓨터 저 컴퓨터로 옮겨 다닙니다. 메모는 암호로 잠기며, Stickle을 실행할 때마다 그 암호를 입력합니다.</translation>
+    </message>
+    <message>
         <source>This computer has no keychain where Stickle can keep the key to your notes, so they are locked with a password instead. You will enter it each time Stickle starts.</source>
         <translation>이 컴퓨터에는 Stickle이 메모를 여는 키를 보관할 키 저장소가 없어서, 대신 암호로 메모를 잠급니다. Stickle을 시작할 때마다 이 암호를 입력합니다.</translation>
     </message>
