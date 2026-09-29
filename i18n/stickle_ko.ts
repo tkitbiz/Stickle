@@ -748,6 +748,10 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
         <translation>어디서나 쓰는 단축키</translation>
     </message>
     <message>
+        <source>Portable Stickle leaves nothing in this desktop&apos;s settings, so it sets no shortcuts from anywhere here. Within a note, Ctrl+N still makes a new one.</source>
+        <translation>포터블 Stickle은 이 데스크톱의 설정에 아무것도 남기지 않으므로, 여기서는 어디서나 쓰는 단축키를 등록하지 않습니다. 메모 안에서는 Ctrl+N으로 새 메모를 만들 수 있습니다.</translation>
+    </message>
+    <message>
         <source>Stickle cannot set shortcuts on this desktop. In your keyboard settings, give a shortcut to Stickle started with --new-note, --show or --hide-all.</source>
         <translation>이 데스크톱에서는 Stickle이 단축키를 직접 등록할 수 없습니다. 키보드 설정에서 Stickle을 --new-note, --show, --hide-all과 함께 실행하도록 단축키를 지정하세요.</translation>
     </message>

@@ -214,3 +214,27 @@ def test_the_password_is_asked_for_as_portable_notes_need_it(
     assert "keychain" in usual.intro.text()
     portable.deleteLater()
     usual.deleteLater()
+
+
+def test_where_only_the_desktop_keeps_shortcuts_portable_says_it_sets_none(
+    qtbot: QtBot, tmp_path: Path
+) -> None:
+
+    from stickle.app.i18n import Translations
+    from stickle.app.notes import NoteManager
+    from stickle.app.shortcuts import GlobalShortcuts
+    from stickle.app.stickle_window import StickleWindow
+
+    shortcuts = GlobalShortcuts(None, lambda _pressed: None)  # nothing registers shortcuts
+    window = StickleWindow(
+        NoteManager(None),
+        Translations(),
+        lambda: None,
+        shortcuts=shortcuts,
+        portable_folder=tmp_path / PORTABLE_FOLDER,
+    )
+    rows = window.shortcut_rows
+    assert rows is not None
+
+    assert "Portable" in rows.unavailable.text() and "--new-note" not in rows.unavailable.text()
+    window.deleteLater()

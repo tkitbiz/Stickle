@@ -182,7 +182,11 @@ class StickleWindow(QWidget):
         self.language_box.activated.connect(self._choose_language)
         self.quit_button = QPushButton(self)
         self.quit_button.clicked.connect(on_quit)
-        self.shortcut_rows = ShortcutRows(shortcuts, self) if shortcuts is not None else None
+        self.shortcut_rows = (
+            ShortcutRows(shortcuts, self, portable=portable_folder is not None)
+            if shortcuts is not None
+            else None
+        )
 
         buttons = QHBoxLayout()
         buttons.addWidget(self.new_note_button)

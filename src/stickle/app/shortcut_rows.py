@@ -22,9 +22,14 @@ def plain_name(label: str) -> str:
 
 
 class ShortcutRows(QWidget):
-    def __init__(self, shortcuts: GlobalShortcuts, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, shortcuts: GlobalShortcuts, parent: QWidget | None = None, portable: bool = False
+    ) -> None:
         super().__init__(parent)
         self._shortcuts = shortcuts
+        # Portable notes leave nothing in the desktop's settings: where only the
+        # desktop can keep shortcuts, none are set, by choice rather than for want.
+        self._portable = portable
         self._refused: dict[str, str] = {}  # action: why the last change was not taken
         self._showing = False  # putting the stored combination in: not the user's change
         self.heading = QLabel(self)
@@ -82,12 +87,17 @@ class ShortcutRows(QWidget):
 
     def retranslate(self) -> None:
         self.heading.setText(self.tr("Shortcuts from anywhere"))
-        self.unavailable.setText(
-            self.tr(
+        if self._portable:
+            unavailable = self.tr(
+                "Portable Stickle leaves nothing in this desktop's settings, so it sets no "
+                "shortcuts from anywhere here. Within a note, Ctrl+N still makes a new one."
+            )
+        else:
+            unavailable = self.tr(
                 "Stickle cannot set shortcuts on this desktop. In your keyboard settings, "
                 "give a shortcut to Stickle started with --new-note, --show or --hide-all."
             )
-        )
+        self.unavailable.setText(unavailable)
         names = {
             "new-note": self.tr("New not&e:"),  # N is the list of notes'
             "show": self.tr("Stickle &window:"),
