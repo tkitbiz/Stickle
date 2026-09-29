@@ -95,6 +95,15 @@ JUST_DROPPED_S = 0.3
 SETTLE_MS = 500
 # Brought forward on X11: raised again this long after, once the keyboard is there.
 RAISE_AGAIN_MS = 150
+# Moving and resizing with the keyboard: how far each arrow press goes (Shift: 1 pixel).
+MOVE, RESIZE = "move", "resize"
+KEYBOARD_STEP = 10
+ARROWS: dict[int, tuple[int, int]] = {
+    Qt.Key.Key_Left.value: (-1, 0),
+    Qt.Key.Key_Right.value: (1, 0),
+    Qt.Key.Key_Up.value: (0, -1),
+    Qt.Key.Key_Down.value: (0, 1),
+}
 # How see-through a note may be while another window is in use (1.0: not at all).
 OPACITIES = (1.0, 0.9, 0.8, 0.7, 0.6)
 
@@ -395,6 +404,7 @@ class NoteWindow(QWidget):
     on_top_requested = Signal(bool)  # True: stay above other windows
     opacity_requested = Signal(float)  # one of OPACITIES
     lock_requested = Signal(bool)  # True: keep it where it is, as it is
+    switch_requested = Signal(int)  # 1: to the next note on screen, -1: the one before
     geometry_settled = Signal()  # moved or resized, and then left alone for a moment
 
     def __init__(
@@ -497,6 +507,14 @@ class NoteWindow(QWidget):
         self.lock_action = self.menu.addAction("")
         self.lock_action.setCheckable(True)
         self.lock_action.triggered.connect(self.lock_requested)
+        # Moving and resizing without a mouse: the arrow keys, then Enter (or Esc
+        # to put it back). A frameless note has no window menu of the system's.
+        self.move_action = self.menu.addAction("")
+        self.move_action.triggered.connect(lambda: self.start_keyboard(MOVE))
+        self.resize_action = self.menu.addAction("")
+        self.resize_action.triggered.connect(lambda: self.start_keyboard(RESIZE))
+        self._keyboard: str | None = None  # MOVE or RESIZE while the arrow keys do that
+        self._keyboard_from = QRect()
         self.menu.addSeparator()
         # The menu has the system's colours, which are the note's only by chance.
         self.delete_action = self.menu.addAction(make_delete_icon(qcolor(DARK_TEXT)), "")
@@ -545,6 +563,13 @@ class NoteWindow(QWidget):
         self.menu_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
         self.menu_action.triggered.connect(self.open_menu)
         self.addAction(self.menu_action)
+        # To the next note on screen, or the one before: notes are not in Alt+Tab.
+        for keys, step in ((Qt.Key.Key_Tab, 1), (Qt.Key.Key_Backtab, -1)):
+            action = QAction(self)
+            action.setShortcut(QKeySequence(Qt.KeyboardModifier.ControlModifier | keys))
+            action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+            action.triggered.connect(lambda _=False, step=step: self.switch_requested.emit(step))
+            self.addAction(action)
 
         self.set_color(color)
         self.set_always_on_top(always_on_top)
@@ -583,6 +608,8 @@ class NoteWindow(QWidget):
         self.color_menu.setTitle(self.tr("Color"))
         self.opacity_menu.setTitle(self.tr("Opacity when not in use"))
         self.lock_action.setText(self.tr("Lock note"))
+        self.move_action.setText(self.tr("Move with the arrow keys"))
+        self.resize_action.setText(self.tr("Resize with the arrow keys"))
         locked = self.tr("Locked: it cannot be moved or changed. Unlock it in the note menu.")
         self.title_bar.lock_button.setAccessibleName(self.tr("Locked"))
         self.title_bar.lock_button.setToolTip(locked)
@@ -610,6 +637,10 @@ class NoteWindow(QWidget):
             self.retranslate()
         elif event.type() == QEvent.Type.ActivationChange:
             self._show_opacity()
+            if self._keyboard is not None and not self.isActiveWindow():
+                # Left for another window: kept where it got to.
+                self._end_keyboard()
+                self.geometry_settled.emit()
         super().changeEvent(event)
 
     def set_locked(self, locked: bool) -> None:
@@ -622,6 +653,8 @@ class NoteWindow(QWidget):
         self.title_bar.lock_button.setVisible(locked)
         self.title_bar.movable = not locked
         self.size_grip.setVisible(not locked and not self.collapsed)
+        self.move_action.setEnabled(not locked)
+        self.resize_action.setEnabled(not locked)
         self.editor.setReadOnly(locked)
         if locked:
             self.show_formatted()
@@ -749,10 +782,57 @@ class NoteWindow(QWidget):
 
     @override
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self._keyboard is not None:
+            self._keyboard_key(event)
+            return
         if self.collapsed and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.collapse_requested.emit(False)
             return
         super().keyPressEvent(event)
+
+    # Moving and resizing with the keyboard
+
+    @property
+    def keyboard_mode(self) -> str | None:
+        """MOVE or RESIZE while the arrow keys move or resize the note."""
+        return self._keyboard
+
+    def start_keyboard(self, mode: str) -> None:
+        if self.locked:
+            return
+        self._keyboard = mode
+        self._keyboard_from = self.geometry()
+        # Every key comes here, not to the text, until Enter or Esc.
+        self.grabKeyboard()
+        self.title_bar.set_title(
+            self.tr("Moving: arrow keys, then Enter (Esc puts it back)")
+            if mode == MOVE
+            else self.tr("Resizing: arrow keys, then Enter (Esc puts it back)")
+        )
+        self.title_bar.title.show()
+
+    def _keyboard_key(self, event: QKeyEvent) -> None:
+        key = event.key()
+        step = 1 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else KEYBOARD_STEP
+        dx, dy = ARROWS.get(key, (0, 0))
+        if dx or dy:
+            if self._keyboard == MOVE:
+                self.move(self.pos() + QPoint(dx * step, dy * step))
+            else:
+                # Qt keeps it no smaller than the note allows (its buttons need the room).
+                self.resize(self.size() + QSize(dx * step, dy * step))
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._end_keyboard()
+            self.geometry_settled.emit()  # kept at once, as after the mouse lets go
+        elif key == Qt.Key.Key_Escape:
+            self.setGeometry(self._keyboard_from)
+            self._end_keyboard()
+
+    def _end_keyboard(self) -> None:
+        self._keyboard = None
+        self.releaseKeyboard()
+        self.title_bar.title.setVisible(self.collapsed)
+        self._update_title()
 
     @property
     def moved_by_user(self) -> bool:

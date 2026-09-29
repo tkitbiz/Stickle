@@ -260,6 +260,11 @@ class NoteManager(QObject):
             self.set_locked(window, locked)
 
         window.lock_requested.connect(lock_requested)
+
+        def switch_requested(step: int) -> None:
+            self.switch_note(window, step)
+
+        window.switch_requested.connect(switch_requested)
         window.hide_requested.connect(lambda: self.hide(window))
         window.delete_requested.connect(lambda: self.delete(window))
         autosave = AutoSave(lambda: self.save(window), self._idle_ms, self._max_ms, window)
@@ -489,6 +494,16 @@ class NoteManager(QObject):
             self._repository.set_collapsed(window.note_id, collapsed)
         except apsw.Error as error:
             log.error("could not store a note being folded: %s", type(error).__name__)
+
+    # From note to note with the keyboard (notes are not in Alt+Tab)
+
+    def switch_note(self, window: NoteWindow, step: int) -> None:
+        """Bring forward the next note on screen after window (step 1) or before it
+        (-1), in the order they were opened, round from the last to the first."""
+        shown = [other for other in self._windows if other.isVisible()]
+        if window not in shown or len(shown) < 2:
+            return
+        shown[(shown.index(window) + step) % len(shown)].bring_to_front()
 
     # Locked where it is, as it is
 

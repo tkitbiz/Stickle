@@ -352,6 +352,14 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>메모 잠그기</translation>
     </message>
     <message>
+        <source>Move with the arrow keys</source>
+        <translation>방향키로 옮기기</translation>
+    </message>
+    <message>
+        <source>Resize with the arrow keys</source>
+        <translation>방향키로 크기 바꾸기</translation>
+    </message>
+    <message>
         <source>Locked: it cannot be moved or changed. Unlock it in the note menu.</source>
         <translation>잠김: 옮기거나 고칠 수 없습니다. 메모 메뉴에서 풀 수 있습니다.</translation>
     </message>
@@ -391,6 +399,14 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>Empty note</source>
         <translation>빈 메모</translation>
+    </message>
+    <message>
+        <source>Moving: arrow keys, then Enter (Esc puts it back)</source>
+        <translation>옮기는 중: 방향키, 끝나면 Enter (Esc는 되돌리기)</translation>
+    </message>
+    <message>
+        <source>Resizing: arrow keys, then Enter (Esc puts it back)</source>
+        <translation>크기 바꾸는 중: 방향키, 끝나면 Enter (Esc는 되돌리기)</translation>
     </message>
 </context>
 <context>
