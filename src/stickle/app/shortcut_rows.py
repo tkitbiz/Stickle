@@ -7,7 +7,7 @@ from typing import override
 
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QFont, QKeySequence
-from PySide6.QtWidgets import QGridLayout, QKeySequenceEdit, QLabel, QWidget
+from PySide6.QtWidgets import QGridLayout, QKeySequenceEdit, QLabel, QPushButton, QWidget
 
 from stickle.app.shortcuts import GlobalShortcuts, Refused, State
 from stickle.data.settings import SHORTCUT_ACTIONS
@@ -36,7 +36,13 @@ class ShortcutRows(QWidget):
         self.unavailable.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.names: dict[str, QLabel] = {}
         self.edits: dict[str, QKeySequenceEdit] = {}
+        self.given: dict[str, QLabel] = {}  # the keys the desktop gave, where it keeps them
         self.notes: dict[str, QLabel] = {}
+        # Kept by the desktop: changed in its settings.
+        self.configure_button = QPushButton(self)
+        self.configure_button.clicked.connect(shortcuts.configure)
+        self.desktop_note = QLabel(self)
+        self.desktop_note.setWordWrap(True)
         grid = QGridLayout(self)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.addWidget(self.heading, 0, 0, 1, 2)
@@ -47,14 +53,21 @@ class ShortcutRows(QWidget):
             edit.setMaximumSequenceLength(1)
             edit.setClearButtonEnabled(True)
             name.setBuddy(edit)
+            given = QLabel(self)
+            given.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByKeyboard)
             note = QLabel(self)
             note.setWordWrap(True)
             edit.editingFinished.connect(partial(self._chosen, action))
             edit.keySequenceChanged.connect(partial(self._cleared, action))
             grid.addWidget(name, 2 + row * 2, 0)
             grid.addWidget(edit, 2 + row * 2, 1)
+            grid.addWidget(given, 2 + row * 2, 1)
             grid.addWidget(note, 3 + row * 2, 1)
             self.names[action], self.edits[action], self.notes[action] = name, edit, note
+            self.given[action] = given
+        after = 2 + len(SHORTCUT_ACTIONS) * 2
+        grid.addWidget(self.desktop_note, after, 0, 1, 2)
+        grid.addWidget(self.configure_button, after + 1, 0, 1, 2)
         grid.setColumnStretch(1, 1)
         shortcuts.changed.connect(self.refresh)
         self.retranslate()
@@ -75,6 +88,8 @@ class ShortcutRows(QWidget):
         for action, text in names.items():
             self.names[action].setText(text)
             self.edits[action].setAccessibleName(plain_name(text))
+            self.given[action].setAccessibleName(plain_name(text))
+        self.configure_button.setText(self.tr("Change them in the desktop's settings…"))
         self.refresh()
 
     @override
@@ -85,10 +100,26 @@ class ShortcutRows(QWidget):
 
     def refresh(self) -> None:
         available = self._shortcuts.available
+        desktop = self._shortcuts.by_desktop
         self.unavailable.setVisible(not available)
+        self.desktop_note.setVisible(desktop)
+        self.configure_button.setVisible(desktop)
+        waiting = any(self._shortcuts.state(a) == State.WAITING for a in SHORTCUT_ACTIONS)
+        self.configure_button.setEnabled(not waiting)
+        self.desktop_note.setText(
+            self.tr("The desktop is asked to set these shortcuts…")
+            if waiting
+            else self.tr("The desktop keeps these shortcuts. Change them in its keyboard settings.")
+        )
         for action in SHORTCUT_ACTIONS:
-            for part in (self.names[action], self.edits[action]):
-                part.setVisible(available)
+            self.names[action].setVisible(available)
+            self.edits[action].setVisible(available and not desktop)
+            self.given[action].setVisible(desktop)
+            if desktop:
+                keys = self._shortcuts.combo(action) or self.tr("none")
+                self.given[action].setText("" if waiting else keys)
+                self.names[action].setBuddy(self.given[action])
+                continue
             self._showing = True
             try:
                 self.edits[action].setKeySequence(QKeySequence(self._shortcuts.combo(action)))

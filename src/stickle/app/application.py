@@ -35,6 +35,7 @@ from stickle.data.notes import NoteRepository
 from stickle.data.settings import RECOVERY_KEY_KEPT, Settings
 from stickle.data.startup import StartupSettings
 from stickle.platform.autostart import Autostart
+from stickle.platform.hotkeys import desktop_portal
 from stickle.platform.instance import NEW_NOTE, SET_ASIDE
 from stickle.platform.linux.appimage import (
     AppMenuEntry,
@@ -350,7 +351,12 @@ def run(
         recovery = recovery_keys(unlock, Settings(connection) if connection else None)
         # Measuring must not take the user's shortcuts from their own Stickle.
         shortcuts = (
-            GlobalShortcuts(Settings(connection) if connection else None) if perf is None else None
+            GlobalShortcuts(
+                Settings(connection) if connection else None,
+                make_portal=lambda: desktop_portal(APP_ID),
+            )
+            if perf is None
+            else None
         )
         stickle_window = StickleWindow(
             manager,
@@ -388,6 +394,8 @@ def run(
                     translations=translations,
                 )
             open_at_start(manager, stickle_window, tray_available, at_login)
+            if shortcuts is not None:
+                shortcuts.start()  # the desktop may ask about them: after the first start's windows
             if request is not None:
                 answer(request)
             if instance_server is not None:

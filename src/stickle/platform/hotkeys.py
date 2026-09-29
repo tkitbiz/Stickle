@@ -1,9 +1,11 @@
 """Keyboard shortcuts that work whichever application is in front.
 
 Windows registers them with the system (RegisterHotKey); an X11 session
-grabs them from the X server. Elsewhere (a Wayland session, macOS for now)
-there is no way here, and Stickle says so: its command line (--new-note and
-the like) can be given a shortcut in the desktop's own keyboard settings.
+grabs them from the X server; under Wayland the desktop keeps them, through
+its portal (see Portal). Elsewhere (macOS for now), or where the portal is
+missing, there is no way here, and Stickle says so: its command line
+(--new-note and the like) can be given a shortcut in the desktop's own
+keyboard settings.
 """
 
 import logging
@@ -12,6 +14,8 @@ import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol
+
+from PySide6.QtCore import QObject, Signal
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +62,13 @@ class Combo:
         return (self.ctrl, self.alt, self.shift, self.meta)
 
     @property
+    def portal_trigger(self) -> str:
+        """As the desktop portal suggests a shortcut ("CTRL+ALT+n": XDG shortcut names)."""
+        names = ("CTRL", "ALT", "SHIFT", "LOGO")
+        held = [name for name, on in zip(names, self.modifiers, strict=True) if on]
+        return "+".join([*held, self.key.lower() if len(self.key) == 1 else self.key])
+
+    @property
     def usable(self) -> bool:
         """Held with Ctrl, Alt or the Windows key: without one, typing would set it off."""
         return self.ctrl or self.alt or self.meta
@@ -79,6 +90,41 @@ def x11_session(environment: Mapping[str, str]) -> bool:
     if session:
         return session == "x11"
     return bool(environment.get("DISPLAY")) and not environment.get("WAYLAND_DISPLAY")
+
+
+class Portal(QObject):
+    """Shortcuts the desktop keeps: offered once, answered later, changed in its settings.
+
+    bind() offers them; bound then says which keys each got (the desktop's
+    own words, "" for none), again whenever its settings change them, or
+    failed says the desktop cannot keep them. activated gives an id per press.
+    """
+
+    activated = Signal(str)
+    bound = Signal(dict)
+    failed = Signal()
+
+    def bind(self, shortcuts: list[tuple[str, str, str]]) -> None:
+        """(id, description, suggested keys as Combo.portal_trigger writes them, or "")."""
+        raise NotImplementedError
+
+    def configure(self) -> bool:
+        """Open the desktop's page for these shortcuts; False where it has none."""
+        raise NotImplementedError
+
+
+def desktop_portal(app_id: str) -> Portal | None:
+    """Where the system gives no way to register shortcuts but a Linux desktop
+    may through its portal (Wayland): the portal's session, or None."""
+    if not sys.platform.startswith("linux") or x11_session(os.environ):
+        return None
+    try:
+        from stickle.platform.linux.portal_shortcuts import PortalShortcuts
+
+        return PortalShortcuts(app_id)
+    except (OSError, ValueError, KeyError) as error:  # no session bus to be had
+        log.warning("the desktop portal cannot be reached: %s", type(error).__name__)
+        return None
 
 
 def system_hotkeys(pressed: Callable[[int], object]) -> Hotkeys | None:

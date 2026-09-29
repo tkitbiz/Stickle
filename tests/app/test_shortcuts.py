@@ -4,6 +4,7 @@ Stickle window, and said so when another app has one."""
 import secrets
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import override
 
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent
@@ -16,7 +17,7 @@ from stickle.app.shortcuts import DEFAULTS, GlobalShortcuts, Refused, State
 from stickle.app.stickle_window import StickleWindow
 from stickle.data.schema import open_store
 from stickle.data.settings import SHORTCUTS, Settings
-from stickle.platform.hotkeys import Combo, Hotkeys
+from stickle.platform.hotkeys import Combo, Hotkeys, Portal
 from stickle.platform.instance import NEW_NOTE, SET_ASIDE, SHOW
 
 KEY = secrets.token_bytes(32)
@@ -242,3 +243,95 @@ def test_the_rows_are_translated(window: Window, translations: Translations) -> 
 def test_nothing_unusable_is_stored_even_by_hand(settings: Settings) -> None:
     with pytest.raises(ValueError):
         settings.set(SHORTCUTS, {"quit": "Ctrl+Q"})
+
+
+# Kept by the desktop (Wayland, through its portal)
+
+
+class FakePortal(Portal):
+    def __init__(self, has_page: bool = True) -> None:
+        super().__init__()
+        self.offered: list[tuple[str, str, str]] = []
+        self.has_page = has_page
+        self.pages_opened = 0
+
+    @override
+    def bind(self, shortcuts: list[tuple[str, str, str]]) -> None:
+        self.offered = shortcuts
+
+    @override
+    def configure(self) -> bool:
+        self.pages_opened += 1
+        return self.has_page
+
+
+def kept_by_desktop(settings: Settings, portal: FakePortal) -> GlobalShortcuts:
+    return GlobalShortcuts(settings, System(available=False), make_portal=lambda: portal)
+
+
+def test_the_desktop_is_offered_the_shortcuts_once_stickle_is_up(settings: Settings) -> None:
+    settings.set(SHORTCUTS, {"hide-all": ""})  # turned off here before
+    portal = FakePortal()
+    shortcuts = kept_by_desktop(settings, portal)
+    assert shortcuts.available and shortcuts.by_desktop
+    assert portal.offered == []  # not while Stickle starts
+    assert all(shortcuts.state(action) == State.WAITING for action in DEFAULTS)
+
+    shortcuts.start()
+
+    offered = {action: keys for action, _, keys in portal.offered}
+    assert offered == {"new-note": "CTRL+ALT+n", "show": "CTRL+ALT+s", "hide-all": ""}
+    assert all(description for _, description, _ in portal.offered)
+
+
+def test_what_the_desktop_gave_is_shown_and_its_presses_heard(settings: Settings) -> None:
+    portal = FakePortal()
+    shortcuts = kept_by_desktop(settings, portal)
+    heard: list[bytes] = []
+    shortcuts.pressed.connect(heard.append)
+    shortcuts.start()
+
+    portal.bound.emit({"new-note": "Ctrl+Alt+N", "show": "", "hide-all": "Super+H"})
+    portal.activated.emit("hide-all")
+
+    assert shortcuts.combo("new-note") == "Ctrl+Alt+N"
+    assert shortcuts.state("show") == State.OFF
+    assert shortcuts.state("hide-all") == State.ON
+    assert heard == [SET_ASIDE]
+
+
+def test_a_desktop_that_cannot_keep_them_leaves_the_command_line(settings: Settings) -> None:
+    portal = FakePortal()
+    shortcuts = kept_by_desktop(settings, portal)
+    shortcuts.start()
+
+    portal.failed.emit()
+
+    assert not shortcuts.available
+    assert all(shortcuts.state(action) == State.UNAVAILABLE for action in DEFAULTS)
+
+
+def test_the_window_shows_the_desktops_keys_and_leads_to_its_settings(
+    qtbot: QtBot, settings: Settings
+) -> None:
+    portal = FakePortal()
+    shortcuts = kept_by_desktop(settings, portal)
+    window = StickleWindow(NoteManager(None), Translations(), lambda: None, shortcuts=shortcuts)
+    rows = window.shortcut_rows
+    assert rows is not None
+
+    assert "asked" in rows.desktop_note.text()
+    assert not rows.configure_button.isEnabled()  # nothing to change yet
+
+    shortcuts.start()
+    portal.bound.emit({"new-note": "Ctrl+Alt+N", "show": "", "hide-all": "Super+H"})
+
+    assert rows.given["new-note"].text() == "Ctrl+Alt+N"
+    assert rows.given["show"].text() == "none"
+    assert rows.given["new-note"].isVisibleTo(window)
+    assert not rows.edits["new-note"].isVisibleTo(window)
+    assert "keyboard settings" in rows.desktop_note.text()
+    rows.configure_button.click()
+    assert portal.pages_opened == 1
+    window.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)

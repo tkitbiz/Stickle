@@ -656,6 +656,7 @@ version = "0.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "apsw-sqlite3mc" },
+    { name = "jeepney", marker = "sys_platform == 'linux'" },
     { name = "keyring" },
     { name = "markdown-it-py" },
     { name = "pynacl" },
@@ -665,6 +666,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "hypothesis" },
+    { name = "jeepney" },
     { name = "nuitka" },
     { name = "pefile" },
     { name = "pre-commit" },
@@ -677,6 +679,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "apsw-sqlite3mc", specifier = ">=3.53.4.0" },
+    { name = "jeepney", marker = "sys_platform == 'linux'", specifier = ">=0.9" },
     { name = "keyring", specifier = ">=25.7.0" },
     { name = "markdown-it-py", specifier = ">=4.2.0" },
     { name = "pynacl", specifier = ">=1.6" },
@@ -686,6 +689,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "hypothesis", specifier = ">=6.168.1" },
+    { name = "jeepney", specifier = ">=0.9" },
     { name = "nuitka", specifier = ">=4.2.2" },
     { name = "pefile", specifier = ">=2024.8.26" },
     { name = "pre-commit", specifier = ">=4.6.2" },

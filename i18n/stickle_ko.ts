@@ -130,6 +130,21 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     </message>
 </context>
 <context>
+    <name>GlobalShortcuts</name>
+    <message>
+        <source>New note</source>
+        <translation>새 메모</translation>
+    </message>
+    <message>
+        <source>Open the Stickle window</source>
+        <translation>Stickle 창 열기</translation>
+    </message>
+    <message>
+        <source>Hide all notes for now, or show them again</source>
+        <translation>모든 메모 잠시 숨기기 또는 다시 보이기</translation>
+    </message>
+</context>
+<context>
     <name>LoginNote</name>
     <message>
         <source>Windows Security has been seen to block Stickle by mistake when this is on. A signed version will put that right.</source>
@@ -681,6 +696,22 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>&amp;Hide all notes for now:</source>
         <translation>모든 메모 잠시 숨기기(&amp;H):</translation>
+    </message>
+    <message>
+        <source>Change them in the desktop&apos;s settings…</source>
+        <translation>데스크톱 설정에서 바꾸기…</translation>
+    </message>
+    <message>
+        <source>The desktop is asked to set these shortcuts…</source>
+        <translation>데스크톱에 이 단축키를 등록하는 중입니다…</translation>
+    </message>
+    <message>
+        <source>The desktop keeps these shortcuts. Change them in its keyboard settings.</source>
+        <translation>이 단축키는 데스크톱이 관리합니다. 데스크톱의 키보드 설정에서 바꾸세요.</translation>
+    </message>
+    <message>
+        <source>none</source>
+        <translation>없음</translation>
     </message>
     <message>
         <source>Another app is using %1, so it does not work. Choose another.</source>
