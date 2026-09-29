@@ -1,5 +1,6 @@
 """A single sticky note window."""
 
+import logging
 import math
 import sys
 import time
@@ -19,6 +20,7 @@ from PySide6.QtCore import (
     QSize,
     Qt,
     QTimer,
+    QUrl,
     Signal,
 )
 from PySide6.QtGui import (
@@ -27,6 +29,7 @@ from PySide6.QtGui import (
     QCloseEvent,
     QColor,
     QContextMenuEvent,
+    QDesktopServices,
     QFocusEvent,
     QGuiApplication,
     QIcon,
@@ -68,6 +71,8 @@ from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
 from stickle.core.markdown import note_title, task_box
 from stickle.platform.linux.x11 import activate, keep_off_taskbar
 
+log = logging.getLogger(__name__)
+
 CORNER_RADIUS = 6
 TITLE_BAR_HEIGHT = 22  # also the height of a folded note
 BUTTON_SIZE = 20
@@ -92,6 +97,28 @@ SETTLE_MS = 500
 RAISE_AGAIN_MS = 150
 # How see-through a note may be while another window is in use (1.0: not at all).
 OPACITIES = (1.0, 0.9, 0.8, 0.7, 0.6)
+
+
+# Links a note may open: web pages and mail. A note from someone else must
+# not be able to open a program or file on this computer.
+OPENABLE_SCHEMES = ("http", "https", "mailto")
+
+
+def _open_url(url: QUrl) -> bool:
+    return QDesktopServices.openUrl(url)
+
+
+open_url: Callable[[QUrl], bool] = _open_url  # replaced in tests
+
+
+def open_link(href: str) -> bool:
+    """Open a link from a note with the system's browser or mail app, if it is one of
+    OPENABLE_SCHEMES; False (and nothing opened) otherwise."""
+    url = QUrl(href)
+    if not url.isValid() or url.scheme().lower() not in OPENABLE_SCHEMES:
+        log.info("a link of another kind was not opened")
+        return False
+    return open_url(url)
 
 
 def drawn_icon(
@@ -489,6 +516,7 @@ class NoteWindow(QWidget):
         self.view = NoteView(self)
         self.view.edit_requested.connect(self._edit_asked)
         self.view.checkbox_clicked.connect(self._checkbox_clicked)
+        self.view.link_clicked.connect(open_link)  # locked or not: the text stays as it is
         self.stack = QStackedWidget(self)
         self.stack.addWidget(self.view)
         self.stack.addWidget(self.editor)
@@ -534,7 +562,12 @@ class NoteWindow(QWidget):
         self.setAccessibleName(self.tr("Note"))
         self.editor.setAccessibleName(self.tr("Note text"))
         self.view.setAccessibleName(self.tr("Note text"))
-        self.view.setAccessibleDescription(self.tr("Double-click or press Enter to edit."))
+        self.view.setAccessibleDescription(
+            self.tr(
+                "Tab moves between checkboxes and links; Space or Enter checks or opens one."
+                " F2, or Enter with none chosen, edits the note."
+            )
+        )
         hide_note = self.tr("Hide note")
         self.title_bar.close_button.setAccessibleName(hide_note)
         self.title_bar.close_button.setToolTip(hide_note)

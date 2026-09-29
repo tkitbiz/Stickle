@@ -1,4 +1,5 @@
-"""Reading note text: CommonMark plus task list checkboxes, ~~strikethrough~~ and ==highlight==.
+"""Reading note text: CommonMark plus task list checkboxes, ~~strikethrough~~,
+==highlight== and addresses typed without brackets.
 
 Notes are stored as Markdown only. This module parses them for display and
 maps what is shown back to the text, without depending on Qt. Raw HTML is
@@ -8,6 +9,7 @@ not interpreted: it is shown as the characters that were typed.
 import re
 from functools import cache
 
+from linkify_it import LinkifyIt
 from markdown_it import MarkdownIt
 from markdown_it.rules_core import StateCore
 from markdown_it.rules_inline import StateInline
@@ -24,7 +26,11 @@ _TASK_LINE = re.compile(r"(?:[ \t]*>)*[ \t]*(?:[-+*]|\d{1,9}[.)])[ \t]+\[([ xX])
 
 @cache
 def _parser() -> MarkdownIt:
-    md = MarkdownIt("commonmark", {"html": False}).enable("strikethrough")
+    md = MarkdownIt("commonmark", {"html": False, "linkify": True})
+    md.enable(["strikethrough", "linkify"])
+    # Addresses typed as they are ("https://...", "mailto:...") show as links, but
+    # not words that only look like domains: "main.py" is not a website.
+    md.linkify = LinkifyIt(options={"fuzzy_link": False, "fuzzy_email": False})
     md.inline.ruler.before("emphasis", "highlight", _highlight_tokenize)
     md.inline.ruler2.before("emphasis", "highlight", _highlight_post_process)
     md.core.ruler.after("inline", "tasks", _tasks)

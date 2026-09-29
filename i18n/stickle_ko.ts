@@ -324,8 +324,8 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>메모 내용</translation>
     </message>
     <message>
-        <source>Double-click or press Enter to edit.</source>
-        <translation>더블클릭하거나 Enter를 누르면 편집합니다.</translation>
+        <source>Tab moves between checkboxes and links; Space or Enter checks or opens one. F2, or Enter with none chosen, edits the note.</source>
+        <translation>Tab으로 체크 상자와 링크 사이를 옮겨 다니고, Space나 Enter로 체크하거나 엽니다. F2, 또는 아무것도 고르지 않은 채 Enter를 누르면 메모를 고칩니다.</translation>
     </message>
     <message>
         <source>Hide note</source>

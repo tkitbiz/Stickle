@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import override
 
 from markdown_it.tree import SyntaxTreeNode
-from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, Qt, Signal
 from PySide6.QtGui import (
     QFont,
     QFontDatabase,
@@ -54,6 +54,17 @@ class BlockSource:
     first_line: int
     last_line: int
     checkbox_line: int | None = None  # a task item: the line with its "[ ]"
+
+
+@dataclass(frozen=True)
+class Stop:
+    """Something the keyboard can reach in the formatted note: a task item's
+    checkbox (line set) or a link (href set), between two positions of the view."""
+
+    start: int
+    end: int
+    checkbox_line: int | None = None
+    href: str = ""
 
 
 @dataclass
@@ -307,11 +318,18 @@ class NoteView(QTextEdit):
     A single click only gives the note the focus, so clicking a note to read
     or scroll it does not start editing (a note with nothing to read is never
     shown formatted). Clicking a task item's checkbox asks to toggle it; the
-    note changes its text, and the view is drawn again from it.
+    note changes its text, and the view is drawn again from it. Clicking a
+    link asks to open it.
+
+    The keyboard reaches the same things: Tab and Shift+Tab go from checkbox
+    to link in the order shown, selecting each; Space or Enter then checks the
+    box or opens the link, and Esc lets go. Enter with nothing selected, and
+    F2 always, ask to edit.
     """
 
     edit_requested = Signal(int)  # a position in the text, or -1 for its end
     checkbox_clicked = Signal(int)  # the line of the checkbox
+    link_clicked = Signal(str)  # its address
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
@@ -326,20 +344,65 @@ class NoteView(QTextEdit):
         self.setCursorWidth(0)
         self._source = ""
         self._blocks: list[BlockSource] = []
+        self.stops: list[Stop] = []
+        self.stop: int | None = None  # which of stops the keyboard is on
         self._press: QPoint | None = None
         self.colors = note_colors(DEFAULT_COLOR)
+        self.viewport().setMouseTracking(True)  # a hand over links
 
     def show_markdown(self, text: str) -> None:
         self._source = text
         # Drawn again when a checkbox is toggled: stay where the reader was.
         scrolled = self.verticalScrollBar().value()
         self._blocks = render(text, self.document(), self.colors)
+        self.stops = self._find_stops()
         # The (hidden) cursor is left at the end by the drawing; the view would
         # scroll there the moment it is shown or given the keyboard.
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.Start)
         self.setTextCursor(cursor)
         self.verticalScrollBar().setValue(scrolled)
+        if self.stop is not None:  # the box just checked stays selected
+            self._go_to(self.stop if self.stop < len(self.stops) else None)
+
+    def _find_stops(self) -> list[Stop]:
+        stops: list[Stop] = []
+        block = self.document().begin()
+        while block.isValid():
+            source = self.block_source(block)
+            if source is not None and source.checkbox_line is not None:
+                end = block.position() + max(block.length() - 1, 0)
+                stops.append(Stop(block.position(), end, checkbox_line=source.checkbox_line))
+            fragments = block.begin()
+            while not fragments.atEnd():
+                fragment = fragments.fragment()
+                href = fragment.charFormat().anchorHref()
+                if fragment.isValid() and href:
+                    start, end = fragment.position(), fragment.position() + fragment.length()
+                    if stops and stops[-1].href == href and stops[-1].end == start:
+                        start = stops.pop().start  # one link drawn in several formats
+                    stops.append(Stop(start, end, href=href))
+                fragments += 1
+            block = block.next()
+        return stops
+
+    def _go_to(self, stop: int | None) -> None:
+        """Select a stop (None: none), as the keyboard's place in the note."""
+        self.stop = stop
+        cursor = self.textCursor()
+        if stop is None:
+            cursor.clearSelection()
+        else:
+            cursor.setPosition(self.stops[stop].start)
+            cursor.setPosition(self.stops[stop].end, QTextCursor.MoveMode.KeepAnchor)
+        self.setTextCursor(cursor)
+        self.ensureCursorVisible()
+
+    def _act(self, stop: Stop) -> None:
+        if stop.checkbox_line is not None:
+            self.checkbox_clicked.emit(stop.checkbox_line)
+        else:
+            self.link_clicked.emit(stop.href)
 
     def set_colors(self, colors: NoteColors) -> None:
         self.colors = colors
@@ -385,7 +448,15 @@ class NoteView(QTextEdit):
     @override
     def mousePressEvent(self, e: QMouseEvent) -> None:
         self._press = e.position().toPoint() if e.button() == Qt.MouseButton.LeftButton else None
+        self.stop = None  # the mouse takes over from the keyboard
         super().mousePressEvent(e)
+
+    @override
+    def mouseMoveEvent(self, e: QMouseEvent) -> None:
+        super().mouseMoveEvent(e)
+        on_link = bool(self.anchorAt(e.position().toPoint()))
+        shape = Qt.CursorShape.PointingHandCursor if on_link else Qt.CursorShape.IBeamCursor
+        self.viewport().setCursor(shape)
 
     @override
     def mouseReleaseEvent(self, e: QMouseEvent) -> None:
@@ -402,6 +473,8 @@ class NoteView(QTextEdit):
         line = self.checkbox_at(point)
         if line is not None:
             self.checkbox_clicked.emit(line)
+        elif href := self.anchorAt(point):
+            self.link_clicked.emit(href)
 
     @override
     def mouseDoubleClickEvent(self, e: QMouseEvent) -> None:
@@ -411,8 +484,34 @@ class NoteView(QTextEdit):
             self.edit_requested.emit(self.source_position_at(point))
 
     @override
+    def event(self, e: QEvent) -> bool:
+        # Tab moves between the note's checkboxes and links, not out of the note
+        # (a note has nothing else to go to); Ctrl+Tab is left to the window.
+        if (
+            isinstance(e, QKeyEvent)
+            and e.type() == QEvent.Type.KeyPress
+            and e.key() in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab)
+            and not e.modifiers() & Qt.KeyboardModifier.ControlModifier
+            and self.stops
+        ):
+            back = e.key() == Qt.Key.Key_Backtab
+            if self.stop is None:
+                self._go_to(len(self.stops) - 1 if back else 0)
+            else:
+                self._go_to((self.stop + (-1 if back else 1)) % len(self.stops))
+            return True
+        return super().event(e)
+
+    @override
     def keyPressEvent(self, e: QKeyEvent) -> None:
-        if e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_F2):
+        key = e.key()
+        if self.stop is not None and key in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._act(self.stops[self.stop])
+            return
+        if self.stop is not None and key == Qt.Key.Key_Escape:
+            self._go_to(None)
+            return
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_F2):
             self.edit_requested.emit(-1)
             return
         super().keyPressEvent(e)
