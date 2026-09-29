@@ -12,6 +12,7 @@ the desktop's own settings; Stickle only shows which keys the desktop gave.
 """
 
 import logging
+import re
 from collections.abc import Callable
 from enum import Enum
 
@@ -36,6 +37,37 @@ class State(Enum):
     TAKEN = "taken"  # another application has it
     UNAVAILABLE = "unavailable"  # no way to register shortcuts here
     WAITING = "waiting"  # asked of the desktop, not answered yet
+
+
+# GTK's modifier names, as GNOME describes shortcuts, and how Stickle writes them.
+GTK_MODIFIERS = {
+    "Control": "Ctrl",
+    "Primary": "Ctrl",
+    "Alt": "Alt",
+    "Shift": "Shift",
+    "Super": "Super",
+    "Meta": "Meta",
+    "Logo": "Super",
+}
+
+
+def readable_keys(described: str) -> str:
+    """Keys as the desktop described them, written as Stickle writes keys.
+
+    GNOME says "Press <Control><Alt>n"; that becomes "Ctrl+Alt+N". A
+    description in any other form is shown as the desktop wrote it.
+    """
+    text = described.removeprefix("Press ").strip()
+    match = re.fullmatch(r"((?:<\w+>)*)(\S+)", text)
+    if match is None or not match.group(1):
+        return described
+    names = re.findall(r"<(\w+)>", match.group(1))
+    if any(name not in GTK_MODIFIERS for name in names):
+        return described
+    key = match.group(2)
+    return "+".join(
+        [*(GTK_MODIFIERS[name] for name in names), key.upper() if len(key) == 1 else key]
+    )
 
 
 def no_portal() -> Portal | None:
@@ -173,7 +205,7 @@ class GlobalShortcuts(QObject):
 
     def _bound(self, given: dict[str, str]) -> None:
         """The desktop's answer, and again whenever its settings change them."""
-        self._given = given
+        self._given = {action: readable_keys(keys) for action, keys in given.items()}
         for action in SHORTCUT_ACTIONS:
             self._states[action] = State.ON if given.get(action) else State.OFF
         log.info("the desktop gave %d of the shortcuts", sum(map(bool, given.values())))

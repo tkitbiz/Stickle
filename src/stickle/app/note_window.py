@@ -87,6 +87,8 @@ DROPPING_INPUT_METHODS = sys.platform.startswith("linux")
 JUST_DROPPED_S = 0.3
 # Moving and resizing report a stream of positions: the place is kept once they stop.
 SETTLE_MS = 500
+# Brought forward on X11: raised again this long after, once the keyboard is there.
+RAISE_AGAIN_MS = 150
 
 
 def drawn_icon(
@@ -523,6 +525,9 @@ class NoteWindow(QWidget):
         if self._x11:
             # Asked for as a taskbar would; the application's own request may be refused.
             activate(int(self.winId()))
+            # GNOME under Wayland gave a note asked for by a shortcut the keyboard
+            # but left it under the others; raised again once it has the keyboard.
+            QTimer.singleShot(RAISE_AGAIN_MS, self, self.raise_)
         self.setFocus()
 
     def fit_to_text(self, most: int) -> None:

@@ -13,7 +13,7 @@ from pytestqt.qtbot import QtBot
 
 from stickle.app.i18n import Translations
 from stickle.app.notes import NoteManager
-from stickle.app.shortcuts import DEFAULTS, GlobalShortcuts, Refused, State
+from stickle.app.shortcuts import DEFAULTS, GlobalShortcuts, Refused, State, readable_keys
 from stickle.app.stickle_window import StickleWindow
 from stickle.data.schema import open_store
 from stickle.data.settings import SHORTCUTS, Settings
@@ -335,3 +335,19 @@ def test_the_window_shows_the_desktops_keys_and_leads_to_its_settings(
     assert portal.pages_opened == 1
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+@pytest.mark.parametrize(
+    ("described", "shown"),
+    [
+        ("Press <Control><Alt>n", "Ctrl+Alt+N"),
+        ("<Super><Shift>F7", "Super+Shift+F7"),
+        ("Ctrl+Alt+N", "Ctrl+Alt+N"),  # already readable: as it is
+        ("", ""),
+        ("Press <Hyper>q", "Press <Hyper>q"),  # not known: as the desktop wrote it
+    ],
+)
+def test_the_desktops_description_is_written_as_stickle_writes_keys(
+    described: str, shown: str
+) -> None:
+    assert readable_keys(described) == shown
