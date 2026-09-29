@@ -25,7 +25,7 @@ from stickle.app.instance_server import InstanceServer
 from stickle.app.notes import NoteManager
 from stickle.app.perf import SAMPLE_NOTE, PerfMode, open_storage_like_startup
 from stickle.app.recovery_offer import RecoveryOffer
-from stickle.app.shortcuts import GlobalShortcuts
+from stickle.app.shortcuts import GlobalShortcuts, no_portal
 from stickle.app.signals import SignalWatcher
 from stickle.app.startup import open_notes
 from stickle.app.stickle_window import RecoveryKeys, StickleWindow
@@ -35,7 +35,7 @@ from stickle.data.notes import NoteRepository
 from stickle.data.settings import RECOVERY_KEY_KEPT, Settings
 from stickle.data.startup import StartupSettings
 from stickle.platform.autostart import Autostart
-from stickle.platform.hotkeys import desktop_portal
+from stickle.platform.hotkeys import Portal, desktop_portal
 from stickle.platform.instance import NEW_NOTE, SET_ASIDE
 from stickle.platform.linux.appimage import (
     AppMenuEntry,
@@ -204,6 +204,29 @@ def app_list_entry() -> AppMenuEntry | None:
     return entry
 
 
+def on_this_computer(
+    measuring: bool, portable: bool
+) -> tuple[Autostart | None, AppMenuEntry | None, Callable[[], Portal | None]]:
+    """What Stickle keeps on the computer itself: starting at login, its entry
+    in the application list (with the launcher it leads to) and, under Wayland,
+    shortcuts kept in the desktop's settings.
+
+    None of it when measuring (the real login items are not to be touched) or
+    for portable notes, which leave nothing behind on the computer they are
+    used on (the program's path would change from computer to computer anyway).
+    """
+    if measuring or portable:
+        return None, None, no_portal
+    point_launcher_here()
+    autostart = Autostart()
+    try:
+        if autostart.refresh():
+            log.info("start at login was brought up to date")
+    except OSError as error:
+        log.warning("could not update start at login: %s", type(error).__name__)
+    return autostart, app_list_entry(), lambda: desktop_portal(APP_ID)
+
+
 def open_at_start(
     manager: NoteManager, window: StickleWindow, tray_available: bool, at_login: bool = False
 ) -> None:
@@ -239,6 +262,7 @@ def run(
     instance: Path | None = None,
     at_login: bool = False,
     request: bytes | None = None,
+    portable: bool = False,
 ) -> int:
     """Run the app. In measurement mode, open perf.notes notes and print READY.
 
@@ -252,6 +276,8 @@ def run(
     process holds), a second start of Stickle brings up the Stickle window, or
     does what its command line asked. request: what this start's own command
     line asked (see stickle.platform.instance), done once the notes are up.
+    portable: the notes are in a stickle-data folder next to the program
+    (instance), carried from computer to computer; nothing is left on this one.
     """
     timings: list[str] = []
 
@@ -335,26 +361,13 @@ def run(
         sleep_watch = watch_sleep(before_sleep)
         log.info("sleep %s", "watched" if sleep_watch is not None else "not watched")
         tray_available = QSystemTrayIcon.isSystemTrayAvailable()
-        # Measuring must not touch the real login items.
-        if perf is None:
-            point_launcher_here()
-        autostart = Autostart() if perf is None else None
-        if autostart is not None:
-            try:
-                if autostart.refresh():
-                    log.info("start at login was brought up to date")
-            except OSError as error:
-                log.warning("could not update start at login: %s", type(error).__name__)
-        app_list = app_list_entry() if perf is None else None
+        autostart, app_list, make_portal = on_this_computer(perf is not None, portable)
         tray = Tray(manager.new_note, app.quit, translations, manager, autostart, app_list)
         tray.show()
         recovery = recovery_keys(unlock, Settings(connection) if connection else None)
         # Measuring must not take the user's shortcuts from their own Stickle.
         shortcuts = (
-            GlobalShortcuts(
-                Settings(connection) if connection else None,
-                make_portal=lambda: desktop_portal(APP_ID),
-            )
+            GlobalShortcuts(Settings(connection) if connection else None, make_portal=make_portal)
             if perf is None
             else None
         )
@@ -367,6 +380,7 @@ def run(
             recovery,
             Settings(connection) if connection else None,
             shortcuts=shortcuts,
+            portable_folder=instance if portable else None,
         )
         connect_stickle_window(stickle_window, manager, tray if tray_available else None, app.quit)
 

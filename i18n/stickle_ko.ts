@@ -503,6 +503,19 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     </message>
 </context>
 <context>
+    <name>Portable</name>
+    <message>
+        <source>Stickle cannot save notes in the folder next to it:
+%1
+
+It may be on a stick that is locked or read-only, or in a folder only an administrator can change. Move Stickle and its stickle-data folder somewhere you can save, then start it again.</source>
+        <translation>Stickle 옆 폴더에 메모를 저장할 수 없습니다:
+%1
+
+잠겨 있거나 읽기 전용인 USB에 있거나, 관리자만 바꿀 수 있는 폴더에 있을 수 있습니다. Stickle과 stickle-data 폴더를 저장할 수 있는 곳으로 옮긴 뒤 다시 실행하세요.</translation>
+    </message>
+</context>
+<context>
     <name>RecoveryDialog</name>
     <message>
         <source>Your notes have not been changed.</source>
@@ -816,6 +829,10 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>New note from clipboard</source>
         <translation>클립보드로 새 메모</translation>
+    </message>
+    <message>
+        <source>Portable: the notes are in %1, opened with their password.</source>
+        <translation>포터블 모드: 메모는 %1에 있고, 메모 암호로 엽니다.</translation>
     </message>
     <message>
         <source>All notes are out of sight for now. They come back as they were.</source>

@@ -1,9 +1,52 @@
-"""Where the app keeps its data on each operating system."""
+"""Where the app keeps its data on each operating system.
+
+Portable: a folder named stickle-data next to the program (stickle.exe, or
+the AppImage file) holds everything instead, so Stickle can be carried on a
+USB stick. Making that folder is how it is asked for.
+"""
 
 import os
 import sys
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+
+PORTABLE_FOLDER = "stickle-data"
+
+
+@dataclass(frozen=True)
+class DataPlace:
+    folder: Path
+    portable: bool = False  # next to the program, carried from computer to computer
+
+
+def program_folder(env: Mapping[str, str] | None = None) -> Path | None:
+    """The folder the program was started from; None when run from source."""
+    env = os.environ if env is None else env
+    if appimage := env.get("APPIMAGE"):
+        # The AppImage file's own folder, not the one its files are served from.
+        return Path(appimage).parent
+    if "__compiled__" in globals():  # a Nuitka build: argv[0] is the program
+        return Path(sys.argv[0]).resolve().parent
+    return None
+
+
+def data_place(
+    env: Mapping[str, str] | None = None,
+    platform: str = sys.platform,
+    home: Path | None = None,
+    program: Path | None = None,
+) -> DataPlace:
+    """Where the notes are: STICKLE_DATA_DIR (tests, development), else a
+    stickle-data folder next to the program (portable), else the usual place.
+    program: the program's folder (by default, found as program_folder does)."""
+    env = os.environ if env is None else env
+    if override := env.get("STICKLE_DATA_DIR"):
+        return DataPlace(Path(override))
+    program = program_folder(env) if program is None else program
+    if program is not None and (program / PORTABLE_FOLDER).is_dir():
+        return DataPlace(program / PORTABLE_FOLDER, portable=True)
+    return DataPlace(data_dir(env, platform, home))
 
 
 def data_dir(
@@ -11,10 +54,7 @@ def data_dir(
     platform: str = sys.platform,
     home: Path | None = None,
 ) -> Path:
-    """The per-user data folder (not created here).
-
-    STICKLE_DATA_DIR replaces it, for tests and development.
-    """
+    """The per-user data folder (not created here). STICKLE_DATA_DIR replaces it."""
     env = os.environ if env is None else env
     if override := env.get("STICKLE_DATA_DIR"):
         return Path(override)
@@ -42,5 +82,19 @@ def ensure_private_dir(path: Path) -> list[str]:
 
         readers = other_readers(path)
         return [f"other accounts can read the data folder: {', '.join(readers)}"] if readers else []
-    path.chmod(0o700)
+    try:
+        path.chmod(0o700)
+    except OSError as error:  # a USB stick's FAT file system has no such permissions
+        return [f"the data folder's permissions cannot be set: {type(error).__name__}"]
     return []
+
+
+def writable(folder: Path) -> bool:
+    """Whether files can be made in folder (a read-only stick, a protected folder)."""
+    probe = folder / ".stickle-write-test"
+    try:
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError:
+        return False
+    return True

@@ -62,7 +62,9 @@ def unnamed(top: QWidget) -> list[str]:
     named_by_label = {id(label.buddy()) for label in top.findChildren(QLabel) if label.buddy()}
     missing: list[str] = []
     for widget in [top, *top.findChildren(QWidget)]:
-        if widget.focusPolicy() == Qt.FocusPolicy.NoFocus or part_of_another(widget, top):
+        # Reached by Tab; a label whose text can be selected by mouse only is not.
+        reached = widget.focusPolicy() & Qt.FocusPolicy.TabFocus
+        if not reached or part_of_another(widget, top):
             continue
         # A button, a checkbox or a label (text that can be selected) says its own text.
         text = widget.text() if isinstance(widget, QAbstractButton | QLabel) else ""
@@ -107,8 +109,10 @@ def test_the_stickle_window_names_all_it_offers(
         manager, Translations(), lambda: None, settings=Settings(connection), shortcuts=shortcuts
     )
 
-    assert unnamed(window) == []
-    close(window)
+    try:
+        assert unnamed(window) == []
+    finally:  # left open, a later language switch would reach it after its database closed
+        close(window)
 
 
 def test_the_dialogs_name_all_they_offer(qtbot: QtBot, tmp_path: Path) -> None:
@@ -231,8 +235,10 @@ def test_tab_goes_round_the_stickle_window_as_it_reads(
     )
     window.show_notice(True)  # the notice's two buttons, at the top
 
-    assert_tab_follows_the_screen(qtbot, window)
-    close(window)
+    try:
+        assert_tab_follows_the_screen(qtbot, window)
+    finally:
+        close(window)
 
 
 def test_tab_goes_round_the_dialogs_as_they_read(qtbot: QtBot, tmp_path: Path) -> None:

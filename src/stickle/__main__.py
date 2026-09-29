@@ -52,10 +52,16 @@ def main(argv: list[str] | None = None) -> int:
     import logging
 
     from stickle.logs import setup_logging
-    from stickle.platform.paths import data_dir, ensure_private_dir
+    from stickle.platform.paths import data_place, ensure_private_dir, writable
     from stickle.unlock import Unlock
 
-    folder = data_dir()
+    place = data_place()
+    folder = place.folder
+    if place.portable and not writable(folder):
+        # Never elsewhere instead: the notes would be split, and thought safe on the stick.
+        from stickle.app.portable import tell_not_writable
+
+        return tell_not_writable(args, folder)
     warnings = ensure_private_dir(folder)
     from stickle.platform.instance import NEW_NOTE, SET_ASIDE, SHOW, InstanceLock, ask
 
@@ -72,11 +78,11 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     setup_logging(folder / "logs", data=folder)
     log = logging.getLogger("stickle")
-    log.info("Stickle %s starting", __version__)
+    log.info("Stickle %s starting%s", __version__, " (portable)" if place.portable else "")
     for warning in warnings:
         log.warning(warning)
     # Before Qt is loaded below, so that a credential store lookup overlaps it.
-    unlock = Unlock(folder)
+    unlock = Unlock(folder, portable=place.portable)
 
     from stickle.app.application import ended_by_signal, run
     from stickle.data.startup import StartupSettings
@@ -90,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
             instance=folder,
             at_login=options.autostart,
             request=request,
+            portable=place.portable,
         )
     finally:
         lock.release()

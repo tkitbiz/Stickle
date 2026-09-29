@@ -9,10 +9,11 @@ import itertools
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import override
 
 import apsw
-from PySide6.QtCore import QEvent, QRect, QRectF, QTimer, Signal
+from PySide6.QtCore import QEvent, QRect, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QCloseEvent,
     QFont,
@@ -89,6 +90,7 @@ class StickleWindow(QWidget):
         settings: Settings | None = None,
         login_may_be_blocked: bool | None = None,
         shortcuts: GlobalShortcuts | None = None,
+        portable_folder: Path | None = None,
     ) -> None:
         super().__init__()
         self._notes = notes
@@ -158,6 +160,12 @@ class StickleWindow(QWidget):
         self.set_aside_label = QLabel(self)
         self.set_aside_label.setWordWrap(True)
         notes.set_aside_changed.connect(self.refresh_set_aside)
+        # Portable: where the notes are, said for as long as it lasts.
+        self._portable_folder = portable_folder
+        self.portable_label = QLabel(self)
+        self.portable_label.setWordWrap(True)
+        self.portable_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.portable_label.setVisible(portable_folder is not None)
         QGuiApplication.clipboard().dataChanged.connect(self.refresh_clipboard)
 
         self.note_list = NoteList(notes, self)
@@ -190,6 +198,7 @@ class StickleWindow(QWidget):
             layout.addWidget(part)
         self._after_notice = QSpacerItem(0, 0)  # room below the frame, while shown
         layout.addItem(self._after_notice)
+        layout.addWidget(self.portable_label)
         layout.addWidget(self.set_aside_label)
         layout.addLayout(buttons)
         layout.addLayout(more_buttons)
@@ -247,6 +256,12 @@ class StickleWindow(QWidget):
         self.new_note_button.setText(self.tr("New note"))
         self.raise_button.setText(self.tr("Bring all notes to front"))
         self.clipboard_button.setText(self.tr("New note from clipboard"))
+        if self._portable_folder is not None:
+            self.portable_label.setText(
+                self.tr("Portable: the notes are in %1, opened with their password.").replace(
+                    "%1", str(self._portable_folder)
+                )
+            )
         self.set_aside_label.setText(
             self.tr("All notes are out of sight for now. They come back as they were.")
         )

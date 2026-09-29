@@ -3,7 +3,8 @@
 The key is random and lives either in the OS credential store or, where there
 is none, in keys.json wrapped with the user's password. Which one is decided
 from files alone, so the credential store (and its unlock prompt) is never
-touched in password mode.
+touched in password mode. Portable notes (stickle.platform.paths) are always
+in password mode: they go from computer to computer.
 
 A new key is created only while no database exists. With a database present,
 a key that cannot be found or read is reported, never replaced: a new key
@@ -84,10 +85,14 @@ class Unlock:
         folder: Path,
         store: Callable[[], CredentialStore] = CredentialStore,
         strength: tuple[int, int] = (OPSLIMIT, MEMLIMIT),  # lowered in tests
+        portable: bool = False,
     ) -> None:
         self.folder = folder
         self._store = store
         self._strength = strength
+        # Carried from computer to computer: always a password, and the
+        # credential store of the computer it is on is never read or written.
+        self.portable = portable
         # The key that opened the notes, once they are open (to make a recovery key).
         self.opened_key: bytes | None = None
         # No notes existed when Stickle started: this is its first start here.
@@ -113,7 +118,8 @@ class Unlock:
         except KeyFileError, OSError:
             self._unreadable = True
             return
-        if self._key_file is None or not self._key_file.has_password:
+        has_password = self._key_file is not None and self._key_file.has_password
+        if not has_password and not self.portable:
             self._request = KeyRequest(store=self._store, create=not self._database_existed)
 
     def outcome(self) -> Outcome:
@@ -121,6 +127,10 @@ class Unlock:
             return Blocked("key_file_unreadable")
         if self._key_file is not None and self._key_file.has_password:
             return NeedPassword(create=False)
+        if self.portable:
+            # Notes brought here without a password (copied from a computer
+            # that kept the key itself) open with the recovery key.
+            return Blocked("key_missing") if self._database_existed else NeedPassword(create=True)
         assert self._request is not None
         try:
             return Unlocked(self._request.key(), "credential store")
@@ -176,12 +186,14 @@ class Unlock:
     def recovered_key_needs_password(self) -> bool:
         """Whether a key opened with the recovery key needs a new password to be kept:
         in password mode (the password was forgotten) or with keys.json damaged."""
-        if self._unreadable:
+        if self._unreadable or self.portable:
             return True
         return self._key_file is not None and self._key_file.has_password
 
     def keep_recovered_key(self, key: bytes) -> None:
         """Put the key back in the credential store (or CredentialStoreUnavailableError)."""
+        if self.portable:
+            raise CredentialStoreUnavailableError("portable notes keep no key on this computer")
         store = self._store()
         store.write(DATABASE_KEY, key)
         if store.read(DATABASE_KEY) != key:
