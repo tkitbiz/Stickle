@@ -25,6 +25,7 @@ from stickle.app.instance_server import InstanceServer
 from stickle.app.notes import NoteManager
 from stickle.app.perf import SAMPLE_NOTE, PerfMode, open_storage_like_startup
 from stickle.app.recovery_offer import RecoveryOffer
+from stickle.app.shortcuts import GlobalShortcuts
 from stickle.app.signals import SignalWatcher
 from stickle.app.startup import open_notes
 from stickle.app.stickle_window import RecoveryKeys, StickleWindow
@@ -347,6 +348,10 @@ def run(
         tray = Tray(manager.new_note, app.quit, translations, manager, autostart, app_list)
         tray.show()
         recovery = recovery_keys(unlock, Settings(connection) if connection else None)
+        # Measuring must not take the user's shortcuts from their own Stickle.
+        shortcuts = (
+            GlobalShortcuts(Settings(connection) if connection else None) if perf is None else None
+        )
         stickle_window = StickleWindow(
             manager,
             translations,
@@ -355,11 +360,15 @@ def run(
             app_list,
             recovery,
             Settings(connection) if connection else None,
+            shortcuts=shortcuts,
         )
         connect_stickle_window(stickle_window, manager, tray if tray_available else None, app.quit)
 
         def answer(asked: bytes) -> None:
             answer_request(asked, manager, stickle_window)
+
+        if shortcuts is not None:
+            shortcuts.pressed.connect(answer)
 
         if perf is not None:
             for _ in range(max(1, perf.notes)):

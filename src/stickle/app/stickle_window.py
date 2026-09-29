@@ -41,6 +41,8 @@ from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.note_list import NoteList
 from stickle.app.notes import NoteManager, clipboard_text
 from stickle.app.recovery_key_dialog import RecoveryKeyDialog
+from stickle.app.shortcut_rows import ShortcutRows
+from stickle.app.shortcuts import GlobalShortcuts
 from stickle.app.sizing import grow_to_fit
 from stickle.app.tray import switch_autostart
 from stickle.app.window_flags import keep_stays_on_top, set_stays_on_top, stays_on_top
@@ -50,7 +52,7 @@ from stickle.platform.autostart import Autostart, may_be_blocked
 from stickle.platform.linux.appimage import AppMenuEntry
 from stickle.platform.linux.x11 import activate
 
-DEFAULT_SIZE = (460, 620)
+DEFAULT_SIZE = (460, 700)
 NOTICE_PADDING = 10  # inside the notice's frame
 NOTICE_BORDER = 2
 log = logging.getLogger(__name__)
@@ -85,6 +87,7 @@ class StickleWindow(QWidget):
         recovery: RecoveryKeys | None = None,
         settings: Settings | None = None,
         login_may_be_blocked: bool | None = None,
+        shortcuts: GlobalShortcuts | None = None,
     ) -> None:
         super().__init__()
         self._notes = notes
@@ -170,6 +173,7 @@ class StickleWindow(QWidget):
         self.language_box.activated.connect(self._choose_language)
         self.quit_button = QPushButton(self)
         self.quit_button.clicked.connect(on_quit)
+        self.shortcut_rows = ShortcutRows(shortcuts, self) if shortcuts is not None else None
 
         buttons = QHBoxLayout()
         buttons.addWidget(self.new_note_button)
@@ -196,6 +200,8 @@ class StickleWindow(QWidget):
         layout.addWidget(self.login_note)
         layout.addWidget(self.app_list_box)
         layout.addWidget(self.recovery_button)
+        if self.shortcut_rows is not None:
+            layout.addWidget(self.shortcut_rows)
         layout.addWidget(self.quit_button)
 
         notes.changed.connect(self.refresh)

@@ -64,6 +64,19 @@ def _size_or_none(value: object) -> TypeGuard[list[int] | None]:
     )
 
 
+SHORTCUT_ACTIONS = ("new-note", "show", "hide-all")
+
+
+def _shortcuts(value: object) -> TypeGuard[dict[str, str]]:
+    """Action: its key combination as Qt writes it ("Ctrl+Alt+N"), "" for none."""
+    if not isinstance(value, dict):
+        return False
+    items = cast(dict[object, object], value).items()
+    return all(
+        key in SHORTCUT_ACTIONS and isinstance(text, str) and len(text) <= 40 for key, text in items
+    )
+
+
 def _uuid_or_none(value: object) -> TypeGuard[str | None]:
     if value is None:
         return True
@@ -87,6 +100,8 @@ RECOVERY_KEY_KEPT = Setting[bool]("recovery_key_kept", "device", False, _flag)
 RECOVERY_KEY_OFFERED_AGAIN = Setting[bool]("recovery_key_offered_again", "device", False, _flag)
 # The Stickle window's size as the user left it (screens differ between devices).
 LIST_WINDOW_SIZE = Setting[list[int] | None]("list_window_size", "device", None, _size_or_none)
+# Shortcuts the user changed on this computer (keyboards and other apps differ).
+SHORTCUTS = Setting[dict[str, str]]("shortcuts", "device", {}, _shortcuts)
 
 SETTINGS: dict[str, Setting[object]] = {
     s.key: s  # pyright: ignore[reportAssignmentType]
@@ -98,6 +113,7 @@ SETTINGS: dict[str, Setting[object]] = {
         RECOVERY_KEY_KEPT,
         RECOVERY_KEY_OFFERED_AGAIN,
         LIST_WINDOW_SIZE,
+        SHORTCUTS,
     )
 }
 

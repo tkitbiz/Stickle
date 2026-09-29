@@ -661,6 +661,41 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     </message>
 </context>
 <context>
+    <name>ShortcutRows</name>
+    <message>
+        <source>Shortcuts from anywhere</source>
+        <translation>어디서나 쓰는 단축키</translation>
+    </message>
+    <message>
+        <source>Stickle cannot set shortcuts on this desktop. In your keyboard settings, give a shortcut to Stickle started with --new-note, --show or --hide-all.</source>
+        <translation>이 데스크톱에서는 Stickle이 단축키를 직접 등록할 수 없습니다. 키보드 설정에서 Stickle을 --new-note, --show, --hide-all과 함께 실행하도록 단축키를 지정하세요.</translation>
+    </message>
+    <message>
+        <source>New not&amp;e:</source>
+        <translation>새 메모(&amp;E):</translation>
+    </message>
+    <message>
+        <source>Stickle &amp;window:</source>
+        <translation>Stickle 창(&amp;W):</translation>
+    </message>
+    <message>
+        <source>&amp;Hide all notes for now:</source>
+        <translation>모든 메모 잠시 숨기기(&amp;H):</translation>
+    </message>
+    <message>
+        <source>Another app is using %1, so it does not work. Choose another.</source>
+        <translation>다른 앱이 %1을(를) 쓰고 있어 동작하지 않습니다. 다른 조합을 고르세요.</translation>
+    </message>
+    <message>
+        <source>%1 cannot be used: hold Ctrl or Alt with a letter, digit or F1 to F12.</source>
+        <translation>%1은(는) 쓸 수 없습니다. Ctrl이나 Alt와 함께 글자·숫자·F1~F12 중 하나를 누르세요.</translation>
+    </message>
+    <message>
+        <source>Stickle already uses %1 for something else.</source>
+        <translation>%1은(는) Stickle이 이미 다른 동작에 쓰고 있습니다.</translation>
+    </message>
+</context>
+<context>
     <name>StickleWindow</name>
     <message>
         <source>New note</source>
