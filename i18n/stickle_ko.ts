@@ -401,6 +401,14 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>빈 메모</translation>
     </message>
     <message>
+        <source>Folded note: %1</source>
+        <translation>접힌 메모: %1</translation>
+    </message>
+    <message>
+        <source>Enter unfolds it.</source>
+        <translation>Enter를 누르면 펼칩니다.</translation>
+    </message>
+    <message>
         <source>Moving: arrow keys, then Enter (Esc puts it back)</source>
         <translation>옮기는 중: 방향키, 끝나면 Enter (Esc는 되돌리기)</translation>
     </message>

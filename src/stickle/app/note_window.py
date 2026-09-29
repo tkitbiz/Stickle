@@ -777,8 +777,13 @@ class NoteWindow(QWidget):
     def _update_title(self) -> None:
         if not self.collapsed:
             self.title_bar.set_title("")  # only a folded note shows it
+            self.title_bar.setAccessibleName("")
             return
-        self.title_bar.set_title(note_title(self.text) or self.tr("Empty note"))
+        title = note_title(self.text) or self.tr("Empty note")
+        self.title_bar.set_title(title)
+        # Folded, the title bar has the keyboard: it is what a screen reader reads.
+        self.title_bar.setAccessibleName(self.tr("Folded note: %1").replace("%1", title))
+        self.title_bar.setAccessibleDescription(self.tr("Enter unfolds it."))
 
     @override
     def keyPressEvent(self, event: QKeyEvent) -> None:
