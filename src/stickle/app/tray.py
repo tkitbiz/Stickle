@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
 from stickle.app.app_list import switch_app_list
 from stickle.app.i18n import LANGUAGES, Translations
-from stickle.app.notes import HIDDEN_LISTED, NoteManager
+from stickle.app.notes import HIDDEN_LISTED, NoteManager, clipboard_text
 from stickle.core.markdown import note_title
 from stickle.core.note import Note
 from stickle.platform.autostart import Autostart
@@ -79,11 +79,20 @@ class Tray(QSystemTrayIcon):
         self._menu.addSeparator()
         self.new_note_action = self._menu.addAction("")
         self.new_note_action.triggered.connect(on_new_note)
+        self.clipboard_action = self._menu.addAction("")
+        self.clipboard_action.setVisible(notes is not None)
         self.hidden_menu = self._menu.addMenu("")
         self.restore_action = self._menu.addAction("")
         self.restore_action.triggered.connect(self._restore)
         self.raise_action = self._menu.addAction("")
         self.raise_action.triggered.connect(self._raise_all)
+        self.set_aside_action = self._menu.addAction("")
+        self.set_aside_action.setVisible(notes is not None)
+        if notes is not None:
+            self.clipboard_action.triggered.connect(notes.note_from_clipboard)
+            self.set_aside_action.triggered.connect(notes.switch_set_aside)
+            notes.set_aside_changed.connect(self.retranslate)
+        self._menu.aboutToShow.connect(self._refresh_clipboard)
         self._menu.addSeparator()
 
         self.language_menu = self._menu.addMenu("")
@@ -172,6 +181,9 @@ class Tray(QSystemTrayIcon):
             switch_autostart(self._autostart, on)
         self.refresh_switches()
 
+    def _refresh_clipboard(self) -> None:
+        self.clipboard_action.setEnabled(bool(clipboard_text()))
+
     def _raise_all(self) -> None:
         if self._notes:
             self._notes.raise_all()
@@ -181,6 +193,11 @@ class Tray(QSystemTrayIcon):
         self.new_note_action.setText(self.tr("New note"))
         self.hidden_menu.setTitle(self.tr("Hidden notes"))
         self.raise_action.setText(self.tr("Bring all notes to front"))
+        self.clipboard_action.setText(self.tr("New note from clipboard"))
+        if self._notes is not None and self._notes.set_aside:
+            self.set_aside_action.setText(self.tr("Show the notes again"))
+        else:
+            self.set_aside_action.setText(self.tr("Hide all notes for now"))
         self.refresh_notes()
         self.language_menu.setTitle(self.tr("Language"))
         self.language_actions[None].setText(self.tr("System language"))

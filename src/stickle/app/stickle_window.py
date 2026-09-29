@@ -39,7 +39,7 @@ from stickle.app.app_list import switch_app_list
 from stickle.app.first_run import LoginNote
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.note_list import NoteList
-from stickle.app.notes import NoteManager
+from stickle.app.notes import NoteManager, clipboard_text
 from stickle.app.recovery_key_dialog import RecoveryKeyDialog
 from stickle.app.sizing import grow_to_fit
 from stickle.app.tray import switch_autostart
@@ -146,6 +146,15 @@ class StickleWindow(QWidget):
         self.new_note_button.clicked.connect(notes.new_note)
         self.raise_button = QPushButton(self)
         self.raise_button.clicked.connect(notes.raise_all)
+        self.clipboard_button = QPushButton(self)
+        self.clipboard_button.clicked.connect(notes.note_from_clipboard)
+        self.set_aside_button = QPushButton(self)
+        self.set_aside_button.clicked.connect(notes.switch_set_aside)
+        # Said for as long as it holds, where the way back is (no pop-up).
+        self.set_aside_label = QLabel(self)
+        self.set_aside_label.setWordWrap(True)
+        notes.set_aside_changed.connect(self.refresh_set_aside)
+        QGuiApplication.clipboard().dataChanged.connect(self.refresh_clipboard)
 
         self.note_list = NoteList(notes, self)
         self.show_all_button = QPushButton(self)
@@ -165,6 +174,9 @@ class StickleWindow(QWidget):
         buttons = QHBoxLayout()
         buttons.addWidget(self.new_note_button)
         buttons.addWidget(self.raise_button)
+        more_buttons = QHBoxLayout()
+        more_buttons.addWidget(self.clipboard_button)
+        more_buttons.addWidget(self.set_aside_button)
         language = QHBoxLayout()
         language.addWidget(self.language_label)
         language.addWidget(self.language_box, 1)
@@ -173,7 +185,9 @@ class StickleWindow(QWidget):
             layout.addWidget(part)
         self._after_notice = QSpacerItem(0, 0)  # room below the frame, while shown
         layout.addItem(self._after_notice)
+        layout.addWidget(self.set_aside_label)
         layout.addLayout(buttons)
+        layout.addLayout(more_buttons)
         layout.addWidget(self.note_list, 1)
         layout.addWidget(self.show_all_button)
         layout.addWidget(self.restore_button)
@@ -201,6 +215,11 @@ class StickleWindow(QWidget):
         self.notice_quit_button.setText(self.tr("Quit Stickle"))
         self.new_note_button.setText(self.tr("New note"))
         self.raise_button.setText(self.tr("Bring all notes to front"))
+        self.clipboard_button.setText(self.tr("New note from clipboard"))
+        self.set_aside_label.setText(
+            self.tr("All notes are out of sight for now. They come back as they were.")
+        )
+        self.refresh_set_aside()
         self.note_list.retranslate()
         self.show_all_button.setText(self.tr("Show all hidden notes"))
         self.language_label.setText(self.tr("&Language"))
@@ -236,6 +255,18 @@ class StickleWindow(QWidget):
             max(0, self.language_box.findData(self._translations.language))
         )
         self.refresh_switches()
+        self.refresh_clipboard()
+
+    def refresh_set_aside(self) -> None:
+        aside = self._notes.set_aside
+        self.set_aside_label.setVisible(aside)
+        if aside:
+            self.set_aside_button.setText(self.tr("Show the notes again"))
+        else:
+            self.set_aside_button.setText(self.tr("Hide all notes for now"))
+
+    def refresh_clipboard(self) -> None:
+        self.clipboard_button.setEnabled(bool(clipboard_text()))
 
     def refresh_switches(self) -> None:
         """Show what the files say: they may have changed outside Stickle, or elsewhere in it."""
@@ -340,6 +371,8 @@ class StickleWindow(QWidget):
     def event(self, event: QEvent) -> bool:
         if event.type() == QEvent.Type.WindowActivate:
             self.refresh_switches()  # as the tray does each time its menu opens
+            # Some desktops tell only the application in front that the clipboard changed.
+            self.refresh_clipboard()
         # Not on activation: that can be reported before the window is in front.
         if (
             event.type() == QEvent.Type.WindowDeactivate or event.type() == QEvent.Type.Hide

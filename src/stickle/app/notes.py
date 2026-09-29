@@ -10,7 +10,8 @@ method to commit it first. If saving fails, the text stays in the window, a
 mark in its title bar says so, and saving is tried again. Hiding keeps the note for later;
 hiding a note whose text was all erased deletes it instead (it can still be
 restored), so the hidden list never fills up with empty notes. Deleting only
-marks the note.
+marks the note. Setting every note aside only takes the windows out of sight
+for a while: nothing stored changes.
 
 Where each note is, and its size, is kept once moving or resizing stops, and
 before it is hidden or the app quits (see stickle.core.layout); a stored note
@@ -49,6 +50,15 @@ RETRY_FIRST_MS = 1000
 RETRY_MAX_MS = 30_000
 
 log = logging.getLogger(__name__)
+
+
+def clipboard_text() -> str:
+    """The clipboard's plain text, as a note can hold it; empty if it holds none.
+
+    NUL cannot be stored in a note (see the schema), so it is left out.
+    """
+    text = QGuiApplication.clipboard().text().replace("\x00", "")
+    return text if text.strip() else ""
 
 
 def _single_shot(parent: QObject, interval: int, action: Callable[[], object]) -> QTimer:
@@ -104,6 +114,8 @@ class NoteManager(QObject):
     note_created = Signal()
     # A note's text was stored: lists showing titles may want to refresh.
     note_saved = Signal()
+    # Every note was put out of sight for a while, or brought back.
+    set_aside_changed = Signal()
 
     def __init__(
         self,
@@ -123,6 +135,7 @@ class NoteManager(QObject):
         self._max_ms = max_ms
         self._windows: list[NoteWindow] = []
         self._autosaves: dict[NoteWindow, AutoSave] = {}
+        self._set_aside: list[NoteWindow] = []
         self._created = 0
         self._quitting = False
 
@@ -172,6 +185,34 @@ class NoteManager(QObject):
     def new_note(self) -> NoteWindow:
         """A new note in the colour last chosen (from the tray or the Stickle window)."""
         return self._open(None)
+
+    def quick_note(self) -> NoteWindow:
+        """A note to type in at once (the new note shortcut), in front with the keyboard.
+
+        A new note still untouched is used again rather than another one made, so
+        pressing the shortcut again does not pile up empty notes.
+        """
+        window = (
+            next(
+                (w for w in reversed(self._windows) if w.note_id is None and not w.text),
+                None,
+            )
+            or self.new_note()
+        )
+        self._take_back(window)
+        window.edit()
+        window.bring_to_front()
+        return window
+
+    def note_from_clipboard(self) -> NoteWindow | None:
+        """A new note holding the clipboard's text, stored at once; None if there is none."""
+        text = clipboard_text()
+        if not text:
+            return None
+        window = self._open(None, text)
+        self.save(window)
+        window.bring_to_front()
+        return window
 
     def new_note_from(self, window: NoteWindow) -> NoteWindow:
         """A new note asked for from a note (Ctrl+N): in that note's colour."""
@@ -231,6 +272,7 @@ class NoteManager(QObject):
     def _forget(self, window: NoteWindow) -> None:
         self._windows.remove(window)
         self._autosaves.pop(window).stop()
+        self._take_back(window)
         if not self._windows and not self._quitting:
             self.last_note_closed.emit()
 
@@ -352,11 +394,57 @@ class NoteManager(QObject):
 
     def raise_all(self) -> None:
         """Bring every open note in front of other windows (notes not on top get covered)."""
+        self.bring_back()
         for window in self._windows:
             window.show()
             window.raise_()
         if self._windows:
             self._windows[-1].activateWindow()
+
+    # Every note out of sight for a while (a screen shared, a presentation)
+
+    @property
+    def set_aside(self) -> bool:
+        return bool(self._set_aside)
+
+    def set_all_aside(self) -> None:
+        """Take every note on screen out of sight, saved first. Nothing stored
+        changes: they are not hidden notes, and the next start shows them."""
+        shown = [window for window in self._windows if window.isVisible()]
+        if not shown:
+            return
+        for window in shown:
+            # A note that could not be saved keeps its text in the window, which
+            # goes on trying; out of sight is not closed.
+            self.flush(window, closing=True)
+            window.hide()
+        self._set_aside.extend(shown)
+        log.info("notes set aside: %d", len(shown))
+        self.set_aside_changed.emit()
+
+    def bring_back(self) -> None:
+        """Show again the notes set aside, where they were."""
+        windows, self._set_aside = self._set_aside, []
+        if not windows:
+            return
+        for window in windows:
+            window.show()
+        log.info("notes brought back: %d", len(windows))
+        self.set_aside_changed.emit()
+
+    def _take_back(self, window: NoteWindow) -> None:
+        """One note is no longer set aside (shown on its own, or closed)."""
+        if window in self._set_aside:
+            self._set_aside.remove(window)
+            if not self._set_aside:
+                self.set_aside_changed.emit()
+
+    def switch_set_aside(self) -> None:
+        """The shortcut's way: set every note aside, or bring them back if they are."""
+        if self._set_aside:
+            self.bring_back()
+        else:
+            self.set_all_aside()
 
     # Folding
 
@@ -499,6 +587,7 @@ class NoteManager(QObject):
             window = self.window_for(note_id)
             if window is None:
                 return
+        self._take_back(window)  # asked for by name: only this one comes back
         window.bring_to_front()
 
     def hide_note(self, note_id: str) -> None:

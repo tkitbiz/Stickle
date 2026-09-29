@@ -17,6 +17,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--screens", action="store_true", help=argparse.SUPPRESS)
     # Started at login (see stickle.platform.autostart): no window of its own at start.
     parser.add_argument("--autostart", action="store_true", help=argparse.SUPPRESS)
+    # For a keyboard shortcut set in the desktop's own settings. Sent to Stickle
+    # if it runs already; otherwise it starts, then does it.
+    requests = parser.add_mutually_exclusive_group()
+    requests.add_argument("--new-note", action="store_true", help="open a new note to type in")
+    requests.add_argument("--show", action="store_true", help="open the Stickle window")
+    requests.add_argument(
+        "--hide-all", action="store_true", help="hide all notes for now, or show them again"
+    )
     # Unknown options are left for Qt (for example -platform).
     options, _ = parser.parse_known_args(args[1:])
     if options.self_test:
@@ -49,12 +57,14 @@ def main(argv: list[str] | None = None) -> int:
 
     folder = data_dir()
     warnings = ensure_private_dir(folder)
-    from stickle.platform.instance import InstanceLock, ask_to_show
+    from stickle.platform.instance import NEW_NOTE, SET_ASIDE, SHOW, InstanceLock, ask
 
+    chosen = ((options.new_note, NEW_NOTE), (options.show, SHOW), (options.hide_all, SET_ASIDE))
+    request = next((asked for on, asked in chosen if on), None)
     # Before anything else touches the data folder: one Stickle per user and folder.
     lock = InstanceLock(folder)
     if not lock.acquire():
-        if ask_to_show(folder):
+        if ask(folder, request or SHOW):
             return 0
         # Nobody answered: the holder has gone (Windows lets go of a crashed
         # process's lock a moment later), so this one starts instead.
@@ -79,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
             startup=StartupSettings(folder),
             instance=folder,
             at_login=options.autostart,
+            request=request,
         )
     finally:
         lock.release()

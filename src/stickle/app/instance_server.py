@@ -1,4 +1,4 @@
-"""Where a second start of Stickle asks the running one to show itself."""
+"""Where a second start of Stickle asks the running one for something."""
 
 import logging
 from pathlib import Path
@@ -6,20 +6,22 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
-from stickle.platform.instance import SHOW, server_name
+from stickle.platform.instance import REQUESTS, server_name
 
 log = logging.getLogger(__name__)
-MAX_MESSAGE = 64  # "show\n": anything longer is not from Stickle
+MAX_MESSAGE = 64  # "new-note\n" and the like: anything longer is not from Stickle
 
 
 class InstanceServer(QObject):
     """Listens while this process holds the instance lock (stickle.platform.instance)."""
 
-    show_requested = Signal()
+    asked = Signal(bytes)  # one of stickle.platform.instance.REQUESTS
 
     def __init__(self, folder: Path, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self.requested = False  # asked before anyone was listening to show_requested
+        # Every request, in order: those that came while Stickle was still
+        # starting, before anyone listened to asked, are read from here.
+        self.received: list[bytes] = []
         self._server = QLocalServer(self)
         self._server.setSocketOptions(QLocalServer.SocketOption.UserAccessOption)
         name = server_name(folder)
@@ -52,6 +54,6 @@ class InstanceServer(QObject):
             return
         line = connection.readLine(MAX_MESSAGE).data()
         connection.disconnectFromServer()
-        if line == SHOW:
-            self.requested = True
-            self.show_requested.emit()
+        if line in REQUESTS:
+            self.received.append(line)
+            self.asked.emit(line)

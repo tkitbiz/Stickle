@@ -34,6 +34,7 @@ from stickle.data.notes import NoteRepository
 from stickle.data.settings import RECOVERY_KEY_KEPT, Settings
 from stickle.data.startup import StartupSettings
 from stickle.platform.autostart import Autostart
+from stickle.platform.instance import NEW_NOTE, SET_ASIDE
 from stickle.platform.linux.appimage import (
     AppMenuEntry,
     mounted_appdir,
@@ -100,7 +101,8 @@ def connect_stickle_window(
 
     With a tray, the app stays in it when every note is hidden, and clicking
     the tray icon opens the window. Without one there would be no way back,
-    so the window opens saying all notes are hidden, and closing it quits.
+    so the window opens saying all notes are hidden, and closing it quits;
+    closing it while the notes are set aside brings them back.
     """
     if tray is not None:
 
@@ -118,7 +120,10 @@ def connect_stickle_window(
     manager.last_note_closed.connect(lambda: window.open(notice=True))
 
     def window_closed() -> None:
-        if not manager.windows:
+        if manager.set_aside:
+            # Without a tray, nothing else on screen would lead back to them.
+            manager.bring_back()
+        elif not manager.windows:
             quit_app()
 
     window.closed.connect(window_closed)
@@ -128,6 +133,16 @@ def connect_stickle_window(
             window.show_notice(False)  # a note is back: the notice no longer holds
 
     manager.changed.connect(notes_changed)
+
+
+def answer_request(asked: bytes, manager: NoteManager, window: StickleWindow) -> None:
+    """Do what a command line asked (see stickle.platform.instance)."""
+    if asked == NEW_NOTE:
+        manager.quick_note()
+    elif asked == SET_ASIDE:
+        manager.switch_set_aside()
+    else:
+        window.open()
 
 
 def recovery_keys(unlock: Unlock | None, settings: Settings | None) -> RecoveryKeys | None:
@@ -221,6 +236,7 @@ def run(
     startup: StartupSettings | None = None,
     instance: Path | None = None,
     at_login: bool = False,
+    request: bytes | None = None,
 ) -> int:
     """Run the app. In measurement mode, open perf.notes notes and print READY.
 
@@ -231,7 +247,9 @@ def run(
     With startup, the language chosen before applies from the first window
     on, the password prompt and recovery screen included, and a new choice
     is kept there. With instance (the data folder, whose instance lock this
-    process holds), a second start of Stickle brings up the Stickle window.
+    process holds), a second start of Stickle brings up the Stickle window, or
+    does what its command line asked. request: what this start's own command
+    line asked (see stickle.platform.instance), done once the notes are up.
     """
     timings: list[str] = []
 
@@ -339,8 +357,10 @@ def run(
             Settings(connection) if connection else None,
         )
         connect_stickle_window(stickle_window, manager, tray if tray_available else None, app.quit)
-        if instance_server is not None:
-            instance_server.show_requested.connect(stickle_window.open)
+
+        def answer(asked: bytes) -> None:
+            answer_request(asked, manager, stickle_window)
+
         if perf is not None:
             for _ in range(max(1, perf.notes)):
                 manager.open_unstored(SAMPLE_NOTE)
@@ -359,8 +379,15 @@ def run(
                     translations=translations,
                 )
             open_at_start(manager, stickle_window, tray_available, at_login)
-            if instance_server is not None and instance_server.requested:
-                stickle_window.open()  # started again while this one was still starting
+            if request is not None:
+                answer(request)
+            if instance_server is not None:
+                # Started again while this one was still starting: done now, in
+                # order, then as each comes. Nothing is asked in between, as
+                # requests are only read while the main loop (or a dialog) runs.
+                for asked in instance_server.received:
+                    answer(asked)
+                instance_server.asked.connect(answer)
             # At first start the welcome asked already.
             if app_list is not None and connection is not None and not (at_login or first_start):
                 entry, settings = app_list, Settings(connection)

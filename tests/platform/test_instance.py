@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from stickle.platform.instance import InstanceLock, ask_to_show, server_name
+from stickle.platform.instance import InstanceLock, ask, server_name
 
 HOLD_LOCK = """
 import sys
@@ -65,7 +65,7 @@ def test_released_lock_can_be_taken_again(tmp_path: Path) -> None:
 def test_nobody_to_ask_gives_up_after_the_timeout(tmp_path: Path) -> None:
     started = time.monotonic()
 
-    assert not ask_to_show(tmp_path, timeout=0.3)
+    assert not ask(tmp_path, timeout=0.3)
     assert time.monotonic() - started < 3
 
 

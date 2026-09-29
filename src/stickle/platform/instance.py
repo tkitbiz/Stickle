@@ -4,7 +4,8 @@ The running app holds a lock on a file in the data folder; the operating
 system lets go of it when the process ends, however it ends, so a crash
 never leaves a stale lock. A second start that cannot take the lock asks
 the running app, through a local socket only the same user can reach, to
-show itself, and ends without touching the notes. This side needs only the
+show itself (or for what its command line asked, such as a new note), and
+ends without touching the notes. This side needs only the
 standard library, so it runs before Qt loads.
 """
 
@@ -19,7 +20,11 @@ from pathlib import Path
 from typing import IO
 
 LOCK_FILE = "instance.lock"
-SHOW = b"show\n"
+# What a second start can ask of the running Stickle (see stickle.__main__).
+SHOW = b"show\n"  # the Stickle window
+NEW_NOTE = b"new-note\n"  # a note to type in at once
+SET_ASIDE = b"hide-all\n"  # every note out of sight, or back again
+REQUESTS = (SHOW, NEW_NOTE, SET_ASIDE)
 CONNECT_FOR_S = 5.0  # the running app may itself still be starting
 RETRY_S = 0.1
 
@@ -89,8 +94,9 @@ class InstanceLock:
             self._file = None
 
 
-def ask_to_show(folder: Path, timeout: float = CONNECT_FOR_S) -> bool:
-    """Ask the running Stickle to show itself; False if it could not be reached."""
+def ask(folder: Path, request: bytes = SHOW, timeout: float = CONNECT_FOR_S) -> bool:
+    """Ask the running Stickle for one of REQUESTS (by default, to show itself);
+    False if it could not be reached."""
     name = server_name(folder)
     deadline = time.monotonic() + timeout
     if sys.platform == "win32":
@@ -102,12 +108,12 @@ def ask_to_show(folder: Path, timeout: float = CONNECT_FOR_S) -> bool:
         try:
             if sys.platform == "win32":
                 with Path(rf"\\.\pipe\{name}").open("wb", buffering=0) as pipe:
-                    pipe.write(SHOW)
+                    pipe.write(request)
             else:
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                     connection.settimeout(timeout)
                     connection.connect(name)
-                    connection.sendall(SHOW)
+                    connection.sendall(request)
             return True
         except OSError:
             if time.monotonic() >= deadline:
