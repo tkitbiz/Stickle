@@ -224,7 +224,9 @@ class NoteManager(QObject):
 
     def _open(self, note: Note | None, text: str = "", color: str | None = None) -> NoteWindow:
         if note is not None:
-            window = NoteWindow(note.id, note.body, note.color, note.always_on_top)
+            window = NoteWindow(
+                note.id, note.body, note.color, note.always_on_top, opacity=note.opacity
+            )
         else:
             window = NoteWindow(None, text, color or self._new_note_color())
         window.new_note_requested.connect(lambda: self.new_note_from(window))
@@ -243,6 +245,11 @@ class NoteManager(QObject):
             self.set_always_on_top(window, on_top)
 
         window.on_top_requested.connect(on_top_requested)
+
+        def opacity_requested(opacity: float) -> None:
+            self.set_opacity(window, opacity)
+
+        window.opacity_requested.connect(opacity_requested)
         window.hide_requested.connect(lambda: self.hide(window))
         window.delete_requested.connect(lambda: self.delete(window))
         autosave = AutoSave(lambda: self.save(window), self._idle_ms, self._max_ms, window)
@@ -293,6 +300,8 @@ class NoteManager(QObject):
                         self._repository.set_collapsed(window.note_id, True)
                     if not window.always_on_top:
                         self._repository.set_always_on_top(window.note_id, False)
+                    if window.opacity != 1.0:
+                        self._repository.set_opacity(window.note_id, window.opacity)
             else:
                 self._repository.update_body(window.note_id, text)
         except (apsw.Error, OSError) as error:
@@ -468,6 +477,20 @@ class NoteManager(QObject):
             self._repository.set_collapsed(window.note_id, collapsed)
         except apsw.Error as error:
             log.error("could not store a note being folded: %s", type(error).__name__)
+
+    # See-through while not in use
+
+    def set_opacity(self, window: NoteWindow, opacity: float) -> None:
+        """How see-through the note is while another window is in use. A note not
+        stored yet takes it when first stored; if storing fails it stays as it was."""
+        if self._repository is not None and window.note_id is not None:
+            try:
+                self._repository.set_opacity(window.note_id, opacity)
+            except apsw.Error as error:
+                log.error("could not store a note's opacity: %s", type(error).__name__)
+                window.set_opacity(window.opacity)  # the menu shows what is kept
+                return
+        window.set_opacity(opacity)
 
     # Colour
 

@@ -10,6 +10,7 @@ from PySide6.QtCore import (
     QCoreApplication,
     QEvent,
     QEventLoop,
+    QLocale,
     QObject,
     QPoint,
     QPointF,
@@ -89,6 +90,8 @@ JUST_DROPPED_S = 0.3
 SETTLE_MS = 500
 # Brought forward on X11: raised again this long after, once the keyboard is there.
 RAISE_AGAIN_MS = 150
+# How see-through a note may be while another window is in use (1.0: not at all).
+OPACITIES = (1.0, 0.9, 0.8, 0.7, 0.6)
 
 
 def drawn_icon(
@@ -335,6 +338,7 @@ class NoteWindow(QWidget):
     color_requested = Signal(str)  # a palette key
     collapse_requested = Signal(bool)  # True: fold to the title bar, False: unfold
     on_top_requested = Signal(bool)  # True: stay above other windows
+    opacity_requested = Signal(float)  # one of OPACITIES
     geometry_settled = Signal()  # moved or resized, and then left alone for a moment
 
     def __init__(
@@ -343,6 +347,7 @@ class NoteWindow(QWidget):
         text: str = "",
         color: str = DEFAULT_COLOR,
         always_on_top: bool = True,
+        opacity: float = 1.0,
     ) -> None:
         # A tool window stays out of the taskbar and window switcher. Under X11 an
         # ordinary window is asked to do the same instead (see showEvent): window
@@ -405,6 +410,20 @@ class NoteWindow(QWidget):
             action.triggered.connect(lambda _=False, key=key: self.color_requested.emit(key))
             colors.addAction(action)
             self.color_actions[key] = action
+        # See-through only while another window is in use: read and written, the
+        # note is opaque, so its text keeps its contrast.
+        self.opacity = 1.0
+        self.opacity_menu = self.menu.addMenu("")
+        self.opacity_actions: dict[float, QAction] = {}
+        opacities = QActionGroup(self)
+        for level in OPACITIES:
+            action = self.opacity_menu.addAction("")
+            action.setCheckable(True)
+            action.triggered.connect(
+                lambda _=False, level=level: self.opacity_requested.emit(level)
+            )
+            opacities.addAction(action)
+            self.opacity_actions[level] = action
         self.collapse_action = self.menu.addAction("")
         self.collapse_action.triggered.connect(
             lambda: self.collapse_requested.emit(not self.collapsed)
@@ -465,6 +484,7 @@ class NoteWindow(QWidget):
 
         self.set_color(color)
         self.set_always_on_top(always_on_top)
+        self.set_opacity(opacity)
         self.retranslate()
         if text.strip():
             self.show_formatted()
@@ -491,6 +511,11 @@ class NoteWindow(QWidget):
         self.title_bar.pin_button.setToolTip(on_top)
         self.menu_action.setText(note_menu)
         self.color_menu.setTitle(self.tr("Color"))
+        self.opacity_menu.setTitle(self.tr("Opacity when not in use"))
+        for level, action in self.opacity_actions.items():
+            # Some languages put the sign first.
+            percent = QLocale().toString(round(level * 100))
+            action.setText(self.tr("%1%", "a percentage").replace("%1", percent))
         self.collapse_action.setText(
             self.tr("Expand note") if self.collapsed else self.tr("Collapse note")
         )
@@ -508,7 +533,19 @@ class NoteWindow(QWidget):
     def changeEvent(self, event: QEvent) -> None:
         if event.type() == QEvent.Type.LanguageChange:
             self.retranslate()
+        elif event.type() == QEvent.Type.ActivationChange:
+            self._show_opacity()
         super().changeEvent(event)
+
+    def set_opacity(self, opacity: float) -> None:
+        """How see-through the note is while another window is in use."""
+        self.opacity = min(OPACITIES, key=lambda level: abs(level - opacity))
+        self.opacity_actions[self.opacity].setChecked(True)
+        self._show_opacity()
+
+    def _show_opacity(self) -> None:
+        # Pointing at the note changes nothing: only using it (or another window) does.
+        self.setWindowOpacity(1.0 if self.isActiveWindow() else self.opacity)
 
     def _add_action(self, key: QKeySequence.StandardKey) -> QAction:
         action = QAction(self)

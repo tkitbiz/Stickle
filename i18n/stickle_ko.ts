@@ -340,6 +340,15 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>색</translation>
     </message>
     <message>
+        <source>Opacity when not in use</source>
+        <translation>안 쓸 때 불투명도</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <comment>a percentage</comment>
+        <translation>%1%</translation>
+    </message>
+    <message>
         <source>Expand note</source>
         <translation>메모 펼치기</translation>
     </message>

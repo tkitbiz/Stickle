@@ -149,6 +149,22 @@ class NoteRepository:
             return note
         return self._change(note_id, {"always_on_top": int(on_top)})
 
+    def set_opacity(self, note_id: str, opacity: float) -> Note:
+        """How see-through the note is while another window is in use, 0.1 to 1.0."""
+        if not 0.1 <= opacity <= 1.0:
+            raise ValueError(f"opacity {opacity}")
+        note = self._require_live(note_id)
+        if note.opacity == opacity:
+            return note
+        return self._change(note_id, {"opacity": opacity})
+
+    def set_locked(self, note_id: str, locked: bool) -> Note:
+        """Kept where it is, as it is: moving, resizing and editing are refused."""
+        note = self._require_live(note_id)
+        if note.locked == locked:
+            return note
+        return self._change(note_id, {"locked": int(locked)})
+
     def set_collapsed(self, note_id: str, collapsed: bool) -> Note:
         """Folded to its title bar; its size is kept with its place (note_layouts)."""
         note = self._require_live(note_id)
