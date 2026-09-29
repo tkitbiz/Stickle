@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
-    QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -19,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from stickle.app.file_dialogs import save_file_name
 from stickle.app.sizing import grow_to_fit
 
 # Returns an error to show, or None when the key was accepted.
@@ -172,13 +172,13 @@ class RecoveryKeyPanel(QWidget):
         self.status.setText(self.tr("Copied. Paste it somewhere safe, then clear the clipboard."))
 
     def _save(self) -> None:
-        name, _ = QFileDialog.getSaveFileName(
+        name = save_file_name(
             self,
             self.tr("Save the recovery key"),
-            str(Path.home() / "Stickle recovery key.txt"),
+            Path.home() / "Stickle recovery key.txt",
             self.tr("Text files (*.txt)"),
         )
-        if not name:
+        if name is None:
             return
         text = self.tr("Stickle recovery key: %1").replace("%1", self.recovery_key)
         try:

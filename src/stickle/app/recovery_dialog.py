@@ -17,7 +17,6 @@ from PySide6.QtCore import QEvent, Qt, QUrl, qVersion
 from PySide6.QtGui import QDesktopServices, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QDialog,
-    QFileDialog,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -27,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from stickle import __version__
+from stickle.app.file_dialogs import existing_folder
 from stickle.data.export import ExportResult
 from stickle.data.schema import NotesDiff
 from stickle.logs import redact
@@ -271,13 +271,11 @@ class RecoveryDialog(QDialog):
 
     def _export_notes(self) -> None:
         assert self._export is not None
-        chosen = QFileDialog.getExistingDirectory(
-            self, self.tr("Choose where to put the exported notes")
-        )
-        if not chosen:
+        chosen = existing_folder(self, self.tr("Choose where to put the exported notes"))
+        if chosen is None:
             return
         try:
-            result = self._export(Path(chosen))
+            result = self._export(chosen)
         except Exception as error:
             self._say(
                 self.tr("The notes could not be exported (%1).").replace("%1", type(error).__name__)
