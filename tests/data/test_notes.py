@@ -128,6 +128,20 @@ def test_live_notes_are_shown_and_hidden_ones_latest_change_first(repo: NoteRepo
     assert [n.id for n in repo.live()] == [b.id, a.id, c.id]
 
 
+def test_matching_finds_notes_shown_hidden_or_in_the_trash_but_not_emptied(
+    repo: NoteRepository,
+) -> None:
+    shown = repo.create("회의록을 정리")
+    hidden = repo.set_hidden(repo.create("주간 회의 메모").id, True)
+    trashed = repo.delete(repo.create("지난 회의").id)
+    emptied = repo.delete(repo.create("취소된 회의").id)
+    repo.purge(emptied.id)
+    repo.create("장보기")
+
+    assert repo.matching("회의") == {shown.id, hidden.id, trashed.id}
+    assert repo.matching("장보기 목록") == set()
+
+
 def test_delete_only_marks_and_can_be_undone(repo: NoteRepository, db: apsw.Connection) -> None:
     note = repo.create("회의록을 내일까지")
 

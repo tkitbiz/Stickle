@@ -222,6 +222,14 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>휴지통</translation>
     </message>
     <message>
+        <source>Search notes</source>
+        <translation>메모 검색</translation>
+    </message>
+    <message>
+        <source>The list keeps only notes containing this text. Down goes to the list.</source>
+        <translation>이 글자가 들어간 메모만 목록에 남깁니다. 아래 화살표를 누르면 목록으로 갑니다.</translation>
+    </message>
+    <message>
         <source>Empty the trash…</source>
         <translation>휴지통 비우기…</translation>
     </message>
@@ -244,6 +252,10 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>Enter brings the note back; Delete empties it from the trash for good.</source>
         <translation>Enter로 메모를 되살리고, Delete로 휴지통에서 영구히 지웁니다.</translation>
+    </message>
+    <message>
+        <source>No notes match</source>
+        <translation>찾는 메모가 없습니다</translation>
     </message>
     <message>
         <source>No notes here</source>

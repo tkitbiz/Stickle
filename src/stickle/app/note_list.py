@@ -1,5 +1,5 @@
 """The list of notes in the Stickle window: every note not deleted, shown or
-hidden, and the trash.
+hidden, and the trash, narrowed down by a search as it is typed.
 
 It only reads the notes; opening, hiding, deleting, restoring and emptying go
 through the note manager, as they do from a note's own window. Emptying from
@@ -11,11 +11,12 @@ from collections.abc import Callable
 from typing import override
 
 from PySide6.QtCore import QDateTime, QEvent, QLocale, QObject, QPoint, Qt, QTimer
-from PySide6.QtGui import QAction, QKeyEvent
+from PySide6.QtGui import QAction, QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMenu,
@@ -35,6 +36,8 @@ NOTE_ID = Qt.ItemDataRole.UserRole
 ALL, SHOWN, HIDDEN, TRASH = "all", "shown", "hidden", "trash"
 # A note's text is stored a second after typing stops; the list follows a moment later.
 REFRESH_DELAY_MS = 300
+# Typing on narrows the list once the keys pause, not on every letter.
+SEARCH_DELAY_MS = 150
 
 
 def _ask(parent: QWidget, question: str) -> bool:
@@ -66,6 +69,19 @@ class NoteList(QWidget):
         for key in (ALL, SHOWN, HIDDEN, TRASH):
             self.filter_box.addItem("", key)
         self.filter_box.currentIndexChanged.connect(self.refresh)
+        # Text being composed by an input method is not searched until it is
+        # committed: results would flicker with every jamo of a Korean syllable.
+        self.search_box = QLineEdit(self)
+        self.search_box.setClearButtonEnabled(True)
+        self.search_box.installEventFilter(self)
+        self._search_soon = QTimer(self)
+        self._search_soon.setSingleShot(True)
+        self._search_soon.setInterval(SEARCH_DELAY_MS)
+        self._search_soon.timeout.connect(self.refresh)
+        self.search_box.textChanged.connect(self._search_soon.start)
+        self.find_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
+        self.find_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        self.find_shortcut.activated.connect(self.start_search)
         self.list = QListWidget(self)
         self.label.setBuddy(self.list)
         self.list.itemActivated.connect(self._activate)  # double-click or Enter
@@ -88,6 +104,7 @@ class NoteList(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(top)
+        layout.addWidget(self.search_box)
         layout.addWidget(self.list, 1)
         layout.addWidget(self.empty_button)
         self.retranslate()
@@ -104,6 +121,11 @@ class NoteList(QWidget):
         self.filter_box.setItemText(1, self.tr("Notes on screen"))
         self.filter_box.setItemText(2, self.tr("Hidden notes"))
         self.filter_box.setItemText(3, self.tr("Trash"))
+        self.search_box.setPlaceholderText(self.tr("Search notes"))
+        self.search_box.setAccessibleName(self.tr("Search notes"))
+        self.search_box.setAccessibleDescription(
+            self.tr("The list keeps only notes containing this text. Down goes to the list.")
+        )
         self.empty_button.setText(self.tr("Empty the trash…"))
         self.refresh()
 
@@ -122,20 +144,34 @@ class NoteList(QWidget):
             states.append(self.tr("not on top"))
         return " · ".join([title, *states])
 
+    @property
+    def search_term(self) -> str:
+        return self.search_box.text().strip()
+
+    def start_search(self) -> None:
+        self.search_box.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self.search_box.selectAll()
+
     def refresh(self) -> None:
         """Show the notes as they are stored now, keeping the one selected."""
+        self._search_soon.stop()
         selected = self.selected_id()
         self.list.clear()
         if self.in_trash:
-            notes = self._notes.trash_notes()
+            trash = notes = self._notes.trash_notes()
             self.list.setAccessibleDescription(
                 self.tr("Enter brings the note back; Delete empties it from the trash for good.")
             )
         else:
+            trash: list[Note] = []
             notes = [note for note in self._notes.listed_notes() if self._wanted(note)]
             self.list.setAccessibleDescription(
                 self.tr("Enter opens the note, Delete deletes it; more in the context menu.")
             )
+        term = self.search_term
+        if term:
+            found = self._notes.matching(term)
+            notes = [note for note in notes if note.id in found]
         for note in notes:
             item = QListWidgetItem(self._text(note))
             item.setIcon(swatch_icon(note.color if note.color in PALETTE else DEFAULT_COLOR))
@@ -144,14 +180,19 @@ class NoteList(QWidget):
             if note.id == selected:
                 self.list.setCurrentItem(item)
         if not notes:
-            text = self.tr("The trash is empty") if self.in_trash else self.tr("No notes here")
+            if term:
+                text = self.tr("No notes match")
+            elif self.in_trash:
+                text = self.tr("The trash is empty")
+            else:
+                text = self.tr("No notes here")
             empty = QListWidgetItem(text)
             empty.setFlags(Qt.ItemFlag.NoItemFlags)
             self.list.addItem(empty)
         elif self.list.currentRow() < 0:
             self.list.setCurrentRow(0)
         self.empty_button.setVisible(self.in_trash)
-        self.empty_button.setEnabled(bool(notes))
+        self.empty_button.setEnabled(bool(trash))  # the whole trash, whatever is searched
 
     def selected_id(self) -> str | None:
         row = self.list.currentRow()
@@ -181,14 +222,26 @@ class NoteList(QWidget):
         if confirm(self, question):
             self._notes.empty_trash()
 
+    def _search_key(self, key: int) -> bool:
+        """Down or Enter take the results; Escape clears the search. Whether handled."""
+        if key in (Qt.Key.Key_Down, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if self._search_soon.isActive():
+                self.refresh()  # typed too quickly for the list to have caught up
+            self.list.setFocus(Qt.FocusReason.OtherFocusReason)
+            return True
+        if key == Qt.Key.Key_Escape and self.search_box.text():
+            self.search_box.clear()
+            self.refresh()
+            return True
+        return False
+
     @override
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if (
-            watched is self.list
-            and event.type() == QEvent.Type.KeyPress
-            and isinstance(event, QKeyEvent)
-            and event.key() == Qt.Key.Key_Delete
-        ):
+        if event.type() != QEvent.Type.KeyPress or not isinstance(event, QKeyEvent):
+            return super().eventFilter(watched, event)
+        if watched is self.search_box and self._search_key(event.key()):
+            return True
+        if watched is self.list and event.key() == Qt.Key.Key_Delete:
             note_id = self.selected_id()
             if note_id is not None:
                 self._remove(note_id)

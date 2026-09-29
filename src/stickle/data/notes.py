@@ -12,6 +12,7 @@ import apsw
 
 from stickle.core.clock import Clock, days_before, utc_now
 from stickle.core.note import DEFAULT_COLOR, Note, content_hash
+from stickle.data.search import search
 
 COLUMNS = (
     "id, body, color, hidden, always_on_top, created_at, updated_at, content_hash, deleted_at,"
@@ -235,6 +236,10 @@ class NoteRepository:
     def live(self) -> list[Note]:
         """Every note not deleted, shown or hidden; most recently changed first."""
         return self._list("deleted_at IS NULL", "change_seq DESC")
+
+    def matching(self, term: str) -> set[str]:
+        """Ids of notes whose text contains term, in the trash or not."""
+        return set(search(self._db, term))
 
     def last_deleted(self) -> Note | None:
         notes = self._list("deleted_at IS NOT NULL", "change_seq DESC LIMIT 1")

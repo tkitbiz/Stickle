@@ -484,6 +484,10 @@ class NoteManager(QObject):
         """Every note not deleted, shown or hidden; most recently changed first."""
         return self._repository.live() if self._repository else []
 
+    def matching(self, term: str) -> set[str]:
+        """Ids of stored notes whose text contains term (as last saved)."""
+        return self._repository.matching(term) if self._repository else set()
+
     def window_for(self, note_id: str) -> NoteWindow | None:
         return next((w for w in self._windows if w.note_id == note_id), None)
 

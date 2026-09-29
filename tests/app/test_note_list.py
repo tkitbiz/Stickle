@@ -7,12 +7,13 @@ from pathlib import Path
 import apsw
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
+from PySide6.QtGui import QKeySequence
 from PySide6.QtTest import QTest
 from pytestqt.qtbot import QtBot
 
 from stickle.app import note_list
 from stickle.app.i18n import Translations
-from stickle.app.note_list import ALL, HIDDEN, REFRESH_DELAY_MS, SHOWN, TRASH
+from stickle.app.note_list import ALL, HIDDEN, REFRESH_DELAY_MS, SEARCH_DELAY_MS, SHOWN, TRASH
 from stickle.app.note_window import NoteWindow
 from stickle.app.notes import NoteManager
 from stickle.app.stickle_window import DEFAULT_SIZE, StickleWindow
@@ -331,3 +332,133 @@ def test_the_empty_button_shows_only_in_the_trash(app: App) -> None:
     app.show_only(TRASH)
     assert app.window.note_list.empty_button.isVisible()
     assert not app.window.note_list.empty_button.isEnabled()  # nothing to empty
+
+
+# Searching
+
+
+def typed(app: App, qtbot: QtBot, text: str) -> None:
+    """Type into the search box, then let the list catch up.
+
+    Inserted as an input method commits text: QTest cannot click Korean
+    letters as keys (it brings the test process down on Windows). Typing
+    Korean through a real input method is checked on the test machines.
+    """
+    box = app.window.note_list.search_box
+    box.clear()
+    box.insert(text)
+    qtbot.wait(SEARCH_DELAY_MS + 100)
+
+
+def titles(app: App) -> list[str]:
+    return [row.split(" · ")[0] for row in app.rows()]
+
+
+def test_typing_narrows_the_list_to_notes_containing_the_text(app: App, qtbot: QtBot) -> None:
+    app.note("회의록을 정리")
+    app.note("장보기")
+    app.note("Weekly Meeting")
+    app.window.open()
+
+    typed(app, qtbot, "회의")  # two letters, a particle attached in the note
+    assert titles(app) == ["회의록을 정리"]
+    typed(app, qtbot, "회의록")
+    assert titles(app) == ["회의록을 정리"]
+    typed(app, qtbot, "meeting")  # English ignores case
+    assert titles(app) == ["Weekly Meeting"]
+    typed(app, qtbot, "%")  # a symbol is only itself
+    assert app.rows() == ["No notes match"]
+
+    app.window.note_list.search_box.clear()
+    qtbot.wait(SEARCH_DELAY_MS + 100)
+    assert len(app.rows()) == 3
+
+
+def test_search_stays_within_the_chosen_notes(app: App, qtbot: QtBot) -> None:
+    app.note("회의 보이는 것")
+    app.manager.hide(app.note("회의 숨긴 것"))
+    deleted(app, "회의 지운 것", "비운 회의")
+    app.notes.purge(app.notes.deleted()[0].id)  # 비운 회의, the latest deleted
+    app.window.open()
+
+    typed(app, qtbot, "회의")
+    assert sorted(titles(app)) == ["회의 보이는 것", "회의 숨긴 것"]
+    app.show_only(HIDDEN)
+    assert titles(app) == ["회의 숨긴 것"]
+    app.show_only(TRASH)
+    assert titles(app) == ["회의 지운 것"]
+    assert app.window.note_list.empty_button.isEnabled()
+
+
+def test_emptying_the_trash_while_searching_still_empties_all_of_it(
+    app: App, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    deleted(app, "회의", "장보기")
+    app.window.open()
+    app.show_only(TRASH)
+    typed(app, qtbot, "없는 말")
+    assert app.window.note_list.empty_button.isEnabled()  # the trash is not empty
+
+    Answers(monkeypatch, yes=True)
+    app.window.note_list.empty_button.click()
+    assert app.manager.trash_notes() == []
+
+
+def test_the_results_follow_a_note_as_it_is_changed(app: App, qtbot: QtBot) -> None:
+    note = app.note("회의 준비")
+    app.window.open()
+    typed(app, qtbot, "회의")
+    assert titles(app) == ["회의 준비"]
+
+    note.editor.selectAll()
+    note.editor.insertPlainText("장보기")
+    app.manager.save(note)
+    qtbot.wait(REFRESH_DELAY_MS + 100)
+    assert app.rows() == ["No notes match"]
+
+
+def test_the_search_is_reached_and_left_with_the_keyboard(
+    app: App, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fronted: list[str | None] = []
+
+    def record(self: NoteWindow) -> None:
+        fronted.append(self.note_id)
+
+    monkeypatch.setattr(NoteWindow, "bring_to_front", record)
+    app.note("장보기")
+    wanted = app.note("회의 준비")
+    app.note("회의록")
+    app.window.open()
+    qtbot.waitActive(app.window)  # shortcuts reach only the active window
+    listed = app.window.note_list
+    box = listed.search_box
+
+    # Through the window, as a key press arrives, so the shortcut map sees it.
+    QTest.keySequence(app.window.windowHandle(), QKeySequence(QKeySequence.StandardKey.Find))
+    assert app.window.focusWidget() is box
+    box.insert("준비")
+    QTest.keyClick(box, Qt.Key.Key_Down)  # before the pause: the list catches up at once
+    assert app.window.focusWidget() is listed.list
+    assert titles(app) == ["회의 준비"] and listed.list.currentRow() == 0
+    QTest.keyClick(listed.list, Qt.Key.Key_Return)
+    assert fronted == [wanted.note_id]
+
+    box.setFocus()
+    QTest.keyClick(box, Qt.Key.Key_Escape)
+    assert box.text() == ""
+    assert len(app.rows()) == 3
+
+
+def test_the_search_box_is_named_and_translated(app: App, translations: Translations) -> None:
+    box = app.window.note_list.search_box
+    assert box.accessibleName() == "Search notes"
+    assert box.placeholderText() == "Search notes"
+
+    translations.apply("ko")
+    assert box.accessibleName() == "메모 검색"
+    assert box.placeholderText() == "메모 검색"
+    assert "목록" in box.accessibleDescription()
+    box.setText("없는 말")
+    app.window.note_list.refresh()
+    assert app.rows() == ["찾는 메모가 없습니다"]
