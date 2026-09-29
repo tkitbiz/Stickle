@@ -142,6 +142,8 @@ class NoteList(QWidget):
             states.append(self.tr("hidden"))
         if not note.always_on_top:
             states.append(self.tr("not on top"))
+        if note.locked:
+            states.append(self.tr("locked"))
         return " · ".join([title, *states])
 
     @property

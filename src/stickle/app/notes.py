@@ -225,7 +225,12 @@ class NoteManager(QObject):
     def _open(self, note: Note | None, text: str = "", color: str | None = None) -> NoteWindow:
         if note is not None:
             window = NoteWindow(
-                note.id, note.body, note.color, note.always_on_top, opacity=note.opacity
+                note.id,
+                note.body,
+                note.color,
+                note.always_on_top,
+                opacity=note.opacity,
+                locked=note.locked,
             )
         else:
             window = NoteWindow(None, text, color or self._new_note_color())
@@ -250,6 +255,11 @@ class NoteManager(QObject):
             self.set_opacity(window, opacity)
 
         window.opacity_requested.connect(opacity_requested)
+
+        def lock_requested(locked: bool) -> None:
+            self.set_locked(window, locked)
+
+        window.lock_requested.connect(lock_requested)
         window.hide_requested.connect(lambda: self.hide(window))
         window.delete_requested.connect(lambda: self.delete(window))
         autosave = AutoSave(lambda: self.save(window), self._idle_ms, self._max_ms, window)
@@ -302,6 +312,8 @@ class NoteManager(QObject):
                         self._repository.set_always_on_top(window.note_id, False)
                     if window.opacity != 1.0:
                         self._repository.set_opacity(window.note_id, window.opacity)
+                    if window.locked:
+                        self._repository.set_locked(window.note_id, True)
             else:
                 self._repository.update_body(window.note_id, text)
         except (apsw.Error, OSError) as error:
@@ -477,6 +489,26 @@ class NoteManager(QObject):
             self._repository.set_collapsed(window.note_id, collapsed)
         except apsw.Error as error:
             log.error("could not store a note being folded: %s", type(error).__name__)
+
+    # Locked where it is, as it is
+
+    def set_locked(self, window: NoteWindow, locked: bool) -> None:
+        """Keep a note from being moved, resized or edited, or allow it again.
+
+        Locking while editing saves first, the character being composed too.
+        If storing fails, the note stays as it was.
+        """
+        if locked:
+            self.flush(window, closing=True)
+        if self._repository is not None and window.note_id is not None:
+            try:
+                self._repository.set_locked(window.note_id, locked)
+            except apsw.Error as error:
+                log.error("could not store a note being locked: %s", type(error).__name__)
+                window.set_locked(window.locked)  # the menu shows what is kept
+                return
+        window.set_locked(locked)
+        self.changed.emit()  # the list of notes marks locked ones
 
     # See-through while not in use
 

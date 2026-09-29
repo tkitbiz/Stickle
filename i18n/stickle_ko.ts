@@ -265,6 +265,10 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>위에 고정 안 함</translation>
     </message>
     <message>
+        <source>locked</source>
+        <translation>잠김</translation>
+    </message>
+    <message>
         <source>Enter brings the note back; Delete empties it from the trash for good.</source>
         <translation>Enter로 메모를 되살리고, Delete로 휴지통에서 영구히 지웁니다.</translation>
     </message>
@@ -342,6 +346,18 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>Opacity when not in use</source>
         <translation>안 쓸 때 불투명도</translation>
+    </message>
+    <message>
+        <source>Lock note</source>
+        <translation>메모 잠그기</translation>
+    </message>
+    <message>
+        <source>Locked: it cannot be moved or changed. Unlock it in the note menu.</source>
+        <translation>잠김: 옮기거나 고칠 수 없습니다. 메모 메뉴에서 풀 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>잠김</translation>
     </message>
     <message>
         <source>%1%</source>

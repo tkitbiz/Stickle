@@ -167,6 +167,21 @@ def _pin(painter: QPainter, size: float, pinned: bool) -> None:
     painter.drawLine(QPointF(size * 0.5, size * 0.48), QPointF(size * 0.5, size * 0.92))
 
 
+def _lock(painter: QPainter, size: float) -> None:
+    """A padlock: a shackle over a filled body."""
+    painter.drawArc(QRectF(size * 0.3, size * 0.1, size * 0.4, size * 0.5), 0, 180 * 16)
+    painter.drawLine(QPointF(size * 0.3, size * 0.35), QPointF(size * 0.3, size * 0.48))
+    painter.drawLine(QPointF(size * 0.7, size * 0.35), QPointF(size * 0.7, size * 0.48))
+    painter.setBrush(painter.pen().color())
+    painter.drawRoundedRect(
+        QRectF(size * 0.18, size * 0.48, size * 0.64, size * 0.44), size * 0.06, size * 0.06
+    )
+
+
+def make_lock_icon(color: QColor, quiet: QColor | None = None) -> QIcon:
+    return drawn_icon(_lock, color, quiet)
+
+
 def make_pin_icon(color: QColor, pinned: bool, quiet: QColor | None = None) -> QIcon:
     return drawn_icon(lambda painter, size: _pin(painter, size, pinned), color, quiet)
 
@@ -219,12 +234,22 @@ class TitleBar(QWidget):
         # Shown only while the note could not be saved; clicking tries again at once.
         self.unsaved_button = self._button()
         self.unsaved_button.hide()
+        # Shown while the note is locked; clicking opens the menu, where it is unlocked.
+        self.lock_button = self._button()
+        self.lock_button.hide()
+        self.lock_button.clicked.connect(
+            lambda: self.menu_requested.emit(
+                self.lock_button.mapToGlobal(QPoint(0, self.lock_button.height()))
+            )
+        )
+        self.movable = True  # False while the note is locked
         self.set_icon_color(qcolor(DARK_TEXT))
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 1, 1, 1)
         layout.setSpacing(1)
         layout.addWidget(self.unsaved_button)
+        layout.addWidget(self.lock_button)
         layout.addWidget(self.title, 1)
         layout.addStretch()
         # Kept away from the hide button, so it is not hit by mistake.
@@ -248,6 +273,7 @@ class TitleBar(QWidget):
         self.close_button.setIcon(make_close_icon(color, self._quiet_color))
         # A warning should not be quiet.
         self.unsaved_button.setIcon(make_unsaved_icon(color))
+        self.lock_button.setIcon(make_lock_icon(color, self._quiet_color))
         self._show_pin(self.pin_button.isChecked())
 
     def _show_pin(self, pinned: bool) -> None:
@@ -287,6 +313,8 @@ class TitleBar(QWidget):
     @override
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.globalPosition().toPoint()
+        if not self.movable:
+            self._press = None  # locked: stays where it is
         if self._press is not None and self._drag_offset is None:
             if (point - self._press).manhattanLength() < QApplication.startDragDistance():
                 return
@@ -339,6 +367,7 @@ class NoteWindow(QWidget):
     collapse_requested = Signal(bool)  # True: fold to the title bar, False: unfold
     on_top_requested = Signal(bool)  # True: stay above other windows
     opacity_requested = Signal(float)  # one of OPACITIES
+    lock_requested = Signal(bool)  # True: keep it where it is, as it is
     geometry_settled = Signal()  # moved or resized, and then left alone for a moment
 
     def __init__(
@@ -348,6 +377,7 @@ class NoteWindow(QWidget):
         color: str = DEFAULT_COLOR,
         always_on_top: bool = True,
         opacity: float = 1.0,
+        locked: bool = False,
     ) -> None:
         # A tool window stays out of the taskbar and window switcher. Under X11 an
         # ordinary window is asked to do the same instead (see showEvent): window
@@ -434,6 +464,12 @@ class NoteWindow(QWidget):
         self.on_top_action.setChecked(True)
         self.on_top_action.triggered.connect(self.on_top_requested)
         self.title_bar.pin_button.clicked.connect(self.on_top_requested)
+        # Kept where it is, as it is: no moving, resizing or editing (hiding and
+        # deleting still work: the trash keeps a deleted note).
+        self.locked = False
+        self.lock_action = self.menu.addAction("")
+        self.lock_action.setCheckable(True)
+        self.lock_action.triggered.connect(self.lock_requested)
         self.menu.addSeparator()
         # The menu has the system's colours, which are the note's only by chance.
         self.delete_action = self.menu.addAction(make_delete_icon(qcolor(DARK_TEXT)), "")
@@ -451,8 +487,8 @@ class NoteWindow(QWidget):
         self.title_bar.unsaved_button.clicked.connect(self.retry_requested)
         # The formatted note, drawn from the editor's text; a click edits it.
         self.view = NoteView(self)
-        self.view.edit_requested.connect(self.edit)
-        self.view.checkbox_clicked.connect(self.toggle_checkbox)
+        self.view.edit_requested.connect(self._edit_asked)
+        self.view.checkbox_clicked.connect(self._checkbox_clicked)
         self.stack = QStackedWidget(self)
         self.stack.addWidget(self.view)
         self.stack.addWidget(self.editor)
@@ -490,6 +526,7 @@ class NoteWindow(QWidget):
             self.show_formatted()
         else:
             self.edit()
+        self.set_locked(locked)
 
     def retranslate(self) -> None:
         """Apply every visible text; runs again when the UI language changes."""
@@ -512,6 +549,11 @@ class NoteWindow(QWidget):
         self.menu_action.setText(note_menu)
         self.color_menu.setTitle(self.tr("Color"))
         self.opacity_menu.setTitle(self.tr("Opacity when not in use"))
+        self.lock_action.setText(self.tr("Lock note"))
+        locked = self.tr("Locked: it cannot be moved or changed. Unlock it in the note menu.")
+        self.title_bar.lock_button.setAccessibleName(self.tr("Locked"))
+        self.title_bar.lock_button.setToolTip(locked)
+        self.title_bar.lock_button.setAccessibleDescription(locked)
         for level, action in self.opacity_actions.items():
             # Some languages put the sign first.
             percent = QLocale().toString(round(level * 100))
@@ -536,6 +578,28 @@ class NoteWindow(QWidget):
         elif event.type() == QEvent.Type.ActivationChange:
             self._show_opacity()
         super().changeEvent(event)
+
+    def set_locked(self, locked: bool) -> None:
+        """Keep the note where it is, as it is, or let it be moved and edited again.
+
+        Locking while editing leaves the editor (its owner saves first).
+        """
+        self.locked = locked
+        self.lock_action.setChecked(locked)
+        self.title_bar.lock_button.setVisible(locked)
+        self.title_bar.movable = not locked
+        self.size_grip.setVisible(not locked and not self.collapsed)
+        self.editor.setReadOnly(locked)
+        if locked:
+            self.show_formatted()
+
+    def _edit_asked(self, position: int) -> None:
+        if not self.locked:
+            self.edit(position)
+
+    def _checkbox_clicked(self, line: int) -> None:
+        if not self.locked:  # checking a box changes the text
+            self.toggle_checkbox(line)
 
     def set_opacity(self, opacity: float) -> None:
         """How see-through the note is while another window is in use."""
@@ -634,7 +698,7 @@ class NoteWindow(QWidget):
             self.setMinimumHeight(0)
             self.setMaximumHeight(MAX_HEIGHT)
             self.stack.show()
-            self.size_grip.show()
+            self.size_grip.setVisible(not self.locked)
             self.resize(self.width(), self._expanded_height)
             self.title_bar.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             focus = self.editor if self.editing else self.view
