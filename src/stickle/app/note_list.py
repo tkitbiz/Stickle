@@ -109,6 +109,10 @@ class NoteList(QWidget):
         layout.addWidget(self.empty_button)
         self.retranslate()
 
+    def tab_order(self) -> list[QWidget]:
+        """Its parts as they read, for the window's Tab order."""
+        return [self.filter_box, self.search_box, self.list, self.empty_button]
+
     @property
     def in_trash(self) -> bool:
         return self.filter_box.currentData() == TRASH

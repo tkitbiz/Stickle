@@ -72,6 +72,14 @@ class ShortcutRows(QWidget):
         shortcuts.changed.connect(self.refresh)
         self.retranslate()
 
+    def tab_order(self) -> list[QWidget]:
+        """Its parts as they read, for the window's Tab order: each row, then the
+        button to the desktop's settings below them."""
+        rows = [
+            part for action in SHORTCUT_ACTIONS for part in (self.edits[action], self.given[action])
+        ]
+        return [*rows, self.configure_button]
+
     def retranslate(self) -> None:
         self.heading.setText(self.tr("Shortcuts from anywhere"))
         self.unavailable.setText(

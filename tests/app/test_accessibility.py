@@ -12,6 +12,7 @@ from pathlib import Path
 import apsw
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractButton,
     QAbstractScrollArea,
@@ -32,10 +33,12 @@ from stickle.app.password_dialog import PasswordDialog
 from stickle.app.recovery_dialog import KINDS, Problem, RecoveryDialog
 from stickle.app.recovery_key_dialog import EnterRecoveryKeyDialog, RecoveryKeyDialog
 from stickle.app.shortcuts import GlobalShortcuts
-from stickle.app.stickle_window import StickleWindow
+from stickle.app.stickle_window import RecoveryKeys, StickleWindow
 from stickle.data.notes import NoteRepository
 from stickle.data.schema import NotesDiff, open_store
 from stickle.data.settings import Settings
+from stickle.platform.autostart import Autostart, Places
+from stickle.platform.linux.appimage import AppMenuEntry
 
 KEY = secrets.token_bytes(32)
 RECOVERY_KEY = "ABCD-EFGH-JKMN-PQRS-TVWX-YZ01-2345-6789"
@@ -136,3 +139,121 @@ def test_a_folded_note_is_read_by_its_title(qtbot: QtBot, translations: Translat
     assert window.title_bar.accessibleName() == "접힌 메모: 장보기"
     assert window.title_bar.accessibleDescription() == "Enter를 누르면 펼칩니다."
     close(window)
+
+
+# Tab goes as the eye reads: top to bottom, and left to right along a row.
+
+
+def tab_chain(top: QWidget) -> list[QWidget]:
+    """The controls Tab reaches under top, in the order it reaches them."""
+    reachable = [
+        widget
+        for widget in top.findChildren(QWidget)
+        if widget.focusPolicy() & Qt.FocusPolicy.TabFocus
+        and widget.isVisibleTo(top)
+        and widget.isEnabled()
+        and not part_of_another(widget, top)
+    ]
+    if not reachable:
+        return []
+    chain: list[QWidget] = []
+    widget: QWidget | None = reachable[0]
+    for _ in range(len(top.findChildren(QWidget)) + 1):
+        if widget is None:
+            break
+        if widget in reachable and widget not in chain:
+            chain.append(widget)
+        widget = widget.nextInFocusChain()
+        if widget is reachable[0]:
+            break
+    return chain
+
+
+def reading_order(top: QWidget, widgets: list[QWidget]) -> list[QWidget]:
+    """Top to bottom; on the same row (overlapping heights), left to right."""
+
+    def place(widget: QWidget) -> tuple[int, int]:
+        corner = widget.mapTo(top, widget.rect().topLeft())
+        return corner.y(), corner.x()
+
+    rows: list[list[QWidget]] = []
+    for widget in sorted(widgets, key=place):
+        y = place(widget)[0]
+        if rows and y < place(rows[-1][0])[0] + rows[-1][0].height() // 2:
+            rows[-1].append(widget)
+        else:
+            rows.append([widget])
+    return [widget for row in rows for widget in sorted(row, key=lambda w: place(w)[1])]
+
+
+def names(widgets: list[QWidget]) -> list[str]:
+    return [
+        w.accessibleName() or getattr(w, "text", lambda: "")() or type(w).__name__ for w in widgets
+    ]
+
+
+def rotated_to(chain: list[QWidget], first: QWidget) -> list[QWidget]:
+    start = chain.index(first)
+    return chain[start:] + chain[:start]
+
+
+def assert_tab_follows_the_screen(qtbot: QtBot, top: QWidget) -> None:
+    top.show()
+    qtbot.waitExposed(top)
+    chain = tab_chain(top)
+    expected = reading_order(top, chain)
+    assert names(rotated_to(chain, expected[0])) == names(expected)
+    top.hide()
+
+
+@pytest.mark.parametrize("hotkeys", [True, False])
+def test_tab_goes_round_the_stickle_window_as_it_reads(
+    qtbot: QtBot, connection: apsw.Connection, tmp_path: Path, hotkeys: bool
+) -> None:
+    """With everything it can show: login and app list switches, the recovery
+    key, a hidden note, a deleted one and something on the clipboard."""
+    notes = NoteRepository(connection)
+    notes.set_hidden(notes.create("숨긴 메모").id, True)
+    notes.delete(notes.create("지운 메모").id)
+    QGuiApplication.clipboard().setText("붙여 넣을 글")
+    manager = NoteManager(notes)
+    shortcuts = GlobalShortcuts(Settings(connection), System(available=hotkeys))
+    places = Places(home=tmp_path, config=tmp_path / "config", appdata=tmp_path)
+    window = StickleWindow(
+        manager,
+        Translations(),
+        lambda: None,
+        autostart=Autostart(places, "linux", ["/x"]),
+        app_list=AppMenuEntry(tmp_path / "Stickle.AppImage", b"png", tmp_path / "share"),
+        recovery=RecoveryKeys(exists=lambda: True, make=lambda: RECOVERY_KEY, kept=lambda: None),
+        settings=Settings(connection),
+        shortcuts=shortcuts,
+    )
+    window.show_notice(True)  # the notice's two buttons, at the top
+
+    assert_tab_follows_the_screen(qtbot, window)
+    close(window)
+
+
+def test_tab_goes_round_the_dialogs_as_they_read(qtbot: QtBot, tmp_path: Path) -> None:
+    diff = NotesDiff(missing=["회의록"], changed=[""], added=["새 메모"])
+    dialogs: list[QWidget] = [
+        PasswordDialog(True, lambda _: None),
+        PasswordDialog(False, lambda _: None, can_recover=True),
+        EnterRecoveryKeyDialog(lambda _: None),
+        RecoveryKeyDialog(RECOVERY_KEY),
+        FirstRunDialog(RECOVERY_KEY, True, True),
+    ]
+    dialogs += [
+        RecoveryDialog(Problem(kind, diff=diff), tmp_path, export=lambda _: None)  # pyright: ignore[reportArgumentType]
+        for kind in KINDS
+    ]
+    wrong: dict[str, list[str]] = {}
+    for dialog in dialogs:
+        try:
+            assert_tab_follows_the_screen(qtbot, dialog)
+        except AssertionError:
+            wrong[type(dialog).__name__] = names(tab_chain(dialog))
+    close(*dialogs)
+
+    assert wrong == {}

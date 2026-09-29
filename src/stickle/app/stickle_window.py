@@ -5,6 +5,7 @@ again while already running, and, where there is no tray, when the last
 note is hidden: then it says so, and closing it ends Stickle.
 """
 
+import itertools
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -204,9 +205,33 @@ class StickleWindow(QWidget):
             layout.addWidget(self.shortcut_rows)
         layout.addWidget(self.quit_button)
 
+        self._set_tab_order()
         notes.changed.connect(self.refresh)
         translations.changed.connect(self.retranslate)
         self.retranslate()
+
+    def _set_tab_order(self) -> None:
+        """Tab goes as the window reads, top to bottom, not in the order its parts
+        were made (hidden and disabled ones are passed over by Qt)."""
+        order: list[QWidget] = [
+            self.notice_show_button,
+            self.notice_quit_button,
+            self.new_note_button,
+            self.raise_button,
+            self.clipboard_button,
+            self.set_aside_button,
+            *self.note_list.tab_order(),
+            self.show_all_button,
+            self.restore_button,
+            self.language_box,
+            self.autostart_box,
+            self.app_list_box,
+            self.recovery_button,
+            *(self.shortcut_rows.tab_order() if self.shortcut_rows is not None else []),
+            self.quit_button,
+        ]
+        for before, after in itertools.pairwise(order):
+            QWidget.setTabOrder(before, after)
 
     def retranslate(self) -> None:
         self._set_title()
