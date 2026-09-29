@@ -14,6 +14,7 @@ at login is a StartupTask of the package, off until the user turns it on.
 """
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -124,7 +125,10 @@ def sign(package: Path, publisher: str) -> None:
         # Kept only in the files: nothing is left in this computer's certificate store.
         " Remove-Item -Path ('Cert:\\CurrentUser\\My\\' + $cert.Thumbprint)"
     )
-    subprocess.run(["powershell", "-NoProfile", "-Command", script], check=True)
+    # Started from PowerShell 7 (as in CI), Windows PowerShell would inherit its
+    # module path and not find its own certificate module (the Cert: drive).
+    env = {k: v for k, v in os.environ.items() if k.upper() != "PSMODULEPATH"}
+    subprocess.run(["powershell", "-NoProfile", "-Command", script], check=True, env=env)
     signtool = windows_sdk_tool("signtool.exe")
     subprocess.run(
         [signtool, "sign", "/fd", "SHA256", "/f", str(pfx), "/p", "stickle-test", str(package)],
