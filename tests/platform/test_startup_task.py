@@ -76,6 +76,41 @@ def test_turned_off_in_windows_settings_it_cannot_be_turned_on_from_here(
     assert not autostart.enabled
 
 
+def test_windows_is_waited_for_off_the_interfaces_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The interface's thread may not wait for Windows ("Cannot call blocking method
+    # from single-threaded apartment"): the packaged Stickle stopped at its start.
+    import threading
+
+    asked_on: list[threading.Thread] = []
+    task = Task("DISABLED")
+
+    def task_here() -> Task:
+        asked_on.append(threading.current_thread())
+        return task
+
+    autostart = packaged(tmp_path, task, monkeypatch)
+    monkeypatch.setattr(autostart, "_task", task_here)
+    autostart.enable()
+    assert autostart.enabled
+    autostart.disable()
+    assert asked_on and threading.current_thread() not in asked_on
+
+
+def test_when_windows_fails_stickle_still_starts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refused() -> Task:
+        raise RuntimeError("Cannot call blocking method from single-threaded apartment.")
+
+    autostart = packaged(tmp_path, Task("DISABLED"), monkeypatch)
+    monkeypatch.setattr(autostart, "_task", refused)
+    assert not autostart.enabled  # shown off, not a crash
+    with pytest.raises(OSError):  # the switch tells the user it did not work
+        autostart.enable()
+
+
 def test_a_shortcut_left_by_the_zip_build_is_removed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

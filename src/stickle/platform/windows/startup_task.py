@@ -8,10 +8,16 @@ on again by itself: enable() then fails, and the switch shows it off.
 A shortcut left in the Startup folder by the zip build (pointing at a
 program since deleted, or starting a second Stickle) is removed once the
 packaged one runs.
+
+Windows' answers are waited for on a thread of their own: the interface's
+thread (a single-threaded apartment) may not wait for them. Anything going
+wrong is an OSError, so starting at login never stops Stickle from starting.
 """
 
 import logging
 import sys
+import threading
+from collections.abc import Callable
 
 from stickle.platform.autostart import Autostart
 
@@ -23,13 +29,35 @@ from winrt.windows.applicationmodel.activation import ActivationKind  # noqa: E4
 log = logging.getLogger(__name__)
 TASK_ID = "StickleStartup"  # as declared in the package manifest
 ON = (StartupTaskState.ENABLED, StartupTaskState.ENABLED_BY_POLICY)
+WAIT_S = 10.0
+
+
+def on_its_own_thread[T](work: Callable[[], T]) -> T:
+    """work() on a thread that may wait for Windows; its error becomes an OSError."""
+    outcome: list[T] = []
+    failure: list[BaseException] = []
+
+    def run() -> None:
+        try:
+            outcome.append(work())
+        except BaseException as error:  # handed back to the caller below
+            failure.append(error)
+
+    thread = threading.Thread(target=run, name="startup-task", daemon=True)
+    thread.start()
+    thread.join(WAIT_S)
+    if failure:
+        raise OSError(f"{type(failure[0]).__name__}: {failure[0]}") from failure[0]
+    if not outcome:
+        raise OSError("Windows did not answer in time")
+    return outcome[0]
 
 
 def started_at_login() -> bool:
     """Whether Windows started this packaged Stickle for its StartupTask."""
     try:
         return AppInstance.get_activated_event_args().kind == ActivationKind.STARTUP_TASK
-    except OSError:  # started some other way that has no arguments to give
+    except Exception:  # started some other way, with no arguments (None) to give
         return False
 
 
@@ -42,18 +70,19 @@ class PackagedAutostart(Autostart):
     @property
     def enabled(self) -> bool:
         try:
-            return self._task().state in ON
-        except OSError:
+            return on_its_own_thread(lambda: self._task().state) in ON
+        except OSError as error:
+            log.warning("the startup task could not be read: %s", error)
             return False
 
     def enable(self) -> None:
-        state = self._task().request_enable_async().get()
+        state = on_its_own_thread(lambda: self._task().request_enable_async().get())
         if state not in ON:
             # Turned off by the user in Windows' settings, or by policy: only there.
             raise PermissionError(f"the startup task stays {state.name.lower()}")
 
     def disable(self) -> None:
-        self._task().disable()
+        on_its_own_thread(lambda: self._task().disable())
 
     def refresh(self) -> bool:
         """Remove a Startup folder shortcut left by the zip build; True if there was one."""
