@@ -51,6 +51,32 @@ def may_be_blocked() -> bool:
     return not is_packaged()
 
 
+def this_computers_autostart() -> Autostart:
+    """How this Stickle starts at login: the Store package's StartupTask, or a file."""
+    if sys.platform == "win32":
+        from stickle.platform.windows.package import is_packaged
+
+        if is_packaged():
+            from stickle.platform.windows.startup_task import PackagedAutostart
+
+            return PackagedAutostart()
+    return Autostart()
+
+
+def started_at_login(argv: list[str]) -> bool:
+    """Started at login: --autostart (a login file), or the package's StartupTask."""
+    if AUTOSTART_FLAG in argv:
+        return True
+    if sys.platform == "win32":
+        from stickle.platform.windows.package import is_packaged
+
+        if is_packaged():
+            from stickle.platform.windows.startup_task import started_at_login as by_task
+
+            return by_task()
+    return False
+
+
 def desktop_exec(command: list[str]) -> str:
     """A command line as a .desktop Exec value (quoting and % as the spec asks)."""
 

@@ -86,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from stickle.app.application import ended_by_signal, run
     from stickle.data.startup import StartupSettings
+    from stickle.platform.autostart import started_at_login
 
     try:
         code = run(
@@ -94,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
             started=started,
             startup=StartupSettings(folder),
             instance=folder,
-            at_login=options.autostart,
+            at_login=started_at_login(args),
             request=request,
             portable=place.portable,
         )

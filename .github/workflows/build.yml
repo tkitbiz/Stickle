@@ -48,6 +48,20 @@ jobs:
           name: stickle-windows-${{ matrix.arch }}
           path: stickle-windows-${{ matrix.arch }}.zip
           if-no-files-found: error
+      # The Store package, signed with a test certificate so it can be tried out.
+      # The Store signs what it publishes; STORE_PUBLISHER is the name it gives.
+      - name: MSIX
+        shell: pwsh
+        env:
+          STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER || 'CN=Stickle Test' }}
+        run: uv run python scripts/package_msix.py --publisher "$env:STORE_PUBLISHER" --arch ${{ matrix.arch }} --sign
+      - uses: actions/upload-artifact@v7
+        with:
+          name: stickle-windows-${{ matrix.arch }}-msix
+          path: |
+            build/msix/stickle-windows-${{ matrix.arch }}.msix
+            build/msix/stickle-windows-${{ matrix.arch }}.cer
+          if-no-files-found: error
 
   linux:
     runs-on: ubuntu-latest

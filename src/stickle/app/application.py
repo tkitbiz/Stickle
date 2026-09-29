@@ -34,7 +34,7 @@ from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
 from stickle.data.settings import RECOVERY_KEY_KEPT, Settings
 from stickle.data.startup import StartupSettings
-from stickle.platform.autostart import Autostart
+from stickle.platform.autostart import Autostart, this_computers_autostart
 from stickle.platform.hotkeys import Portal, desktop_portal
 from stickle.platform.instance import NEW_NOTE, SET_ASIDE
 from stickle.platform.linux.appimage import (
@@ -218,7 +218,7 @@ def on_this_computer(
     if measuring or portable:
         return None, None, no_portal
     point_launcher_here()
-    autostart = Autostart()
+    autostart = this_computers_autostart()
     try:
         if autostart.refresh():
             log.info("start at login was brought up to date")
