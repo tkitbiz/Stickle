@@ -76,6 +76,7 @@ def run_checks() -> list[tuple[str, str]]:
     results += font_checks()
     results += input_method_checks()
     results.append(start_at_login_check())
+    results += store_package_check()
     return results
 
 
@@ -119,6 +120,22 @@ def start_at_login_check() -> tuple[str, str]:
 
     program = Path(launch_command()[0])
     return ("PASS" if program.is_file() else "FAIL", "start at login names this program")
+
+
+def store_package_check() -> list[tuple[str, str]]:
+    """Windows: what the Store package needs to start at login is in the build
+    (pywinrt's modules load one another at run time, which bundling misses)."""
+    if sys.platform != "win32":
+        return []
+    try:
+        import winrt.windows.foundation  # noqa: F401  # pyright: ignore[reportUnusedImport]
+
+        from stickle.platform.windows import (
+            startup_task,  # noqa: F401  # pyright: ignore[reportUnusedImport]
+        )
+    except ImportError:
+        return [("FAIL", "the Store package's start at login is in the build")]
+    return [("PASS", "the Store package's start at login is in the build")]
 
 
 def font_checks() -> list[tuple[str, str]]:

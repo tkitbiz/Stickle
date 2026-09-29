@@ -101,6 +101,9 @@ def nuitka_command() -> list[str]:
             # The program's own icon: shown for it in Explorer and in the list of
             # apps started at login, which showed none.
             f"--windows-icon-from-ico={ICON_FILE}",
+            # The Store package's StartupTask (pywinrt): its modules load one
+            # another at run time, where Nuitka does not follow them.
+            "--include-package=winrt",
         ]
     elif sys.platform == "linux":
         command += [
