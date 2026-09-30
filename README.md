@@ -96,6 +96,10 @@ uv run python -m stickle
 
 Tests: `uv run pytest`.
 
+## Privacy
+
+Stickle collects nothing and has no server: see the [privacy policy](PRIVACY.md).
+
 ## License
 
 [GPL-3.0-or-later](LICENSE).
