@@ -43,10 +43,29 @@ jobs:
       - name: Package
         shell: pwsh
         run: Compress-Archive -Path build\stickle.dist\* -DestinationPath stickle-windows-${{ matrix.arch }}.zip
+      # The same program with an empty-but-for-a-note stickle-data folder next to it:
+      # unzipped, it keeps its settings and notes there (portable mode).
+      - name: Portable package
+        shell: pwsh
+        run: |
+          $data = "build\stickle.dist\stickle-data"
+          New-Item -ItemType Directory $data | Out-Null
+          Set-Content -Path "$data\README.txt" -Encoding utf8 -Value @(
+            "Stickle keeps its settings and notes in this folder (portable mode)."
+            "Keep it next to stickle.exe, and keep it when you move or copy Stickle:"
+            "your notes are in here."
+          )
+          Compress-Archive -Path build\stickle.dist\* -DestinationPath stickle-windows-${{ matrix.arch }}-portable.zip
+          Remove-Item -Recurse -Force $data
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $names = [IO.Compression.ZipFile]::OpenRead("$PWD\stickle-windows-${{ matrix.arch }}-portable.zip").Entries.FullName
+          if (-not ($names -match '^stickle-data[\\/]README\.txt$')) { throw "no stickle-data folder in the portable zip" }
       - uses: actions/upload-artifact@v7
         with:
           name: stickle-windows-${{ matrix.arch }}
-          path: stickle-windows-${{ matrix.arch }}.zip
+          path: |
+            stickle-windows-${{ matrix.arch }}.zip
+            stickle-windows-${{ matrix.arch }}-portable.zip
           if-no-files-found: error
       # The Store package, unsigned as the Store takes it, and a copy signed with
       # a test certificate so it can be tried out.
@@ -106,6 +125,10 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      # The Store packages go to the Store, not here: the unsigned one does not
+      # install, and the test certificate must not be trusted by anyone.
+      - name: Leave out the Store packages
+        run: rm -f dist/*.msix dist/*.cer && ls dist
       - name: Checksums
         run: cd dist && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt
       - name: Publish the release
