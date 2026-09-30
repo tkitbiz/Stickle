@@ -1,11 +1,12 @@
 """Package the Windows build (build/stickle.dist) as an MSIX, for the Microsoft Store.
 
-    uv run python scripts/package_msix.py --publisher "CN=..." --arch x64 [--sign]
+    uv run python scripts/package_msix.py --arch x64 [--sign]
 
-The Store signs the package it publishes. --sign signs it with a test
-certificate made for the purpose, only so it can be installed to try it out
-(the certificate must then be trusted on that computer; see the .cer written
-next to the package).
+The package, unsigned, is what goes to the Store, which signs what it
+publishes. --sign also writes a copy signed with a test certificate made for
+the purpose (-test.msix), only so it can be installed to try it out (the
+certificate must then be trusted on that computer; see the -test.cer written
+next to it).
 
 Notes are written to the real %APPDATA%\\Stickle, as the other Windows builds
 do: MSIX would otherwise keep what the app writes there in a folder of the
@@ -24,7 +25,10 @@ from xml.sax.saxutils import escape
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "build" / "stickle.dist"
 OUT = ROOT / "build" / "msix"
-APP_ID = "co.linkro.stickle"
+# The package identity the Store assigned to Stickle (Partner Center, Product identity).
+IDENTITY_NAME = "Linkro.Stickle"
+PUBLISHER = "CN=FEE816EB-1C57-4160-B4F2-6D4C924676A5"
+PUBLISHER_NAME = "Linkro"
 STARTUP_TASK = "StickleStartup"
 LOGOS = {"Square44x44Logo.png": 44, "Square150x150Logo.png": 150, "StoreLogo.png": 50}
 
@@ -36,7 +40,7 @@ MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
   xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap desktop desktop6 rescap">
-  <Identity Name="{app_id}" Publisher="{publisher}" Version="{version}"
+  <Identity Name="{identity_name}" Publisher="{publisher}" Version="{version}"
     ProcessorArchitecture="{arch}"/>
   <Properties>
     <DisplayName>Stickle</DisplayName>
@@ -110,10 +114,12 @@ def windows_sdk_tool(name: str) -> str:
     return str(candidates[-1])
 
 
-def sign(package: Path, publisher: str) -> None:
-    """With a test certificate for publisher, and the certificate saved next to it."""
-    pfx = package.with_suffix(".pfx")
-    cer = package.with_suffix(".cer")
+def sign_test_copy(package: Path, publisher: str) -> Path:
+    """A copy signed with a test certificate for publisher, the certificate next to it."""
+    signed = package.with_name(f"{package.stem}-test.msix")
+    shutil.copy2(package, signed)
+    pfx = signed.with_suffix(".pfx")
+    cer = signed.with_suffix(".cer")
     script = (
         f"$cert = New-SelfSignedCertificate -Type Custom -Subject '{publisher}'"
         " -KeyUsage DigitalSignature -FriendlyName 'Stickle test'"
@@ -131,18 +137,17 @@ def sign(package: Path, publisher: str) -> None:
     subprocess.run(["powershell", "-NoProfile", "-Command", script], check=True, env=env)
     signtool = windows_sdk_tool("signtool.exe")
     subprocess.run(
-        [signtool, "sign", "/fd", "SHA256", "/f", str(pfx), "/p", "stickle-test", str(package)],
+        [signtool, "sign", "/fd", "SHA256", "/f", str(pfx), "/p", "stickle-test", str(signed)],
         check=True,
     )
     pfx.unlink()
+    return signed
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--publisher", required=True, help='as the Store gives it: "CN=..."')
-    parser.add_argument("--publisher-name", default="Linkro")
     parser.add_argument("--arch", choices=["x64", "arm64"], default="x64")
-    parser.add_argument("--sign", action="store_true", help="sign with a test certificate")
+    parser.add_argument("--sign", action="store_true", help="also a copy signed for testing")
     options = parser.parse_args()
     if not (DIST / "stickle.exe").exists():
         raise SystemExit(f"{DIST} has no stickle.exe: run scripts/build.py first")
@@ -152,9 +157,9 @@ def main() -> int:
     shutil.copytree(DIST, layout)
     write_logos(layout / "Assets")
     manifest = MANIFEST.format(
-        app_id=APP_ID,
-        publisher=escape(options.publisher, {'"': "&quot;"}),
-        publisher_name=escape(options.publisher_name),
+        identity_name=IDENTITY_NAME,
+        publisher=escape(PUBLISHER, {'"': "&quot;"}),
+        publisher_name=escape(PUBLISHER_NAME),
         version=package_version(),
         arch=options.arch,
         startup_task=STARTUP_TASK,
@@ -164,9 +169,9 @@ def main() -> int:
     package.unlink(missing_ok=True)
     makeappx = windows_sdk_tool("makeappx.exe")
     subprocess.run([makeappx, "pack", "/o", "/d", str(layout), "/p", str(package)], check=True)
-    if options.sign:
-        sign(package, options.publisher)
     print(package)
+    if options.sign:
+        print(sign_test_copy(package, PUBLISHER))
     return 0
 
 
