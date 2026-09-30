@@ -67,6 +67,38 @@ if not icon.pixmap(256, 256).save(sys.argv[1], "ICO"):
 """
 
 
+DPI_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>
+"""
+
+
+def declare_dpi_awareness() -> None:
+    """Declare in stickle.exe's manifest the DPI awareness Qt sets when it starts,
+    so Windows (and the Store's certification checks) know it before then."""
+    from package_msix import windows_sdk_tool
+
+    mt = windows_sdk_tool("mt.exe")
+    exe = DIST_DIR / "stickle.exe"
+    addition = BUILD_DIR / "dpi.manifest"
+    merged = BUILD_DIR / "merged.manifest"
+    addition.write_text(DPI_MANIFEST, encoding="utf-8")
+    subprocess.run(
+        [mt, "-nologo", "-manifest", str(addition), f"-updateresource:{exe};#1"], check=True
+    )
+    subprocess.run([mt, "-nologo", f"-inputresource:{exe};#1", f"-out:{merged}"], check=True)
+    if "PerMonitorV2" not in merged.read_text(encoding="utf-8-sig"):
+        raise SystemExit("stickle.exe's manifest does not declare its DPI awareness")
+    addition.unlink()
+    merged.unlink()
+
+
 def nuitka_command() -> list[str]:
     command = [
         sys.executable,
@@ -140,6 +172,8 @@ def main() -> int:
         BUILD_DIR.mkdir(exist_ok=True)
         write_icon()
     subprocess.run(nuitka_command(), check=True, cwd=ROOT)
+    if sys.platform == "win32":
+        declare_dpi_awareness()
     print(f"Built {DIST_DIR}")
     if sys.platform == "linux":
         # The fcitx5 plugin first, so its libraries are bundled with the rest.
