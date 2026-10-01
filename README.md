@@ -4,8 +4,9 @@
 
 [한국어](README.ko.md)
 
-> **Status: preview.** The first preview (0.1.2) is out: sticky notes on one computer, for
-> Windows and Linux. Syncing between computers is not there yet — see [Try the preview](#try-the-preview).
+> **Status: preview.** The 0.2 preview is out: sticky notes on one computer, for Windows and
+> Linux, now with search, a trash, keyboard shortcuts and a portable mode. Syncing between
+> computers is not there yet — see [Try the preview](#try-the-preview).
 > To hear about new versions, click **Watch → Custom → Releases** at the top of this page.
 > A star tells us you are interested, but does not notify you.
 
@@ -37,8 +38,8 @@
 | Version | What you get |
 | --- | --- |
 | 0.1 *(preview out)* | Everyday sticky notes on a single computer: colours, formatting, notes that remember where they were, always on top, tray icon, start with your computer |
-| 0.2 | Search, trash, keyboard shortcuts, portable mode |
-| 1.0 | Sync between your computers through a synced folder; packages for Windows (Microsoft Store), Linux (Flathub, AppImage, deb) and macOS (Homebrew) |
+| 0.2 *(preview out)* | Search, a trash that keeps notes for a year, shortcuts from anywhere, see-through and locked notes, full keyboard use, portable mode; coming to the Microsoft Store |
+| 1.0 | Sync between your computers through a synced folder; packages for Linux (Flathub, AppImage, deb) and macOS (Homebrew) |
 | Later | WebDAV and S3 storage, what-you-see-is-what-you-get editing, tags, shared notes and a browser extension, a read-only viewer for phones |
 
 ## Try the preview
@@ -60,6 +61,35 @@ Previews are under [Releases](https://github.com/tkitbiz/Stickle/releases), mark
 - The first start asks a few questions and shows a **recovery key**. Keep it somewhere safe,
   away from this computer: it opens your notes if the key stored on this computer is ever lost.
 - Downloads can be checked against `SHA256SUMS.txt` in the same release.
+
+New in 0.2:
+
+- **Search** every note from the Stickle window (`Ctrl+F`), Korean included.
+- **Trash**: deleted notes stay there for a year and can be put back.
+- **Shortcuts from anywhere**: `Ctrl+Alt+N` a new note, `Ctrl+Alt+S` the Stickle window,
+  `Ctrl+Alt+H` every note out of sight for a moment (and back). They can be changed in the
+  Stickle window. On Wayland the desktop asks once whether to allow them.
+- A new note from the **clipboard**, from the Stickle window.
+- **See-through** notes while you work elsewhere, and **locked** notes that cannot be moved
+  or edited by accident (in each note's `⋯` menu).
+- **Keyboard only**: move between notes with `Ctrl+Tab`, tick boxes and open links from the
+  keyboard, move and resize a note with the arrow keys.
+- Notes made with the 0.1.2 preview open as they were: just replace the program. A copy of
+  the notes from before is kept in the `backups` folder where the notes are
+  (`%APPDATA%\Stickle\backups` on Windows, `~/.local/share/stickle/backups` on Linux).
+
+### Portable use
+
+To carry Stickle and its notes on a USB stick, on Windows download the `-portable.zip`,
+unzip it anywhere and run `stickle.exe`. It is the same program with a `stickle-data`
+folder next to `stickle.exe`. Any other copy of Stickle becomes portable the same way:
+create an empty folder named `stickle-data` in the folder that holds `stickle.exe` (on
+Linux, the folder that holds the AppImage).
+
+Stickle then keeps its settings and notes only in that folder: it always asks for a
+password, since it does not use this computer's password store, and it does not start at
+login or add itself to the application list. On Wayland it has no shortcuts from anywhere,
+which the desktop would have to keep.
 
 What a preview is, and is not:
 
