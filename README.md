@@ -58,6 +58,9 @@ Previews are under [Releases](https://github.com/tkitbiz/Stickle/releases), mark
   [open an issue](https://github.com/tkitbiz/Stickle/issues/new) so we know.
 - **Linux**: download the AppImage, make it executable (`chmod +x Stickle-x86_64.AppImage`,
   or in its file properties) and run it. Stickle offers to add itself to your application list.
+  With automatic login, the desktop's keyring stays locked, so when Stickle starts with you it
+  asks for your login password to unlock it, as any app using the keyring does. To avoid that,
+  turn automatic login off, or give the login keyring an empty password.
 - The first start asks a few questions and shows a **recovery key**. Keep it somewhere safe,
   away from this computer: it opens your notes if the key stored on this computer is ever lost.
 - Downloads can be checked against `SHA256SUMS.txt` in the same release.
