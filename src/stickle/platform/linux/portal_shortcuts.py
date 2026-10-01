@@ -68,6 +68,7 @@ class PortalShortcuts(Portal):
         self._replies: dict[int, Handler] = {}
         self._responses: dict[str, Handler] = {}
         self._wanted: list[tuple[str, str, str]] = []
+        self._parent_window = ""
         self._session = ""
         self.version = 0
         self._notifier = QSocketNotifier(
@@ -137,10 +138,11 @@ class PortalShortcuts(Portal):
     # The steps
 
     @override
-    def bind(self, shortcuts: list[tuple[str, str, str]]) -> None:
+    def bind(self, shortcuts: list[tuple[str, str, str]], parent_window: str = "") -> None:
         """(id, description, preferred trigger or "") for each shortcut; see
         Combo.portal_trigger for how the trigger is written."""
         self._wanted = shortcuts
+        self._parent_window = parent_window
         # Tells the portal which app this is (a host app has no id of its own).
         self._send(new_method_call(REGISTRY, "Register", "sa{sv}", (self._app_id, {})), _ignore)
         get = new_method_call(PROPERTIES, "Get", "ss", (SHORTCUTS, "version"))
@@ -170,7 +172,7 @@ class PortalShortcuts(Portal):
                 details["preferred_trigger"] = ("s", keys)
             wanted.append((shortcut_id, details))
         no_options: Variants = {}
-        body = (self._session, wanted, "", no_options)
+        body = (self._session, wanted, self._parent_window, no_options)
         self._ask("BindShortcuts", "oa(sa{sv})sa{sv}", body, self._have_shortcuts)
 
     def _have_shortcuts(self, message: Message) -> None:

@@ -8,7 +8,8 @@ from typing import override
 
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent
-from PySide6.QtGui import QKeySequence
+from PySide6.QtGui import QGuiApplication, QKeySequence
+from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
 from stickle.app.i18n import Translations
@@ -252,12 +253,14 @@ class FakePortal(Portal):
     def __init__(self, has_page: bool = True) -> None:
         super().__init__()
         self.offered: list[tuple[str, str, str]] = []
+        self.parent_window = "not offered"
         self.has_page = has_page
         self.pages_opened = 0
 
     @override
-    def bind(self, shortcuts: list[tuple[str, str, str]]) -> None:
+    def bind(self, shortcuts: list[tuple[str, str, str]], parent_window: str = "") -> None:
         self.offered = shortcuts
+        self.parent_window = parent_window
 
     @override
     def configure(self) -> bool:
@@ -282,6 +285,23 @@ def test_the_desktop_is_offered_the_shortcuts_once_stickle_is_up(settings: Setti
     offered = {action: keys for action, _, keys in portal.offered}
     assert offered == {"new-note": "CTRL+ALT+n", "show": "CTRL+ALT+s", "hide-all": ""}
     assert all(description for _, description, _ in portal.offered)
+
+
+def test_the_desktops_question_belongs_to_the_stickle_window_when_it_shows(
+    qtbot: QtBot, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(QGuiApplication, "platformName", lambda: "xcb")
+    window = QWidget()
+    qtbot.addWidget(window)
+
+    hidden = FakePortal()
+    kept_by_desktop(settings, hidden).start(window)
+    window.show()
+    showing = FakePortal()
+    kept_by_desktop(settings, showing).start(window)
+
+    assert hidden.parent_window == ""  # nothing to come up over
+    assert showing.parent_window == f"x11:{int(window.winId()):x}"
 
 
 def test_what_the_desktop_gave_is_shown_and_its_presses_heard(settings: Settings) -> None:

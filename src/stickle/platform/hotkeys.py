@@ -104,8 +104,10 @@ class Portal(QObject):
     bound = Signal(dict)
     failed = Signal()
 
-    def bind(self, shortcuts: list[tuple[str, str, str]]) -> None:
-        """(id, description, suggested keys as Combo.portal_trigger writes them, or "")."""
+    def bind(self, shortcuts: list[tuple[str, str, str]], parent_window: str = "") -> None:
+        """(id, description, suggested keys as Combo.portal_trigger writes them, or "").
+        parent_window ("x11:<id>", or "" for none) is the window the desktop's
+        question belongs to, so that it comes up over it."""
         raise NotImplementedError
 
     def configure(self) -> bool:

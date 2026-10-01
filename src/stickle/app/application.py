@@ -409,7 +409,8 @@ def run(
                 )
             open_at_start(manager, stickle_window, tray_available, at_login)
             if shortcuts is not None:
-                shortcuts.start()  # the desktop may ask about them: after the first start's windows
+                # The desktop may ask about them: after the first start's windows.
+                shortcuts.start(stickle_window)
             if request is not None:
                 answer(request)
             if instance_server is not None:

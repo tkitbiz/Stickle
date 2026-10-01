@@ -18,6 +18,8 @@ from enum import Enum
 
 import apsw
 from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QWidget
 
 from stickle.data.settings import SHORTCUT_ACTIONS, SHORTCUTS, Settings
 from stickle.platform.hotkeys import Combo, Hotkeys, Portal, system_hotkeys
@@ -113,9 +115,11 @@ class GlobalShortcuts(QObject):
         """Kept by the desktop (its portal): changed in its settings, not here."""
         return self._portal is not None
 
-    def start(self) -> None:
+    def start(self, over: QWidget | None = None) -> None:
         """Offer the shortcuts to the desktop, once Stickle is up: it may ask the
-        user in a window of its own, which should not come over Stickle's first start."""
+        user in a window of its own, which should not come over Stickle's first start.
+        Its question belongs to over when that window is showing, or it could
+        open behind it (a window kept on top)."""
         if self._portal is None:
             return
         descriptions = {
@@ -127,7 +131,9 @@ class GlobalShortcuts(QObject):
         for action in SHORTCUT_ACTIONS:
             combo = Combo.parse(self.combo(action))
             wanted.append((action, descriptions[action], combo.portal_trigger if combo else ""))
-        self._portal.bind(wanted)
+        x11 = QGuiApplication.platformName() == "xcb"
+        showing = over if over is not None and x11 and over.isVisible() else None
+        self._portal.bind(wanted, f"x11:{int(showing.winId()):x}" if showing else "")
 
     def configure(self) -> bool:
         """Open the desktop's page for the shortcuts, where it has one."""

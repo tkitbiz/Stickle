@@ -125,6 +125,18 @@ def test_it_names_the_app_opens_a_session_and_offers_the_shortcuts(
     assert offered["new-note"]["description"] == ("s", "New note")
     assert offered["new-note"]["preferred_trigger"] == ("s", "CTRL+ALT+n")
     assert "preferred_trigger" not in offered["hide-all"]  # turned off: no suggestion
+    assert _parent == ""  # no window of Stickle's to ask over
+
+
+def test_the_desktops_question_comes_up_over_the_window_named(
+    bus: Bus, portal: PortalShortcuts
+) -> None:
+    portal.bind(WANTED, "x11:4a00007")
+    portal.handle(reply(bus.call("Get"), "v", (("u", 1),)))
+    portal.handle(response(bus.call("CreateSession"), 0, {"session_handle": ("o", SESSION)}))
+
+    _session, _shortcuts, parent, _options = bus.call("BindShortcuts")[0].body
+    assert parent == "x11:4a00007"
 
 
 def test_the_keys_the_desktop_gave_are_told(
