@@ -21,6 +21,8 @@ from stickle.core.colors import PALETTE
 from stickle.core.labels import NAME_LENGTH, Category
 from stickle.data.labels import CategoryNameError
 
+MIN_WIDTH = 320
+
 # The dot is beside a note of any colour: these stand out on most of them.
 DOT_COLORS = ("blue", "coral", "green", "lavender", "apricot", "sky", "pink", "mint")
 
@@ -40,6 +42,8 @@ class NewCategoryDialog(QDialog):
         super().__init__(parent)
         self._create = create
         self.created: Category | None = None
+        # Narrower, and window managers cut its title short.
+        self.setMinimumWidth(MIN_WIDTH)
 
         self.name = QLineEdit(self)
         self.name.setMaxLength(NAME_LENGTH)
