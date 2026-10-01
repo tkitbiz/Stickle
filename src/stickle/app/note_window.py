@@ -63,11 +63,13 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import Shiboken
 
+from stickle.app.labels import CategoryTag, MarksBadge, mark_name
 from stickle.app.note_highlight import MarkdownHighlighter
 from stickle.app.note_view import NoteView, utf16_length
 from stickle.app.palette import color_name, qcolor, swatch_icon
 from stickle.app.window_flags import keep_stays_on_top, set_stays_on_top, stays_on_top
 from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
+from stickle.core.labels import Category, Mark
 from stickle.core.markdown import note_title, task_box
 from stickle.platform.linux.x11 import activate, keep_off_taskbar
 
@@ -279,6 +281,16 @@ class TitleBar(QWidget):
             )
         )
         self.movable = True  # False while the note is locked
+        # What the note is about, and how it is to be dealt with; clicking either
+        # opens the menu, where they are changed.
+        self.category_tag = CategoryTag(self)
+        self.marks_badge = MarksBadge(self)
+        for part in (self.category_tag, self.marks_badge):
+            part.clicked.connect(
+                lambda _=False, part=part: self.menu_requested.emit(
+                    part.mapToGlobal(QPoint(0, part.height()))
+                )
+            )
         self.set_icon_color(qcolor(DARK_TEXT))
 
         layout = QHBoxLayout(self)
@@ -286,8 +298,10 @@ class TitleBar(QWidget):
         layout.setSpacing(1)
         layout.addWidget(self.unsaved_button)
         layout.addWidget(self.lock_button)
+        layout.addWidget(self.category_tag)
         layout.addWidget(self.title, 1)
         layout.addStretch()
+        layout.addWidget(self.marks_badge)
         # Kept away from the hide button, so it is not hit by mistake.
         layout.addWidget(self.pin_button)
         layout.addWidget(self.menu_button)
@@ -311,6 +325,8 @@ class TitleBar(QWidget):
         self.unsaved_button.setIcon(make_unsaved_icon(color))
         self.lock_button.setIcon(make_lock_icon(color, self._quiet_color))
         self._show_pin(self.pin_button.isChecked())
+        self.category_tag.set_color(color)
+        self.marks_badge.set_color(color)
 
     def _show_pin(self, pinned: bool) -> None:
         self.pin_button.setIcon(make_pin_icon(self._icon_color, pinned, self._quiet_color))
@@ -404,6 +420,9 @@ class NoteWindow(QWidget):
     on_top_requested = Signal(bool)  # True: stay above other windows
     opacity_requested = Signal(float)  # one of OPACITIES
     lock_requested = Signal(bool)  # True: keep it where it is, as it is
+    category_requested = Signal(object)  # a category id, or None for none
+    new_category_requested = Signal()
+    mark_requested = Signal(str, bool)  # a mark id; True: put it on
     switch_requested = Signal(int)  # 1: to the next note on screen, -1: the one before
     geometry_settled = Signal()  # moved or resized, and then left alone for a moment
 
@@ -477,6 +496,13 @@ class NoteWindow(QWidget):
             action.triggered.connect(lambda _=False, key=key: self.color_requested.emit(key))
             colors.addAction(action)
             self.color_actions[key] = action
+        # Filled each time the menu opens, from what exists then (see label_choices).
+        self.category: Category | None = None
+        self.marks: list[Mark] = []
+        self.label_choices: Callable[[], tuple[list[Category], list[Mark]]] = lambda: ([], [])
+        self.category_menu = self.menu.addMenu("")
+        self.marks_menu = self.menu.addMenu("")
+        self.menu.aboutToShow.connect(self._fill_label_menus)
         # See-through only while another window is in use: read and written, the
         # note is opaque, so its text keeps its contrast.
         self.opacity = 1.0
@@ -606,6 +632,10 @@ class NoteWindow(QWidget):
         self.title_bar.pin_button.setToolTip(on_top)
         self.menu_action.setText(note_menu)
         self.color_menu.setTitle(self.tr("Color"))
+        self.category_menu.setTitle(self.tr("Category"))
+        self.marks_menu.setTitle(self.tr("Marks"))
+        self.title_bar.category_tag.retranslate()
+        self.title_bar.marks_badge.retranslate()
         self.opacity_menu.setTitle(self.tr("Opacity when not in use"))
         self.lock_action.setText(self.tr("Lock note"))
         self.move_action.setText(self.tr("Move with the arrow keys"))
@@ -676,6 +706,42 @@ class NoteWindow(QWidget):
     def _show_opacity(self) -> None:
         # Pointing at the note changes nothing: only using it (or another window) does.
         self.setWindowOpacity(1.0 if self.isActiveWindow() else self.opacity)
+
+    def set_labels(self, category: Category | None, marks: list[Mark]) -> None:
+        """Show the note's category and marks (marks in their order)."""
+        self.category = category
+        self.marks = marks
+        self.title_bar.category_tag.set_category(category)
+        self.title_bar.marks_badge.set_marks(marks)
+
+    def _fill_label_menus(self) -> None:
+        categories, marks = self.label_choices()
+        self.category_menu.clear()
+        chosen = self.category.id if self.category is not None else None
+        group = QActionGroup(self.category_menu)
+        for category_id, name in [(None, self.tr("None", "no category"))] + [
+            (category.id, category.name) for category in categories
+        ]:
+            action = self.category_menu.addAction(name)
+            action.setCheckable(True)
+            action.setChecked(category_id == chosen)
+            action.triggered.connect(
+                lambda _=False, category_id=category_id: self.category_requested.emit(category_id)
+            )
+            group.addAction(action)
+        self.category_menu.addSeparator()
+        new = self.category_menu.addAction(self.tr("New category…"))
+        new.triggered.connect(self.new_category_requested)
+
+        self.marks_menu.clear()
+        on = {mark.id for mark in self.marks}
+        for mark in marks:
+            action = self.marks_menu.addAction(mark_name(mark))
+            action.setCheckable(True)
+            action.setChecked(mark.id in on)
+            action.triggered.connect(
+                lambda checked=False, mark_id=mark.id: self.mark_requested.emit(mark_id, checked)
+            )
 
     def _add_action(self, key: QKeySequence.StandardKey) -> QAction:
         action = QAction(self)

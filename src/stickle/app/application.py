@@ -30,6 +30,7 @@ from stickle.app.signals import SignalWatcher
 from stickle.app.startup import open_notes
 from stickle.app.stickle_window import RecoveryKeys, StickleWindow
 from stickle.app.tray import Tray
+from stickle.data.labels import LabelRepository
 from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
 from stickle.data.settings import RECOVERY_KEY_KEPT, Settings
@@ -342,6 +343,7 @@ def run(
             NoteRepository(connection) if connection else None,
             settings=Settings(connection) if connection else None,
             layouts=LayoutRepository(connection) if connection else None,
+            labels=LabelRepository(connection) if connection else None,
         )
         manager.watch_quit(app)
         app.aboutToQuit.connect(manager.save_all)

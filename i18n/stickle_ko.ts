@@ -9,6 +9,13 @@
     </message>
 </context>
 <context>
+    <name>CategoryTag</name>
+    <message>
+        <source>Category: %1</source>
+        <translation>카테고리: %1</translation>
+    </message>
+</context>
+<context>
     <name>EnterRecoveryKeyDialog</name>
     <message>
         <source>Open with the recovery key</source>
@@ -149,6 +156,51 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>Windows Security has been seen to block Stickle by mistake when this is on. A signed version will put that right.</source>
         <translation>이 항목을 켜면 Windows 보안이 Stickle을 잘못 막는 경우가 있습니다. 서명된 버전에서 해결됩니다.</translation>
+    </message>
+</context>
+<context>
+    <name>Mark</name>
+    <message>
+        <source>To do</source>
+        <translation>할 일</translation>
+    </message>
+    <message>
+        <source>Urgent</source>
+        <translation>긴급</translation>
+    </message>
+    <message>
+        <source>Important</source>
+        <translation>중요</translation>
+    </message>
+    <message>
+        <source>Waiting</source>
+        <translation>대기</translation>
+    </message>
+</context>
+<context>
+    <name>MarksBadge</name>
+    <message>
+        <source>Marks: %1</source>
+        <translation>표시: %1</translation>
+    </message>
+</context>
+<context>
+    <name>NewCategoryDialog</name>
+    <message>
+        <source>New category</source>
+        <translation>새 카테고리</translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation>이름(&amp;N):</translation>
+    </message>
+    <message>
+        <source>&amp;Color:</source>
+        <translation>색(&amp;C):</translation>
+    </message>
+    <message>
+        <source>There is already a category with this name.</source>
+        <translation>같은 이름의 카테고리가 이미 있습니다.</translation>
     </message>
 </context>
 <context>
@@ -344,6 +396,14 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>색</translation>
     </message>
     <message>
+        <source>Category</source>
+        <translation>카테고리</translation>
+    </message>
+    <message>
+        <source>Marks</source>
+        <translation>표시</translation>
+    </message>
+    <message>
         <source>Opacity when not in use</source>
         <translation>안 쓸 때 불투명도</translation>
     </message>
@@ -395,6 +455,15 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>This note could not be saved. Trying again; click to try now.</source>
         <translation>이 메모를 저장하지 못했습니다. 다시 시도하는 중이며, 누르면 바로 시도합니다.</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>no category</comment>
+        <translation>없음</translation>
+    </message>
+    <message>
+        <source>New category…</source>
+        <translation>새 카테고리…</translation>
     </message>
     <message>
         <source>Empty note</source>

@@ -34,6 +34,7 @@ from stickle.app.recovery_dialog import KINDS, Problem, RecoveryDialog
 from stickle.app.recovery_key_dialog import EnterRecoveryKeyDialog, RecoveryKeyDialog
 from stickle.app.shortcuts import GlobalShortcuts
 from stickle.app.stickle_window import RecoveryKeys, StickleWindow
+from stickle.core.labels import Category, Mark
 from stickle.data.notes import NoteRepository
 from stickle.data.schema import NotesDiff, open_store
 from stickle.data.settings import Settings
@@ -91,7 +92,13 @@ def close(*windows: QWidget) -> None:
 
 
 def test_a_note_names_all_it_offers(qtbot: QtBot) -> None:
-    for window in (NoteWindow(text=""), NoteWindow(text="- [ ] 우유\n[문서](https://x.org)")):
+    labelled = NoteWindow(text="회의")
+    labelled.set_labels(Category("id", "회사", "blue", 1), [Mark("urgent", None, "urgent", 2)])
+    for window in (
+        NoteWindow(text=""),
+        NoteWindow(text="- [ ] 우유\n[문서](https://x.org)"),
+        labelled,
+    ):
         window.set_collapsed(True)  # the folded title bar takes the keyboard
         assert unnamed(window) == []
         window.set_collapsed(False)

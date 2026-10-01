@@ -22,7 +22,7 @@ not stored.
 """
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import replace
 from typing import override
 
@@ -30,10 +30,13 @@ import apsw
 from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 
+from stickle.app.category_dialog import NewCategoryDialog, next_dot_color
 from stickle.app.note_window import NoteWindow
 from stickle.app.placement import MonitorWatch, can_place_windows, monitors, qrect, rect
+from stickle.core.labels import Category, Mark
 from stickle.core.layout import MAIN, Place, fit, monitor_at, remember, restore
 from stickle.core.note import DEFAULT_COLOR, Note
+from stickle.data.labels import LabelRepository
 from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
 from stickle.data.settings import DEFAULT_NOTE_COLOR, Settings
@@ -105,6 +108,20 @@ class AutoSave(QObject):
         return any(timer.isActive() for timer in (self._idle, self._max, self._retry))
 
 
+def _ask_for_category(
+    parent: NoteWindow, create: Callable[[str, str], Category], color: str
+) -> NewCategoryDialog:
+    dialog = NewCategoryDialog(parent, create, color)
+    dialog.exec()
+    return dialog
+
+
+# Asks, and returns once answered: the dialog's created is the new category, if any.
+new_category_dialog: Callable[
+    [NoteWindow, Callable[[str, str], Category], str], NewCategoryDialog
+] = _ask_for_category  # replaced in tests
+
+
 class NoteManager(QObject):
     # Qt's own "quit on last window closed" ignores tool windows, which notes are.
     last_note_closed = Signal()
@@ -124,11 +141,13 @@ class NoteManager(QObject):
         max_ms: int = MAX_MS,
         settings: Settings | None = None,
         layouts: LayoutRepository | None = None,
+        labels: LabelRepository | None = None,
     ) -> None:
         super().__init__()
         self._repository = repository
         self._settings = settings
         self._layouts = layouts
+        self._labels = labels
         self._monitor_watch = MonitorWatch(self)
         self._monitor_watch.changed.connect(self.place_all)
         self._idle_ms = idle_ms
@@ -261,6 +280,21 @@ class NoteManager(QObject):
 
         window.lock_requested.connect(lock_requested)
 
+        window.label_choices = self.label_choices
+
+        def category_requested(category_id: str | None) -> None:
+            self.set_category(window, category_id)
+
+        window.category_requested.connect(category_requested)
+        window.new_category_requested.connect(lambda: self.new_category(window))
+
+        def mark_requested(mark_id: str, on: bool) -> None:
+            self.set_mark(window, mark_id, on)
+
+        window.mark_requested.connect(mark_requested)
+        if note is not None:
+            self._show_labels(window, note.label, note.marks)
+
         def switch_requested(step: int) -> None:
             self.switch_note(window, step)
 
@@ -319,6 +353,10 @@ class NoteManager(QObject):
                         self._repository.set_opacity(window.note_id, window.opacity)
                     if window.locked:
                         self._repository.set_locked(window.note_id, True)
+                    if window.category is not None:
+                        self._repository.set_category(window.note_id, window.category.id)
+                    for mark in window.marks:
+                        self._repository.set_mark(window.note_id, mark.id, True)
             else:
                 self._repository.update_body(window.note_id, text)
         except (apsw.Error, OSError) as error:
@@ -524,6 +562,68 @@ class NoteManager(QObject):
                 return
         window.set_locked(locked)
         self.changed.emit()  # the list of notes marks locked ones
+
+    # Category and marks
+
+    def label_choices(self) -> tuple[list[Category], list[Mark]]:
+        """The categories and marks a note can have, in their order."""
+        if self._labels is None:
+            return [], []
+        try:
+            return self._labels.categories(), self._labels.marks()
+        except apsw.Error as error:
+            log.error("could not read the categories: %s", type(error).__name__)
+            return [], []
+
+    def _show_labels(
+        self, window: NoteWindow, category_id: str | None, marks: Iterable[str]
+    ) -> None:
+        categories, known = self.label_choices()
+        category = next((c for c in categories if c.id == category_id), None)
+        if category is None and category_id is not None and self._labels is not None:
+            category = self._labels.category(category_id)  # deleted since: still the note's
+        wanted = set(marks)
+        window.set_labels(category, [mark for mark in known if mark.id in wanted])
+
+    def set_category(self, window: NoteWindow, category_id: str | None) -> None:
+        """What the note is about. A note not stored yet takes it when first stored;
+        if storing fails, the note keeps the one it had."""
+        if self._repository is not None and window.note_id is not None:
+            try:
+                self._repository.set_category(window.note_id, category_id)
+            except (apsw.Error, KeyError) as error:
+                log.error("could not store a note's category: %s", type(error).__name__)
+                return
+        self._show_labels(window, category_id, (mark.id for mark in window.marks))
+        self.changed.emit()
+
+    def set_mark(self, window: NoteWindow, mark_id: str, on: bool) -> None:
+        """Put a mark on the note or take it off; as set_category otherwise."""
+        marks = {mark.id for mark in window.marks}
+        if self._repository is not None and window.note_id is not None:
+            try:
+                marks = set(self._repository.set_mark(window.note_id, mark_id, on).marks)
+            except (apsw.Error, KeyError) as error:
+                log.error("could not store a note's mark: %s", type(error).__name__)
+                return
+        elif on:
+            marks.add(mark_id)
+        else:
+            marks.discard(mark_id)
+        category_id = window.category.id if window.category is not None else None
+        self._show_labels(window, category_id, marks)
+        self.changed.emit()
+
+    def new_category(self, window: NoteWindow) -> None:
+        """Ask for a new category's name and colour, and give it to the note."""
+        if self._labels is None:
+            return
+        labels = self._labels
+        dialog = new_category_dialog(
+            window, labels.create_category, next_dot_color(len(self.label_choices()[0]))
+        )
+        if dialog.created is not None:
+            self.set_category(window, dialog.created.id)
 
     # See-through while not in use
 
