@@ -16,8 +16,10 @@ from preview_fixture_0_2 import (
     SHORTCUTS_SET,
 )
 
+from stickle.core.labels import BUILT_IN_MARKS
 from stickle.core.layout import MAIN
 from stickle.data.database import WrongKeyError, open_database
+from stickle.data.labels import LabelRepository
 from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
 from stickle.data.schema import latest_version, open_store, schema_version
@@ -87,6 +89,16 @@ def test_settings_stay(copy: Path) -> None:
         assert settings.get(RECOVERY_KEY_KEPT) is True
         assert settings.get(USAGE) == THIS_DEVICE
         assert settings.get(SHORTCUTS) == SHORTCUTS_SET
+    finally:
+        connection.close()
+
+
+def test_after_the_upgrade_notes_have_no_category_or_mark_yet(copy: Path) -> None:
+    connection = open_store(copy, KEY)
+    try:
+        assert all(n.label is None and not n.marks for n in NoteRepository(connection).all())
+        assert LabelRepository(connection).categories() == []
+        assert [mark.id for mark in LabelRepository(connection).marks()] == list(BUILT_IN_MARKS)
     finally:
         connection.close()
 

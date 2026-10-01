@@ -1,10 +1,12 @@
 import secrets
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 
 import apsw
 import pytest
 
+from stickle.core.note import content_hash
 from stickle.data import schema
 from stickle.data.database import KEY_BYTES, open_database
 from stickle.data.notes import NoteRepository
@@ -42,15 +44,25 @@ def make_v1(path: Path, bodies: list[str]) -> list[str]:
         connection = open_store(path, KEY)
     finally:
         schema.MIGRATIONS = latest
-    ids = [NoteRepository(connection).create(body).id for body in bodies]
+    # Written as version 1 had it: the app's code follows the latest version.
+    ids = [str(uuid.uuid4()) for _ in bodies]
+    with connection:
+        for note_id, body in zip(ids, bodies, strict=True):
+            connection.execute(
+                "INSERT INTO notes (id, body, color, created_at, updated_at, content_hash,"
+                " change_seq) VALUES (?, ?, 'yellow', '2026-09-26T10:00:00.000Z',"
+                " '2026-09-26T10:00:00.000Z', ?, 1)",
+                (note_id, body, content_hash(body)),
+            )
     connection.close()
     return ids
 
 
 def bodies(path: Path) -> dict[str, str]:
+    """The notes' text, read as any version has it."""
     connection = open_database(path, KEY)
     try:
-        return {note.id: note.body for note in NoteRepository(connection).all()}
+        return {str(i): str(b) for i, b in connection.execute("SELECT id, body FROM notes")}
     finally:
         connection.close()
 

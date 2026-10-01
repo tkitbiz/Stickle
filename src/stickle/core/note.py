@@ -28,7 +28,8 @@ class Note:
     # Kept in the model now so later features need no schema change.
     opacity: float = 1.0
     status: str = "active"
-    label: str | None = None  # category (MVP 0.2)
+    label: str | None = None  # the id of its category, if any
+    marks: frozenset[str] = frozenset()  # the ids of its marks
     locked: bool = False
     collapsed: bool = False
     auto_height: bool = False

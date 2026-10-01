@@ -37,7 +37,7 @@ class NoteNotDeletedError(ValueError):
 KEEP_DAYS = 365
 
 
-def _note(row: apsw.SQLiteValues) -> Note:
+def _note(row: apsw.SQLiteValues, marks: frozenset[str] = frozenset()) -> Note:
     (
         note_id,
         body,
@@ -73,6 +73,7 @@ def _note(row: apsw.SQLiteValues) -> Note:
         opacity=float(opacity),  # pyright: ignore[reportArgumentType]
         status=str(status),
         label=None if label is None else str(label),
+        marks=marks,
         locked=bool(locked),
         collapsed=bool(collapsed),
         auto_height=bool(auto_height),
@@ -93,9 +94,24 @@ class NoteRepository:
         ).fetchall()
         return int(row[0][0])  # pyright: ignore[reportArgumentType]
 
+    def _marks(self, note_id: str | None = None) -> dict[str, frozenset[str]]:
+        """The marks of one note, or of every note: note id -> mark ids."""
+        if note_id is None:
+            rows = self._db.execute("SELECT note_id, mark_id FROM note_marks")
+        else:
+            rows = self._db.execute(
+                "SELECT note_id, mark_id FROM note_marks WHERE note_id = ?", (note_id,)
+            )
+        found: dict[str, set[str]] = {}
+        for owner, mark in rows:
+            found.setdefault(str(owner), set()).add(str(mark))
+        return {owner: frozenset(marks) for owner, marks in found.items()}
+
     def get(self, note_id: str) -> Note | None:
         rows = self._db.execute(f"SELECT {COLUMNS} FROM notes WHERE id = ?", (note_id,)).fetchall()
-        return _note(rows[0]) if rows else None
+        if not rows:
+            return None
+        return _note(rows[0], self._marks(note_id).get(note_id, frozenset()))
 
     def _require(self, note_id: str) -> Note:
         note = self.get(note_id)
@@ -117,9 +133,9 @@ class NoteRepository:
     def _change(self, note_id: str, assignments: dict[str, object]) -> Note:
         with self._db:
             self._require(note_id)
-            columns = ", ".join(f"{name} = ?" for name in assignments)
+            columns = "".join(f"{name} = ?, " for name in assignments)
             self._db.execute(
-                f"UPDATE notes SET {columns}, updated_at = ?, change_seq = ? WHERE id = ?",
+                f"UPDATE notes SET {columns}updated_at = ?, change_seq = ? WHERE id = ?",
                 (*assignments.values(), self._clock(), self._next_seq(), note_id),  # pyright: ignore[reportArgumentType]
             )
         return self._require(note_id)
@@ -178,6 +194,43 @@ class NoteRepository:
             return note
         return self._change(note_id, {"hidden": int(hidden)})
 
+    def set_category(self, note_id: str, category_id: str | None) -> Note:
+        """What the note is about: a category not deleted, or None for none."""
+        note = self._require_live(note_id)
+        if note.label == category_id:
+            return note
+        if category_id is not None:
+            rows = self._db.execute(
+                "SELECT 1 FROM categories WHERE id = ? AND deleted_at IS NULL", (category_id,)
+            ).fetchall()
+            if not rows:
+                raise KeyError(category_id)
+        return self._change(note_id, {"label": category_id})
+
+    def set_mark(self, note_id: str, mark_id: str, on: bool) -> Note:
+        """Put a mark not deleted on the note, or take one off."""
+        note = self._require_live(note_id)
+        if (mark_id in note.marks) == on:
+            return note
+        if on:
+            rows = self._db.execute(
+                "SELECT 1 FROM marks WHERE id = ? AND deleted_at IS NULL", (mark_id,)
+            ).fetchall()
+            if not rows:
+                raise KeyError(mark_id)
+        with self._db:
+            if on:
+                self._db.execute(
+                    "INSERT INTO note_marks (note_id, mark_id) VALUES (?, ?)", (note_id, mark_id)
+                )
+            else:
+                self._db.execute(
+                    "DELETE FROM note_marks WHERE note_id = ? AND mark_id = ?", (note_id, mark_id)
+                )
+            # The note itself counts as changed, so that sync notices.
+            self._change(note_id, {})
+        return self._require(note_id)
+
     def delete(self, note_id: str) -> Note:
         self._require_live(note_id)
         return self._change(note_id, {"deleted_at": self._clock()})
@@ -191,8 +244,9 @@ class NoteRepository:
     def _list(self, where: str, order: str, params: tuple[str, ...] = ()) -> list[Note]:
         rows = self._db.execute(
             f"SELECT {COLUMNS} FROM notes WHERE {where} ORDER BY {order}", params
-        )
-        return [_note(row) for row in rows]
+        ).fetchall()
+        marks = self._marks()
+        return [_note(row, marks.get(str(row[0]), frozenset())) for row in rows]
 
     def visible(self) -> list[Note]:
         return self._list("deleted_at IS NULL AND hidden = 0", "created_at, seq")
@@ -208,7 +262,8 @@ class NoteRepository:
     def purge(self, note_id: str) -> None:
         """Empty a deleted note from the trash for good: only a deletion record stays.
 
-        The note, its places on screen and its search entry go, in one transaction.
+        The note, its places on screen, its marks and its search entry go, in one
+        transaction.
         """
         with self._db:
             note = self._require(note_id)
@@ -221,6 +276,7 @@ class NoteRepository:
                 (note_id, note.deleted_at, self._clock()),
             )
             self._db.execute("DELETE FROM note_layouts WHERE note_id = ?", (note_id,))
+            self._db.execute("DELETE FROM note_marks WHERE note_id = ?", (note_id,))
             self._db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
 
     def empty_trash(self) -> int:

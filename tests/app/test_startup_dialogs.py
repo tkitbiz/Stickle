@@ -17,7 +17,7 @@ from stickle.app.startup import open_notes
 from stickle.data import schema
 from stickle.data.database import open_database
 from stickle.data.notes import NoteRepository
-from stickle.data.schema import V1, NotesDiff, open_store, schema_version
+from stickle.data.schema import NotesDiff, open_store, schema_version
 from stickle.platform.credentials import CredentialStore, CredentialStoreUnavailableError
 from stickle.unlock import Unlock
 
@@ -232,22 +232,22 @@ def test_failed_upgrade_lists_the_notes_then_continues(
     qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     backend = Backend()
-    monkeypatch.setattr(schema, "MIGRATIONS", [V1])  # the notes as an older version left them
+    current = list(schema.MIGRATIONS)  # the notes as this version leaves them
     notes_folder(tmp_path, backend)
-    monkeypatch.setattr(schema, "MIGRATIONS", [V1, "DELETE FROM notes"])
+    monkeypatch.setattr(schema, "MIGRATIONS", [*current, "DELETE FROM notes"])
 
     def fix_the_app(dialog: RecoveryDialog) -> None:
         assert dialog.problem.kind == "upgrade_failed"
         items = [dialog.notes.item(i).text() for i in range(dialog.notes.count())]
         assert items == ["Missing: 회의록을 내일까지"]
         assert "회의록" not in diagnostics(dialog.problem)
-        monkeypatch.setattr(schema, "MIGRATIONS", [V1, "CREATE TABLE extra (x)"])
+        monkeypatch.setattr(schema, "MIGRATIONS", [*current, "CREATE TABLE extra (x)"])
 
     recovery = Recovery(Choice.RETRY, before=fix_the_app)
     connection = open_notes(Unlock(tmp_path, store_of(backend), FAST), never, recovery)
 
     assert connection is not None
-    assert schema_version(connection) == 2
+    assert schema_version(connection) == len(current) + 1
     assert [n.body for n in NoteRepository(connection).all()] == ["회의록을 내일까지"]
     connection.close()
     # J. The log tells what happened, without the note's text.

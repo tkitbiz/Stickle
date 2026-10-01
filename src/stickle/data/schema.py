@@ -101,8 +101,44 @@ CREATE TABLE deletion_records (
 );
 """
 
+V3 = """
+-- What a note is about: one per note, kept in notes.label by id, so that a
+-- renamed category stays on its notes. A deleted category keeps its row,
+-- so that a note brought back from the trash can bring it back too. One row
+-- each, so that categories made on two devices are both kept by sync.
+CREATE TABLE categories (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL CHECK (length(trim(name)) > 0),
+    color TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+);
+-- How a note is to be dealt with: any number per note. A built-in mark has
+-- no name until the user gives it one, and is shown in the chosen language.
+CREATE TABLE marks (
+    id TEXT PRIMARY KEY,
+    name TEXT CHECK (name IS NULL OR length(trim(name)) > 0),
+    icon TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+);
+INSERT INTO marks (id, icon, position, updated_at) VALUES
+    ('todo', 'todo', 1, '2026-10-02T00:00:00.000Z'),
+    ('urgent', 'urgent', 2, '2026-10-02T00:00:00.000Z'),
+    ('important', 'important', 3, '2026-10-02T00:00:00.000Z'),
+    ('waiting', 'waiting', 4, '2026-10-02T00:00:00.000Z');
+CREATE TABLE note_marks (
+    note_id TEXT NOT NULL,
+    mark_id TEXT NOT NULL,
+    PRIMARY KEY (note_id, mark_id)
+);
+"""
+
 # MIGRATIONS[n] brings the database from version n to version n + 1.
-MIGRATIONS: list[str] = [V1, V2]
+MIGRATIONS: list[str] = [V1, V2, V3]
 BACKUPS_KEPT = 3
 
 
