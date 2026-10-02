@@ -100,6 +100,8 @@ class Tray(QSystemTrayIcon):
         self._menu.aboutToShow.connect(self._refresh_clipboard)
         self._menu.addSeparator()
 
+        # The keys at a glance: shown by the Stickle window's guide (see the app).
+        self.guide_action = self._menu.addAction("")
         self.language_menu = self._menu.addMenu("")
         self.language_actions: dict[str | None, QAction] = {}
         group = QActionGroup(self.language_menu)
@@ -217,6 +219,7 @@ class Tray(QSystemTrayIcon):
         else:
             self.set_aside_action.setText(self.tr("Hide all notes for now"))
         self.view_menu.setTitle(self.tr("Show on the desktop"))
+        self.guide_action.setText(self.tr("Keyboard shortcuts"))
         if self._notes is not None and self._notes.view is not None:
             # Always in sight, so that notes out of view are not thought lost.
             self.setToolTip(

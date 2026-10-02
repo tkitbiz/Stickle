@@ -67,6 +67,7 @@ from stickle.app.labels import CategoryTag, MarksBadge, mark_name
 from stickle.app.note_highlight import MarkdownHighlighter
 from stickle.app.note_view import NoteView, from_utf16, utf16_length
 from stickle.app.palette import color_name, qcolor, swatch_icon
+from stickle.app.shortcut_guide import KEYS as GUIDE_KEYS
 from stickle.app.window_flags import keep_stays_on_top, set_stays_on_top, stays_on_top
 from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
 from stickle.core.editing import on_close_bracket, on_enter, on_tab
@@ -424,6 +425,7 @@ class NoteWindow(QWidget):
     category_requested = Signal(object)  # a category id, or None for none
     new_category_requested = Signal()
     mark_requested = Signal(str, bool)  # a mark id; True: put it on
+    guide_requested = Signal()  # the keys at a glance
     switch_requested = Signal(int)  # 1: to the next note on screen, -1: the one before
     geometry_settled = Signal()  # moved or resized, and then left alone for a moment
 
@@ -542,6 +544,12 @@ class NoteWindow(QWidget):
         self.resize_action.triggered.connect(lambda: self.start_keyboard(RESIZE))
         self._keyboard: str | None = None  # MOVE or RESIZE while the arrow keys do that
         self._keyboard_from = QRect()
+        # The keys at a glance (F1, Ctrl+/), shown by the app (stickle.app.shortcut_guide).
+        self.guide_action = self.menu.addAction("")
+        self.guide_action.setShortcuts([QKeySequence(keys) for keys in GUIDE_KEYS])
+        self.guide_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self.guide_action.triggered.connect(self.guide_requested)
+        self.addAction(self.guide_action)
         self.menu.addSeparator()
         # The menu has the system's colours, which are the note's only by chance.
         self.delete_action = self.menu.addAction(make_delete_icon(qcolor(DARK_TEXT)), "")
@@ -657,6 +665,7 @@ class NoteWindow(QWidget):
         for key, action in self.color_actions.items():
             action.setText(color_name(key))
         self.delete_action.setText(self.tr("Delete note"))
+        self.guide_action.setText(self.tr("Keyboard shortcuts"))
         self.new_note_action.setText(self.tr("New note"))
         self.title_bar.unsaved_button.setAccessibleName(self.tr("Not saved"))
         self.title_bar.unsaved_button.setToolTip(

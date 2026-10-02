@@ -141,6 +141,8 @@ class NoteManager(QObject):
     set_aside_changed = Signal()
     # The desktop shows another category's notes, or every note again.
     view_changed = Signal()
+    # A note asked for the keys at a glance (F1, Ctrl+/, its menu).
+    guide_requested = Signal()
 
     def __init__(
         self,
@@ -302,6 +304,7 @@ class NoteManager(QObject):
             self.set_mark(window, mark_id, on)
 
         window.mark_requested.connect(mark_requested)
+        window.guide_requested.connect(self.guide_requested)
         if note is not None:
             self._show_labels(window, note.label, note.marks)
         elif self._view is not None and self._view != NO_CATEGORY:

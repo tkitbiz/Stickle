@@ -713,6 +713,10 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>메모 삭제</translation>
     </message>
     <message>
+        <source>Keyboard shortcuts</source>
+        <translation>단축키</translation>
+    </message>
+    <message>
         <source>New note</source>
         <translation>새 메모</translation>
     </message>
@@ -1079,6 +1083,130 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
     </message>
 </context>
 <context>
+    <name>ShortcutGuide</name>
+    <message>
+        <source>New note</source>
+        <translation>새 메모</translation>
+    </message>
+    <message>
+        <source>Open the Stickle window</source>
+        <translation>Stickle 창 열기</translation>
+    </message>
+    <message>
+        <source>Hide all notes for now, or show them again</source>
+        <translation>모든 메모 잠시 숨기기 또는 다시 보이기</translation>
+    </message>
+    <message>
+        <source>Show only the notes of the next category</source>
+        <translation>다음 카테고리 메모만 보기</translation>
+    </message>
+    <message>
+        <source>In a note</source>
+        <translation>메모에서</translation>
+    </message>
+    <message>
+        <source>Hide the note</source>
+        <translation>메모 숨기기</translation>
+    </message>
+    <message>
+        <source>Note menu</source>
+        <translation>메모 메뉴</translation>
+    </message>
+    <message>
+        <source>To the next note, or the one before</source>
+        <translation>다음 메모로, 또는 이전 메모로</translation>
+    </message>
+    <message>
+        <source>Edit the text</source>
+        <translation>원문 편집</translation>
+    </message>
+    <message>
+        <source>Back to the formatted note</source>
+        <translation>서식 화면으로</translation>
+    </message>
+    <message>
+        <source>Choose a checkbox, link or code block</source>
+        <translation>체크 상자·링크·코드 블록 고르기</translation>
+    </message>
+    <message>
+        <source>Check, open or copy what is chosen</source>
+        <translation>고른 것을 체크·열기·복사</translation>
+    </message>
+    <message>
+        <source>These keys</source>
+        <translation>이 안내</translation>
+    </message>
+    <message>
+        <source>Editing a note&apos;s text</source>
+        <translation>원문 편집에서</translation>
+    </message>
+    <message>
+        <source>Next list item, or end the list</source>
+        <translation>다음 항목, 또는 목록 끝내기</translation>
+    </message>
+    <message>
+        <source>Move a list item in or out</source>
+        <translation>목록 항목 들여쓰기·내어쓰기</translation>
+    </message>
+    <message>
+        <source>A new line only</source>
+        <translation>목록 없이 줄만 바꾸기</translation>
+    </message>
+    <message>
+        <source>A checkbox</source>
+        <translation>체크 상자</translation>
+    </message>
+    <message>
+        <source>A code block</source>
+        <translation>코드 블록</translation>
+    </message>
+    <message>
+        <source>In the Stickle window</source>
+        <translation>Stickle 창에서</translation>
+    </message>
+    <message>
+        <source>Search the notes</source>
+        <translation>메모 검색</translation>
+    </message>
+    <message>
+        <source>Only one category&apos;s notes, or all</source>
+        <translation>한 카테고리 메모만, 또는 전체</translation>
+    </message>
+    <message>
+        <source>Open the note</source>
+        <translation>메모 열기</translation>
+    </message>
+    <message>
+        <source>Delete the note</source>
+        <translation>메모 지우기</translation>
+    </message>
+    <message>
+        <source>Rename a category or mark</source>
+        <translation>카테고리·표시 이름 바꾸기</translation>
+    </message>
+    <message>
+        <source>Move a category or mark up or down</source>
+        <translation>카테고리·표시 순서 바꾸기</translation>
+    </message>
+    <message>
+        <source>Keyboard shortcuts</source>
+        <translation>단축키</translation>
+    </message>
+    <message>
+        <source>Esc closes this.</source>
+        <translation>Esc를 누르면 닫힙니다.</translation>
+    </message>
+    <message>
+        <source>none</source>
+        <comment>no keys</comment>
+        <translation>없음</translation>
+    </message>
+    <message>
+        <source>From anywhere</source>
+        <translation>어디서나</translation>
+    </message>
+</context>
+<context>
     <name>ShortcutRows</name>
     <message>
         <source>Shortcuts from anywhere</source>
@@ -1200,6 +1328,15 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
         <translation>바탕화면에 모든 메모 보기</translation>
     </message>
     <message>
+        <source>Keyboard shortcuts</source>
+        <translation>단축키</translation>
+    </message>
+    <message>
+        <source>F1</source>
+        <comment>the key that opens the shortcuts</comment>
+        <translation>F1</translation>
+    </message>
+    <message>
         <source>&amp;Start Stickle when I log in</source>
         <translation>로그인할 때 Stickle 시작(&amp;S)</translation>
     </message>
@@ -1301,6 +1438,10 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
     <message>
         <source>Show on the desktop</source>
         <translation>바탕화면에 보기</translation>
+    </message>
+    <message>
+        <source>Keyboard shortcuts</source>
+        <translation>단축키</translation>
     </message>
     <message>
         <source>Stickle: only “%1” on the desktop</source>

@@ -19,10 +19,12 @@ from PySide6.QtGui import (
     QFont,
     QGuiApplication,
     QHideEvent,
+    QKeySequence,
     QPainter,
     QPaintEvent,
     QPalette,
     QPen,
+    QShortcut,
     QShowEvent,
 )
 from PySide6.QtWidgets import (
@@ -44,6 +46,8 @@ from stickle.app.label_manager import LabelManager
 from stickle.app.note_list import NoteList
 from stickle.app.notes import NoteManager, clipboard_text
 from stickle.app.recovery_key_dialog import RecoveryKeyDialog
+from stickle.app.shortcut_guide import KEYS as GUIDE_KEYS
+from stickle.app.shortcut_guide import ShortcutGuide
 from stickle.app.shortcut_rows import ShortcutRows
 from stickle.app.shortcuts import GlobalShortcuts
 from stickle.app.sizing import grow_to_fit
@@ -187,6 +191,14 @@ class StickleWindow(QWidget):
         self.labels_button = QPushButton(self)
         self.labels_button.clicked.connect(self.manage_labels)
         self.label_manager: LabelManager | None = None
+        # The keys at a glance, for the whole app: from here, a note or the tray.
+        self.guide = ShortcutGuide(shortcuts)
+        self.guide_button = QPushButton(self)
+        self.guide_button.clicked.connect(self.guide.toggle)
+        notes.guide_requested.connect(self.guide.toggle)
+        for keys in GUIDE_KEYS:
+            shortcut = QShortcut(QKeySequence(keys), self)
+            shortcut.activated.connect(self.guide.toggle)
 
         self.language_label = QLabel(self)
         self.language_box = QComboBox(self)
@@ -229,7 +241,10 @@ class StickleWindow(QWidget):
         layout.addWidget(self.note_list, 1)
         layout.addWidget(self.show_all_button)
         layout.addWidget(self.restore_button)
-        layout.addWidget(self.labels_button)
+        tools = QHBoxLayout()
+        tools.addWidget(self.labels_button, 1)
+        tools.addWidget(self.guide_button)
+        layout.addLayout(tools)
         layout.addLayout(language)
         layout.addWidget(self.autostart_box)
         layout.addWidget(self.login_note)
@@ -268,6 +283,7 @@ class StickleWindow(QWidget):
             self.show_all_button,
             self.restore_button,
             self.labels_button,
+            self.guide_button,
             self.language_box,
             self.autostart_box,
             self.app_list_box,
@@ -309,6 +325,8 @@ class StickleWindow(QWidget):
         self.note_list.retranslate()
         self.show_all_button.setText(self.tr("Show all hidden notes"))
         self.labels_button.setText(self.tr("Manage &categories and marks…"))
+        self.guide_button.setText(self.tr("Keyboard shortcuts"))
+        self.guide_button.setToolTip(self.tr("F1", "the key that opens the shortcuts"))
         self.language_label.setText(self.tr("&Language"))
         self.language_box.setAccessibleName(self.tr("Language"))
         self.language_box.setItemText(0, self.tr("System language"))
