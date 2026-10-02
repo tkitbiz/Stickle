@@ -466,6 +466,8 @@ class NoteWindow(QWidget):
         # A composition that just ended with nothing committed: (character, when,
         # commits then). ibus drops it just before the focus leaves for another app.
         self._ended_unfinished: tuple[str, float, int] | None = None
+        # Still being edited while the shortcuts it asked for are shown over it.
+        self._keep_editing = False
 
         # Where the app last put the note; anything else is the user's doing.
         self._placed: QRect | None = None
@@ -548,7 +550,7 @@ class NoteWindow(QWidget):
         self.guide_action = self.menu.addAction("")
         self.guide_action.setShortcuts([QKeySequence(keys) for keys in GUIDE_KEYS])
         self.guide_action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
-        self.guide_action.triggered.connect(self.guide_requested)
+        self.guide_action.triggered.connect(self._ask_for_guide)
         self.addAction(self.guide_action)
         self.menu.addSeparator()
         # The menu has the system's colours, which are the note's only by chance.
@@ -1088,7 +1090,15 @@ class NoteWindow(QWidget):
         if self.collapsed:
             self._update_title()
 
+    def _ask_for_guide(self) -> None:
+        # The shortcuts take the keyboard for a moment; the text stays open to
+        # type on in when they give it back.
+        self._keep_editing = self.editing
+        self.guide_requested.emit()
+
     def _leave_editing(self) -> None:
+        if self._keep_editing:
+            return
         if not self._released and self.editing and not self.editor.hasFocus():
             self.show_formatted()
 
@@ -1189,6 +1199,8 @@ class NoteWindow(QWidget):
             self.finish_composition(closing=True)
             self.show_formatted()
             return True
+        if watched is self.editor and event.type() == QEvent.Type.FocusIn:
+            self._keep_editing = False  # back from the shortcuts, if it was there
         if (
             watched is self.editor
             and isinstance(event, QKeyEvent)

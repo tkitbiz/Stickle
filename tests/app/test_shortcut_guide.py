@@ -110,6 +110,8 @@ def test_f1_in_a_note_opens_it_and_esc_gives_the_keyboard_back(
 
     assert not window.guide.isVisible()
     assert note.editor.hasFocus() or not note.isActiveWindow()  # back where it was
+    QCoreApplication.processEvents()  # the focus change the guide caused, handled
+    assert note.editing  # still open to type in
     note.release()
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
