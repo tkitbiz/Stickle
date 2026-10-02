@@ -1211,9 +1211,10 @@ class NoteWindow(QWidget):
         block = cursor.block()
         line = block.text()
         column = from_utf16(line, cursor.positionInBlock())
-        lines_before = editor.toPlainText().split("\n")[: block.blockNumber()]
+        lines = editor.toPlainText().split("\n")
+        lines_before = lines[: block.blockNumber()]
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and plain:
-            change = on_enter(lines_before, line, column)
+            change = on_enter(lines_before, line, column, lines[block.blockNumber() + 1 :])
         elif key == Qt.Key.Key_Tab and plain:
             change = on_tab(lines_before, line, column, back=False)
         elif key == Qt.Key.Key_Backtab:

@@ -10,6 +10,8 @@ They work on text, not on any editor, so every case can be tried in tests.
   with a blank line after it.
 - Tab and Shift+Tab move a list item in or out a level, by as much as Markdown
   needs to nest it under the item above.
+- Enter after an opening code fence ("```", "```python") closes it below, unless
+  a fence below already does.
 - Typing "]" after "[" makes a checkbox: "- []" becomes "- [ ]", and "[]" at
   the start of a line becomes "- [ ] ".
 
@@ -97,14 +99,27 @@ def _parent_indent(lines_before: list[str], indent: str) -> str:
     return ""
 
 
-def on_enter(lines_before: list[str], line: str, column: int) -> Change | None:
-    """Enter with the cursor at column of line."""
+def on_enter(
+    lines_before: list[str], line: str, column: int, lines_after: list[str] | None = None
+) -> Change | None:
+    """Enter with the cursor at column of line (lines_after: the lines below it)."""
+    fence = FENCE.match(line)
+    if fence is not None and column == len(line):
+        opening = sum(1 for before in lines_before if FENCE.match(before)) % 2 == 0
+        closed = any(FENCE.match(after) for after in lines_after or [])
+        if opening and not closed:
+            # Closed at once, so that the rest of the note is not taken for code.
+            indent = line[: fence.start(1)]
+            return Change(f"{line}\n\n{indent}{fence.group(1)}", len(line) + 1)
+        return None
     found = item(line)
     if found is None or in_code_block(lines_before, line):
         return None
     if column < found.content:
         return None  # in the marker: an ordinary new line above the item
     if not line[found.content :].strip():
+        if not found.space:
+            return None  # "1." or "2026." alone: perhaps not a list at all, so kept
         if found.indent:
             # Out a level, as Shift+Tab would, numbered on from the list it joins.
             indent = _parent_indent(lines_before, found.indent)

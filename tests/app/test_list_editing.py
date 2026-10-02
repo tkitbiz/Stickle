@@ -108,3 +108,8 @@ def test_the_usual_order_commit_then_enter_gets_the_help(note: NoteWindow) -> No
     QCoreApplication.sendEvent(note.editor, commit)  # Enter commits first (fcitx5, IBus)
     QTest.keyClick(note.editor, Qt.Key.Key_Return)  # then is passed on
     assert note.text == "- 우유\n- "
+
+
+def test_a_code_fence_is_closed_at_once(note: NoteWindow) -> None:
+    type_in(note, "```\nprint(1)")
+    assert note.text == "```\nprint(1)\n```"

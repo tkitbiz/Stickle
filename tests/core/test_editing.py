@@ -1,7 +1,7 @@
 from hypothesis import given
 from hypothesis import strategies as st
 
-from stickle.core.editing import Change, on_close_bracket, on_enter, on_tab
+from stickle.core.editing import Change, item, on_close_bracket, on_enter, on_tab
 
 
 def enter(line: str, before: list[str] | None = None, column: int | None = None) -> Change | None:
@@ -104,7 +104,11 @@ def test_the_text_before_the_cursor_is_kept(
 ) -> None:
     column = data.draw(st.integers(0, len(line)))
     change = on_enter(before, line, column)
-    if change is not None and "\n" in change.text:
+    if change is not None and change.text == "\n":
+        # The list ended: only an item's marker (and box), with a space, goes.
+        ended = item(line)
+        assert ended is not None and ended.space and not line[ended.content :].strip()
+    elif change is not None and "\n" in change.text:
         assert change.text.split("\n")[0] == line[:column].rstrip(" ")
         assert change.text.endswith(line[column:].lstrip(" "))
     for back in (False, True):
@@ -118,3 +122,23 @@ def test_the_text_before_the_cursor_is_kept(
 
 def test_an_item_moved_out_is_numbered_on_from_the_outer_list() -> None:
     assert enter("   3. ", ["1. a", "   2. b"]) == Change("2. ", 3)
+
+
+# Code fences
+
+
+def test_an_opening_fence_is_closed_below() -> None:
+    assert on_enter([], "```", 3, []) == Change("```\n\n```", 4)
+    assert on_enter([], "```python", 9, ["after"]) == Change("```python\n\n```", 10)
+    assert on_enter([], "  ~~~", 5, []) == Change("  ~~~\n\n  ~~~", 6)
+
+
+def test_a_fence_already_closed_or_a_closing_one_is_left_alone() -> None:
+    assert on_enter([], "```", 3, ["code", "```"]) is None  # closed below already
+    assert on_enter(["```", "code"], "```", 3, []) is None  # this one closes
+    assert on_enter([], "```", 1, []) is None  # not at its end
+
+
+def test_a_number_alone_is_kept_on_enter() -> None:
+    assert enter("2026.") is None
+    assert enter("-") is None
