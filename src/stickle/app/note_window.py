@@ -616,10 +616,11 @@ class NoteWindow(QWidget):
         self.view.setAccessibleName(self.tr("Note text"))
         self.view.setAccessibleDescription(
             self.tr(
-                "Tab moves between checkboxes and links; Space or Enter checks or opens one."
-                " F2, or Enter with none chosen, edits the note."
+                "Tab moves between checkboxes, links and code blocks; Space or Enter checks,"
+                " opens or copies one. F2, or Enter with none chosen, edits the note."
             )
         )
+        self.view.retranslate()
         hide_note = self.tr("Hide note")
         self.title_bar.close_button.setAccessibleName(hide_note)
         self.title_bar.close_button.setToolTip(hide_note)

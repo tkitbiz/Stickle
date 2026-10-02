@@ -155,12 +155,17 @@ def font_checks() -> list[tuple[str, str]]:
         _app = QApplication.instance() or QApplication([])
         bundled = ensure_korean_font()
         drawable = korean_is_drawable()
+        from PySide6.QtGui import QFontDatabase, QFontInfo
+
+        fixed = QFontInfo(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
     except Exception as error:
         return [("FAIL", f"Korean font check could not run ({type(error).__name__}: {error})")]
     source = f"the bundled {bundled}" if bundled else "a system font"
+    pitch = "fixed" if fixed.fixedPitch() else "NOT fixed"
     return [
         ("PASS" if drawable else "FAIL", "Korean text has a font"),
         ("INFO", f"Korean drawn with {source}"),
+        ("INFO", f"code drawn with {fixed.family()} ({pitch} pitch)"),
     ]
 
 

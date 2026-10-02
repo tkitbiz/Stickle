@@ -619,6 +619,21 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     </message>
 </context>
 <context>
+    <name>NoteView</name>
+    <message>
+        <source>Copy</source>
+        <translation>복사</translation>
+    </message>
+    <message>
+        <source>Copy the code</source>
+        <translation>코드 복사</translation>
+    </message>
+    <message>
+        <source>Code copied</source>
+        <translation>코드를 복사했습니다</translation>
+    </message>
+</context>
+<context>
     <name>NoteWindow</name>
     <message>
         <source>Note</source>
@@ -629,8 +644,8 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>메모 내용</translation>
     </message>
     <message>
-        <source>Tab moves between checkboxes and links; Space or Enter checks or opens one. F2, or Enter with none chosen, edits the note.</source>
-        <translation>Tab으로 체크 상자와 링크 사이를 옮겨 다니고, Space나 Enter로 체크하거나 엽니다. F2, 또는 아무것도 고르지 않은 채 Enter를 누르면 메모를 고칩니다.</translation>
+        <source>Tab moves between checkboxes, links and code blocks; Space or Enter checks, opens or copies one. F2, or Enter with none chosen, edits the note.</source>
+        <translation>Tab으로 체크 상자·링크·코드 블록 사이를 옮겨 다니고, Space나 Enter로 체크하거나 열거나 복사합니다. 아무것도 고르지 않았을 때 F2나 Enter를 누르면 메모를 편집합니다.</translation>
     </message>
     <message>
         <source>Hide note</source>

@@ -10,14 +10,15 @@ A line break inside a paragraph shows as a line break, and blank lines show
 as the space they take in the text, so a note looks laid out as it was typed.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import override
 
 from markdown_it.tree import SyntaxTreeNode
-from PySide6.QtCore import QEvent, QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import (
     QFont,
     QFontDatabase,
+    QGuiApplication,
     QKeyEvent,
     QMouseEvent,
     QTextBlock,
@@ -30,7 +31,7 @@ from PySide6.QtGui import (
     QTextList,
     QTextListFormat,
 )
-from PySide6.QtWidgets import QApplication, QTextEdit, QWidget
+from PySide6.QtWidgets import QApplication, QTextEdit, QToolButton, QToolTip, QWidget
 
 from stickle.app.palette import qcolor
 from stickle.core.colors import DEFAULT_COLOR, NoteColors, note_colors
@@ -54,17 +55,20 @@ class BlockSource:
     first_line: int
     last_line: int
     checkbox_line: int | None = None  # a task item: the line with its "[ ]"
+    code: str | None = None  # a code block: its code, without the fences
 
 
 @dataclass(frozen=True)
 class Stop:
     """Something the keyboard can reach in the formatted note: a task item's
-    checkbox (line set) or a link (href set), between two positions of the view."""
+    checkbox (line set), a link (href set) or a code block (code set), between
+    two positions of the view."""
 
     start: int
     end: int
     checkbox_line: int | None = None
     href: str = ""
+    code: str | None = None
 
 
 @dataclass
@@ -138,8 +142,10 @@ class _Builder:
                 block = QTextBlockFormat()
                 block.setBackground(self._code_color)
                 self._start_block(first, end, block)
+                code = node.content.removesuffix("\n")
+                self.sources[-1] = replace(self.sources[-1], code=code)
                 self._code = True
-                self._text(node.content.removesuffix("\n").replace("\n", LINE_SEPARATOR))
+                self._text(code.replace("\n", LINE_SEPARATOR))
                 self._code = False
             case "hr":
                 block = QTextBlockFormat()
@@ -349,6 +355,19 @@ class NoteView(QTextEdit):
         self._press: QPoint | None = None
         self.colors = note_colors(DEFAULT_COLOR)
         self.viewport().setMouseTracking(True)  # a hand over links
+        # Over a code block, a button to copy its code (the keyboard: Tab, then Enter).
+        self.copy_button = QToolButton(self.viewport())
+        self.copy_button.setAutoRaise(False)
+        self.copy_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.copy_button.clicked.connect(self._copy_from_button)
+        self.copy_button.hide()
+        self._copy_code = ""
+        self.retranslate()
+
+    def retranslate(self) -> None:
+        self.copy_button.setText(self.tr("Copy"))
+        self.copy_button.setToolTip(self.tr("Copy the code"))
+        self.copy_button.setAccessibleName(self.tr("Copy the code"))
 
     def show_markdown(self, text: str) -> None:
         self._source = text
@@ -370,9 +389,11 @@ class NoteView(QTextEdit):
         block = self.document().begin()
         while block.isValid():
             source = self.block_source(block)
+            end = block.position() + max(block.length() - 1, 0)
             if source is not None and source.checkbox_line is not None:
-                end = block.position() + max(block.length() - 1, 0)
                 stops.append(Stop(block.position(), end, checkbox_line=source.checkbox_line))
+            if source is not None and source.code is not None:
+                stops.append(Stop(block.position(), end, code=source.code))
             fragments = block.begin()
             while not fragments.atEnd():
                 fragment = fragments.fragment()
@@ -401,8 +422,42 @@ class NoteView(QTextEdit):
     def _act(self, stop: Stop) -> None:
         if stop.checkbox_line is not None:
             self.checkbox_clicked.emit(stop.checkbox_line)
+        elif stop.code is not None:
+            self.copy_code(stop.code, self.cursorRect().bottomRight())
         else:
             self.link_clicked.emit(stop.href)
+
+    def copy_code(self, code: str, near: QPoint) -> None:
+        """A code block's code onto the clipboard, said for a moment near it."""
+        QGuiApplication.clipboard().setText(code)
+        QToolTip.showText(self.viewport().mapToGlobal(near), self.tr("Code copied"), self)
+
+    def code_at(self, point: QPoint) -> tuple[str, QRect] | None:
+        """The code block under point (viewport coordinates): its code and where
+        it is drawn, in the same coordinates."""
+        block = self.cursorForPosition(point).block()
+        source = self.block_source(block)
+        if source is None or source.code is None:
+            return None
+        drawn = self.document().documentLayout().blockBoundingRect(block).toRect()
+        drawn.translate(-self.horizontalScrollBar().value(), -self.verticalScrollBar().value())
+        return (source.code, drawn) if drawn.contains(point) else None
+
+    def _place_copy_button(self, point: QPoint | None) -> None:
+        """Over a code block, its copy button at its top right; elsewhere none."""
+        found = self.code_at(point) if point is not None else None
+        if found is None:
+            self.copy_button.hide()
+            return
+        code, drawn = found
+        self._copy_code = code
+        size = self.copy_button.sizeHint()
+        self.copy_button.move(drawn.right() - size.width() - 2, drawn.top() + 2)
+        self.copy_button.show()
+        self.copy_button.raise_()
+
+    def _copy_from_button(self) -> None:
+        self.copy_code(self._copy_code, self.copy_button.geometry().bottomLeft())
 
     def set_colors(self, colors: NoteColors) -> None:
         self.colors = colors
@@ -457,6 +512,13 @@ class NoteView(QTextEdit):
         on_link = bool(self.anchorAt(e.position().toPoint()))
         shape = Qt.CursorShape.PointingHandCursor if on_link else Qt.CursorShape.IBeamCursor
         self.viewport().setCursor(shape)
+        self._place_copy_button(e.position().toPoint())
+
+    @override
+    def leaveEvent(self, event: QEvent) -> None:
+        if not self.copy_button.underMouse():
+            self.copy_button.hide()
+        super().leaveEvent(event)
 
     @override
     def mouseReleaseEvent(self, e: QMouseEvent) -> None:

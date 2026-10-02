@@ -464,3 +464,44 @@ def test_a_long_note_opens_at_its_top(qtbot: QtBot) -> None:
     assert scroll.maximum() > 0
     assert scroll.value() == 0
     window.release()
+
+
+# Copying a code block
+
+CODE_NOTE = "before\n\n```python\nprint('우유')\nx = 1\n```\n\nafter"
+
+
+@pytest.fixture
+def code_window(qtbot: QtBot) -> Iterator[NoteWindow]:
+    window = NoteWindow(text=CODE_NOTE)
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    yield window
+    window.release()
+
+
+def test_the_copy_button_shows_over_a_code_block_and_copies_its_code(
+    code_window: NoteWindow,
+) -> None:
+    view = code_window.view
+    QTest.mouseMove(view.viewport(), point_of(code_window, "print", 2))
+    assert view.copy_button.isVisibleTo(view)
+    QApplication.clipboard().clear()
+    view.copy_button.click()
+    assert QApplication.clipboard().text() == "print('우유')\nx = 1"
+    assert code_window.text == CODE_NOTE  # nothing changes
+
+    QTest.mouseMove(view.viewport(), point_of(code_window, "after", 2))
+    assert not view.copy_button.isVisibleTo(view)
+
+
+def test_the_keyboard_reaches_a_code_block_and_copies_it(code_window: NoteWindow) -> None:
+    view = code_window.view
+    view.setFocus()
+    QTest.keyClick(view, Qt.Key.Key_Tab)
+    assert view.stop is not None and view.stops[view.stop].code == "print('우유')\nx = 1"
+    QApplication.clipboard().clear()
+    QTest.keyClick(view, Qt.Key.Key_Return)
+    assert QApplication.clipboard().text() == "print('우유')\nx = 1"
+    assert not code_window.editing  # Enter copied, it did not edit
