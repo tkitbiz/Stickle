@@ -303,6 +303,31 @@ class NoteRepository:
                 self._change(note_id, {"deleted_at": now} if with_notes else {"label": None})
         return ids
 
+    def remove_mark(self, mark_id: str) -> list[str]:
+        """Delete a mark: every note that had it, deleted or not, loses it. The ids of
+        the notes not deleted that had it."""
+        ids: list[str] = []
+        with self._db:
+            rows = self._db.execute(
+                "SELECT deleted_at FROM marks WHERE id = ?", (mark_id,)
+            ).fetchall()
+            if not rows or rows[0][0] is not None:
+                raise KeyError(mark_id)
+            now = self._clock()
+            self._db.execute(
+                "UPDATE marks SET deleted_at = ?, updated_at = ? WHERE id = ?", (now, now, mark_id)
+            )
+            owners = self._db.execute(
+                "SELECT note_id FROM note_marks WHERE mark_id = ?", (mark_id,)
+            ).fetchall()
+            self._db.execute("DELETE FROM note_marks WHERE mark_id = ?", (mark_id,))
+            for (owner,) in owners:
+                note = self.get(str(owner))
+                if note is not None and not note.deleted:
+                    ids.append(note.id)
+                    self._change(note.id, {})  # changed, so that sync notices
+        return ids
+
     def deleted_with(self, note_id: str) -> list[Note]:
         """The notes put into the trash at the same moment as this one, it too."""
         note = self._require(note_id)

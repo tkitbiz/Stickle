@@ -26,9 +26,9 @@ from pytestqt.qtbot import QtBot
 from test_shortcuts import System
 
 from stickle.app.category_dialog import NewCategoryDialog
-from stickle.app.category_manager import CategoryManager
 from stickle.app.first_run import FirstRunDialog
 from stickle.app.i18n import Translations
+from stickle.app.label_manager import LabelManager
 from stickle.app.note_window import NoteWindow
 from stickle.app.notes import NoteManager
 from stickle.app.password_dialog import PasswordDialog
@@ -139,7 +139,7 @@ def test_the_dialogs_name_all_they_offer(qtbot: QtBot, tmp_path: Path) -> None:
     ]
     dialogs += [
         NewCategoryDialog(None, lambda name, color: Category("id", name, color, 1), "blue"),
-        CategoryManager(NoteManager()),
+        LabelManager(NoteManager()),
     ]
     found = {type(dialog).__name__: unnamed(dialog) for dialog in dialogs}
 
@@ -269,7 +269,7 @@ def test_tab_goes_round_the_dialogs_as_they_read(qtbot: QtBot, tmp_path: Path) -
     ]
     dialogs += [
         NewCategoryDialog(None, lambda name, color: Category("id", name, color, 1), "blue"),
-        CategoryManager(NoteManager()),
+        LabelManager(NoteManager()),
     ]
     wrong: dict[str, list[str]] = {}
     for dialog in dialogs:

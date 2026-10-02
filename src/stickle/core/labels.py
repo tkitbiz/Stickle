@@ -9,6 +9,18 @@ from dataclasses import dataclass
 # The marks every database starts with, in their order. Their names are
 # translated where they are shown, until the user renames one.
 BUILT_IN_MARKS = ("todo", "urgent", "important", "waiting")
+# The icons a mark can have (each drawn by the app), the built-in marks' first.
+MARK_ICONS = (
+    *BUILT_IN_MARKS,
+    "flag",
+    "heart",
+    "bulb",
+    "person",
+    "calendar",
+    "home",
+    "bookmark",
+    "question",
+)
 
 NAME_LENGTH = 40
 

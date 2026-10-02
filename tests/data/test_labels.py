@@ -5,9 +5,9 @@ from pathlib import Path
 import apsw
 import pytest
 
-from stickle.core.labels import BUILT_IN_MARKS
+from stickle.core.labels import BUILT_IN_MARKS, Mark
 from stickle.data.database import KEY_BYTES
-from stickle.data.labels import CategoryNameError, LabelRepository
+from stickle.data.labels import CategoryNameError, LabelRepository, MarkNameError
 from stickle.data.notes import NoteDeletedError, NoteRepository
 from stickle.data.schema import open_store
 
@@ -252,3 +252,59 @@ def test_a_category_cannot_be_removed_twice(labels: LabelRepository, notes: Note
         notes.remove_category(work.id, with_notes=False)
     with pytest.raises(KeyError):
         labels.rename_category(work.id, "Again")
+
+
+# Managing marks
+
+
+def test_a_mark_is_made_with_a_name_and_an_icon(labels: LabelRepository) -> None:
+    call = labels.create_mark(" 전화 ", "person")
+    assert (call.name, call.icon) == ("전화", "person")
+    assert labels.marks()[-1] == call
+    with pytest.raises(ValueError):
+        labels.create_mark("Other", "no-such-icon")
+    with pytest.raises(MarkNameError):
+        labels.create_mark("  ", "flag")
+
+
+def test_a_mark_name_is_free_of_stored_and_shown_names(labels: LabelRepository) -> None:
+    def shown(mark: Mark) -> str:
+        return mark.name or {"urgent": "긴급"}.get(mark.id, mark.id)
+
+    labels.create_mark("Call", "person")
+    for taken in ("call", "긴급", "TODO"):
+        with pytest.raises(MarkNameError):
+            labels.create_mark(taken, "flag", shown)
+
+
+def test_a_built_in_mark_is_renamed_and_back(labels: LabelRepository) -> None:
+    assert labels.rename_mark("urgent", "급함").name == "급함"
+    assert labels.rename_mark("urgent", "").name is None  # its own, translated name again
+    own = labels.create_mark("Call", "person")
+    with pytest.raises(MarkNameError):
+        labels.rename_mark(own.id, "")
+    assert labels.rename_mark(own.id, "CALL").name == "CALL"  # its own name, recased
+
+
+def test_a_mark_icon_and_place_change(labels: LabelRepository) -> None:
+    assert labels.set_mark_icon("important", "flag").icon == "flag"
+    order = [m.id for m in labels.move_mark("waiting", -1)]
+    assert order == ["todo", "urgent", "waiting", "important"]
+
+
+def test_removing_a_mark_takes_it_off_every_note_but_keeps_them(
+    labels: LabelRepository, notes: NoteRepository
+) -> None:
+    kept = notes.set_mark(notes.create("a").id, "urgent", True)
+    trashed = notes.set_mark(notes.create("b").id, "urgent", True)
+    notes.delete(trashed.id)
+
+    removed = notes.remove_mark("urgent")
+
+    assert removed == [kept.id]
+    assert "urgent" not in [m.id for m in labels.marks()]
+    after = notes.get(kept.id)
+    assert after is not None and after.marks == frozenset() and after.body == "a"
+    assert notes.deleted()[0].marks == frozenset()
+    with pytest.raises(KeyError):
+        notes.remove_mark("urgent")

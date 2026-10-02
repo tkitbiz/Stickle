@@ -32,6 +32,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget
 
 from stickle.app.category_dialog import NewCategoryDialog, next_dot_color
+from stickle.app.labels import mark_name
 from stickle.app.note_window import NoteWindow
 from stickle.app.placement import MonitorWatch, can_place_windows, monitors, qrect, rect
 from stickle.core.labels import Category, Mark
@@ -694,6 +695,57 @@ class NoteManager(QObject):
             for window in windows:
                 self._autosaves[window].stop()
                 window.release()
+        self.refresh_labels()
+
+    def create_mark(self, name: str, icon: str) -> Mark:
+        """Raises MarkNameError for a name empty or taken (as shown, translated)."""
+        if self._labels is None:
+            raise RuntimeError("no notes database")
+        mark = self._labels.create_mark(name, icon, mark_name)
+        self.changed.emit()
+        return mark
+
+    def rename_mark(self, mark_id: str, name: str) -> None:
+        """An empty name gives a built-in mark its own back. Raises MarkNameError."""
+        if self._labels is None:
+            return
+        self._labels.rename_mark(mark_id, name, mark_name)
+        self.refresh_labels()
+
+    def set_mark_icon(self, mark_id: str, icon: str) -> None:
+        if self._labels is None:
+            return
+        try:
+            self._labels.set_mark_icon(mark_id, icon)
+        except apsw.Error as error:
+            log.error("could not store a mark's icon: %s", type(error).__name__)
+            return
+        self.refresh_labels()
+
+    def move_mark(self, mark_id: str, step: int) -> None:
+        if self._labels is None:
+            return
+        try:
+            self._labels.move_mark(mark_id, step)
+        except apsw.Error as error:
+            log.error("could not store the order of marks: %s", type(error).__name__)
+            return
+        self.refresh_labels()
+
+    def notes_with_mark(self, mark_id: str) -> list[Note]:
+        """The notes not deleted that have the mark, shown or hidden."""
+        return [note for note in self.listed_notes() if mark_id in note.marks]
+
+    def remove_mark(self, mark_id: str) -> None:
+        """Delete a mark: the notes that have it lose it, and stay as they are."""
+        if self._repository is None:
+            return
+        try:
+            removed = self._repository.remove_mark(mark_id)
+        except (apsw.Error, KeyError) as error:
+            log.error("could not delete a mark: %s", type(error).__name__)
+            return
+        log.info("a mark was deleted, %d notes kept", len(removed))
         self.refresh_labels()
 
     def new_category(self, window: NoteWindow) -> None:

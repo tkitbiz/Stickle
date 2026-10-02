@@ -5,16 +5,25 @@ any other property of the note.
 """
 
 import uuid
+from collections.abc import Callable
 
 import apsw
 
 from stickle.core.clock import Clock, utc_now
 from stickle.core.colors import PALETTE
-from stickle.core.labels import Category, Mark, clean_name
+from stickle.core.labels import BUILT_IN_MARKS, MARK_ICONS, Category, Mark, clean_name
 
 
 class CategoryNameError(ValueError):
     """Empty, or the name of another category."""
+
+
+class MarkNameError(ValueError):
+    """Empty (for a new mark), or the name of another mark."""
+
+
+def _own_name(mark: Mark) -> str:
+    return mark.name or mark.id
 
 
 def _category(row: apsw.SQLiteValues) -> Category:
@@ -146,3 +155,92 @@ class LabelRepository:
             " WHERE deleted_at IS NULL ORDER BY position, id"
         )
         return [_mark(row) for row in rows]
+
+    def mark(self, mark_id: str) -> Mark | None:
+        """The mark, deleted or not."""
+        rows = self._db.execute(
+            "SELECT id, name, icon, position, deleted_at FROM marks WHERE id = ?", (mark_id,)
+        ).fetchall()
+        return _mark(rows[0]) if rows else None
+
+    def _require_mark(self, mark_id: str) -> Mark:
+        mark = self.mark(mark_id)
+        if mark is None or mark.deleted:
+            raise KeyError(mark_id)
+        return mark
+
+    def _check_mark_name(
+        self, name: str, shown: Callable[[Mark], str], renaming: str | None
+    ) -> None:
+        """No other mark has the name, as stored or as shown (a built-in mark's
+        translated name), case aside."""
+        folded = name.casefold()
+        for other in self.marks():
+            if other.id == renaming:
+                continue
+            if folded in (shown(other).casefold(), _own_name(other).casefold()):
+                raise MarkNameError("taken")
+
+    def create_mark(self, name: str, icon: str, shown: Callable[[Mark], str] = _own_name) -> Mark:
+        """A new mark, last in the order. shown gives the name each mark shows."""
+        name = clean_name(name)
+        if not name:
+            raise MarkNameError("empty")
+        if icon not in MARK_ICONS:
+            raise ValueError(f"icon {icon}")
+        self._check_mark_name(name, shown, None)
+        mark_id = str(uuid.uuid4())
+        with self._db:
+            self._db.execute(
+                "INSERT INTO marks (id, name, icon, position, updated_at)"
+                " VALUES (?, ?, ?, (SELECT coalesce(max(position), 0) + 1 FROM marks), ?)",
+                (mark_id, name, icon, self._clock()),
+            )
+        return self._require_mark(mark_id)
+
+    def rename_mark(
+        self, mark_id: str, name: str, shown: Callable[[Mark], str] = _own_name
+    ) -> Mark:
+        """A new name. An empty one gives a built-in mark back its own, translated
+        name; a mark of the user's own needs a name."""
+        mark = self._require_mark(mark_id)
+        name = clean_name(name)
+        if not name and mark.id not in BUILT_IN_MARKS:
+            raise MarkNameError("empty")
+        if name:
+            self._check_mark_name(name, shown, mark_id)
+        with self._db:
+            self._db.execute(
+                "UPDATE marks SET name = ?, updated_at = ? WHERE id = ?",
+                (name or None, self._clock(), mark_id),
+            )
+        return self._require_mark(mark_id)
+
+    def set_mark_icon(self, mark_id: str, icon: str) -> Mark:
+        self._require_mark(mark_id)
+        if icon not in MARK_ICONS:
+            raise ValueError(f"icon {icon}")
+        with self._db:
+            self._db.execute(
+                "UPDATE marks SET icon = ?, updated_at = ? WHERE id = ?",
+                (icon, self._clock(), mark_id),
+            )
+        return self._require_mark(mark_id)
+
+    def move_mark(self, mark_id: str, step: int) -> list[Mark]:
+        """Earlier (step -1) or later (1) in the order, as move_category."""
+        order = self.marks()
+        index = next(i for i, m in enumerate(order) if m.id == self._require_mark(mark_id).id)
+        target = index + step
+        if not 0 <= target < len(order):
+            return order
+        order.insert(target, order.pop(index))
+        now = self._clock()
+        with self._db:
+            for position, mark in enumerate(order, start=1):
+                if mark.position != position:
+                    self._db.execute(
+                        "UPDATE marks SET position = ?, updated_at = ? WHERE id = ?",
+                        (position, now, mark.id),
+                    )
+        return self.marks()

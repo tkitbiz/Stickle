@@ -17,6 +17,7 @@ from PySide6.QtGui import (
     QFontMetrics,
     QIcon,
     QPainter,
+    QPainterPath,
     QPaintEvent,
     QPen,
     QPixmap,
@@ -121,6 +122,68 @@ def _waiting(painter: QPainter, size: float) -> None:
     painter.drawLine(QPointF(size * 0.5, size * 0.5), QPointF(size * 0.7, size * 0.62))
 
 
+def _points(size: float, *xy: float) -> QPolygonF:
+    return QPolygonF([QPointF(size * x, size * y) for x, y in zip(xy[::2], xy[1::2], strict=True)])
+
+
+def _flag(painter: QPainter, size: float) -> None:
+    """A pole with a filled pennant."""
+    painter.drawLine(QPointF(size * 0.22, size * 0.08), QPointF(size * 0.22, size * 0.94))
+    painter.setBrush(painter.pen().color())
+    painter.drawPolygon(_points(size, 0.22, 0.1, 0.86, 0.3, 0.22, 0.52))
+
+
+def _heart(painter: QPainter, size: float) -> None:
+    path = QPainterPath(QPointF(size * 0.5, size * 0.9))
+    path.cubicTo(size * -0.05, size * 0.5, size * 0.15, size * 0.05, size * 0.5, size * 0.3)
+    path.cubicTo(size * 0.85, size * 0.05, size * 1.05, size * 0.5, size * 0.5, size * 0.9)
+    painter.setBrush(painter.pen().color())
+    painter.drawPath(path)
+
+
+def _bulb(painter: QPainter, size: float) -> None:
+    """A light bulb: a round glass on a base."""
+    painter.drawEllipse(QRectF(size * 0.2, size * 0.04, size * 0.6, size * 0.6))
+    painter.drawLine(QPointF(size * 0.36, size * 0.76), QPointF(size * 0.64, size * 0.76))
+    painter.drawLine(QPointF(size * 0.4, size * 0.92), QPointF(size * 0.6, size * 0.92))
+
+
+def _person(painter: QPainter, size: float) -> None:
+    """A head over shoulders."""
+    painter.drawEllipse(QRectF(size * 0.32, size * 0.06, size * 0.36, size * 0.36))
+    painter.drawArc(QRectF(size * 0.1, size * 0.52, size * 0.8, size * 0.8), 0, 180 * 16)
+
+
+def _calendar(painter: QPainter, size: float) -> None:
+    """A page with rings and a header line."""
+    painter.drawRoundedRect(QRectF(size * 0.1, size * 0.16, size * 0.8, size * 0.76), 1.5, 1.5)
+    painter.drawLine(QPointF(size * 0.1, size * 0.4), QPointF(size * 0.9, size * 0.4))
+    for x in (0.32, 0.68):
+        painter.drawLine(QPointF(size * x, size * 0.06), QPointF(size * x, size * 0.24))
+
+
+def _home(painter: QPainter, size: float) -> None:
+    """A house: a roof over walls."""
+    painter.drawPolyline(_points(size, 0.06, 0.5, 0.5, 0.1, 0.94, 0.5))
+    painter.drawPolyline(_points(size, 0.2, 0.4, 0.2, 0.92, 0.8, 0.92, 0.8, 0.4))
+
+
+def _bookmark(painter: QPainter, size: float) -> None:
+    """A ribbon with a notch at its foot."""
+    painter.setBrush(painter.pen().color())
+    painter.drawPolygon(_points(size, 0.24, 0.06, 0.76, 0.06, 0.76, 0.94, 0.5, 0.72, 0.24, 0.94))
+
+
+def _question(painter: QPainter, size: float) -> None:
+    """A question mark in a circle."""
+    painter.drawEllipse(QRectF(size * 0.06, size * 0.06, size * 0.88, size * 0.88))
+    path = QPainterPath(QPointF(size * 0.36, size * 0.38))
+    path.cubicTo(size * 0.36, size * 0.18, size * 0.64, size * 0.18, size * 0.64, size * 0.36)
+    path.cubicTo(size * 0.64, size * 0.5, size * 0.5, size * 0.5, size * 0.5, size * 0.6)
+    painter.drawPath(path)
+    painter.drawPoint(QPointF(size * 0.5, size * 0.76))
+
+
 def _other(painter: QPainter, size: float) -> None:
     """A filled dot, for a mark whose icon this version does not know."""
     painter.setBrush(painter.pen().color())
@@ -132,7 +195,50 @@ MARK_DRAWINGS: dict[str, Callable[[QPainter, float], None]] = {
     "urgent": _urgent,
     "important": _important,
     "waiting": _waiting,
+    "flag": _flag,
+    "heart": _heart,
+    "bulb": _bulb,
+    "person": _person,
+    "calendar": _calendar,
+    "home": _home,
+    "bookmark": _bookmark,
+    "question": _question,
 }
+
+
+def icon_name(icon: str) -> str:
+    """What the icon shows, for screen readers and the icon menu."""
+    names = {
+        "todo": QCoreApplication.translate("MarkIcon", "Checkbox"),
+        "urgent": QCoreApplication.translate("MarkIcon", "Warning"),
+        "important": QCoreApplication.translate("MarkIcon", "Star"),
+        "waiting": QCoreApplication.translate("MarkIcon", "Clock"),
+        "flag": QCoreApplication.translate("MarkIcon", "Flag"),
+        "heart": QCoreApplication.translate("MarkIcon", "Heart"),
+        "bulb": QCoreApplication.translate("MarkIcon", "Light bulb"),
+        "person": QCoreApplication.translate("MarkIcon", "Person"),
+        "calendar": QCoreApplication.translate("MarkIcon", "Calendar"),
+        "home": QCoreApplication.translate("MarkIcon", "House"),
+        "bookmark": QCoreApplication.translate("MarkIcon", "Bookmark"),
+        "question": QCoreApplication.translate("MarkIcon", "Question mark"),
+    }
+    return names.get(icon, icon)
+
+
+def mark_icon(icon: str, color: QColor | None = None) -> QIcon:
+    """A mark's icon for lists and menus, at 1x and 2x."""
+    result = QIcon()
+    for scale in (1, 2):
+        size = (ICON + 4) * scale
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.scale(scale, scale)
+        draw_mark(painter, icon, 2, 2, color or QColor(32, 32, 32))
+        painter.end()
+        result.addPixmap(pixmap)
+    return result
 
 
 def draw_mark(painter: QPainter, icon: str, x: float, y: float, color: QColor) -> None:

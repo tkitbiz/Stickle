@@ -10,9 +10,9 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QWidget
 from pytestqt.qtbot import QtBot
 
-from stickle.app import category_manager
-from stickle.app.category_manager import CategoryManager, Removal
+from stickle.app import label_manager
 from stickle.app.i18n import Translations
+from stickle.app.label_manager import CategoryPage, LabelManager, Removal
 from stickle.app.note_list import ANY, NONE
 from stickle.app.note_window import NoteWindow
 from stickle.app.notes import NoteManager
@@ -120,13 +120,13 @@ def test_each_row_names_its_category_and_marks(app: App) -> None:
 
 
 @pytest.fixture
-def manager_window(app: App) -> Iterator[CategoryManager]:
-    window = CategoryManager(app.manager)
-    yield window
+def manager_window(app: App) -> Iterator[CategoryPage]:
+    window = LabelManager(app.manager)
+    yield window.categories
     window.deleteLater()
 
 
-def select(window: CategoryManager, category: Category) -> None:
+def select(window: CategoryPage, category: Category) -> None:
     for row in range(window.list.count()):
         if window.list.item(row).text() == category.name:
             window.list.setCurrentRow(row)
@@ -134,11 +134,11 @@ def select(window: CategoryManager, category: Category) -> None:
     raise AssertionError(category.name)
 
 
-def names(window: CategoryManager) -> list[str]:
+def names(window: CategoryPage) -> list[str]:
     return [window.list.item(row).text() for row in range(window.list.count())]
 
 
-def test_renaming_changes_the_tag_of_open_notes(app: App, manager_window: CategoryManager) -> None:
+def test_renaming_changes_the_tag_of_open_notes(app: App, manager_window: CategoryPage) -> None:
     select(manager_window, app.work)
     manager_window.list.currentItem().setText("업무")
 
@@ -151,7 +151,7 @@ def test_renaming_changes_the_tag_of_open_notes(app: App, manager_window: Catego
 
 
 def test_a_name_taken_is_refused_and_the_old_one_stays(
-    app: App, manager_window: CategoryManager
+    app: App, manager_window: CategoryPage
 ) -> None:
     select(manager_window, app.work)
     manager_window.list.currentItem().setText("집")
@@ -160,7 +160,7 @@ def test_a_name_taken_is_refused_and_the_old_one_stays(
     assert manager_window.problem.isVisibleTo(manager_window)
 
 
-def test_colour_and_order_change(app: App, manager_window: CategoryManager) -> None:
+def test_colour_and_order_change(app: App, manager_window: CategoryPage) -> None:
     select(manager_window, app.home)
     manager_window.move_selected(-1)
     assert names(manager_window) == ["집", "회사"]
@@ -187,13 +187,13 @@ class Answers:
 @pytest.fixture
 def answer(monkeypatch: pytest.MonkeyPatch) -> Iterator[Answers]:
     answers = Answers(None, False)
-    monkeypatch.setattr(category_manager, "ask_how", answers.ask_how)
-    monkeypatch.setattr(category_manager, "confirm", answers.confirm)
+    monkeypatch.setattr(label_manager, "ask_how", answers.ask_how)
+    monkeypatch.setattr(label_manager, "confirm", answers.confirm)
     yield answers
 
 
 def test_deleting_the_category_only_says_it_cannot_be_undone(
-    app: App, manager_window: CategoryManager, answer: Answers
+    app: App, manager_window: CategoryPage, answer: Answers
 ) -> None:
     answer.how = "category"
     select(manager_window, app.work)
@@ -207,7 +207,7 @@ def test_deleting_the_category_only_says_it_cannot_be_undone(
 
 
 def test_deleting_with_the_notes_asks_again_with_the_count(
-    app: App, manager_window: CategoryManager, answer: Answers
+    app: App, manager_window: CategoryPage, answer: Answers
 ) -> None:
     hidden = next(w for w in app.manager.windows if w.text == "보고서")
     app.manager.hide(hidden)
@@ -228,7 +228,7 @@ def test_deleting_with_the_notes_asks_again_with_the_count(
 
 
 def test_cancelling_the_second_question_changes_nothing(
-    app: App, manager_window: CategoryManager, answer: Answers
+    app: App, manager_window: CategoryPage, answer: Answers
 ) -> None:
     answer.how, answer.sure = "notes", False
     select(manager_window, app.work)
@@ -238,7 +238,7 @@ def test_cancelling_the_second_question_changes_nothing(
 
 
 def test_a_category_no_note_has_is_asked_about_once(
-    app: App, manager_window: CategoryManager, answer: Answers
+    app: App, manager_window: CategoryPage, answer: Answers
 ) -> None:
     empty = app.labels.create_category("빈 것", "sky")
     manager_window.refresh()
@@ -251,7 +251,7 @@ def test_a_category_no_note_has_is_asked_about_once(
 
 
 def test_the_manager_is_reached_from_the_stickle_window(app: App) -> None:
-    app.window.categories_button.click()
-    assert app.window.category_manager is not None
-    assert names(app.window.category_manager) == ["회사", "집"]
-    app.window.category_manager.close()
+    app.window.labels_button.click()
+    assert app.window.label_manager is not None
+    assert names(app.window.label_manager.categories) == ["회사", "집"]
+    app.window.label_manager.close()

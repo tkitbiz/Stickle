@@ -9,7 +9,7 @@
     </message>
 </context>
 <context>
-    <name>CategoryManager</name>
+    <name>CategoryPage</name>
     <message>
         <source>Categories</source>
         <translation>카테고리</translation>
@@ -224,6 +224,25 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     </message>
 </context>
 <context>
+    <name>LabelManager</name>
+    <message>
+        <source>Categories and marks</source>
+        <translation>카테고리와 표시</translation>
+    </message>
+    <message>
+        <source>Ctrl+Tab goes to the other tab.</source>
+        <translation>Ctrl+Tab으로 다른 탭으로 갑니다.</translation>
+    </message>
+    <message>
+        <source>Categories</source>
+        <translation>카테고리</translation>
+    </message>
+    <message>
+        <source>Marks</source>
+        <translation>표시</translation>
+    </message>
+</context>
+<context>
     <name>LoginNote</name>
     <message>
         <source>Windows Security has been seen to block Stickle by mistake when this is on. A signed version will put that right.</source>
@@ -250,6 +269,110 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     </message>
 </context>
 <context>
+    <name>MarkIcon</name>
+    <message>
+        <source>Checkbox</source>
+        <translation>체크 상자</translation>
+    </message>
+    <message>
+        <source>Warning</source>
+        <translation>경고</translation>
+    </message>
+    <message>
+        <source>Star</source>
+        <translation>별</translation>
+    </message>
+    <message>
+        <source>Clock</source>
+        <translation>시계</translation>
+    </message>
+    <message>
+        <source>Flag</source>
+        <translation>깃발</translation>
+    </message>
+    <message>
+        <source>Heart</source>
+        <translation>하트</translation>
+    </message>
+    <message>
+        <source>Light bulb</source>
+        <translation>전구</translation>
+    </message>
+    <message>
+        <source>Person</source>
+        <translation>사람</translation>
+    </message>
+    <message>
+        <source>Calendar</source>
+        <translation>달력</translation>
+    </message>
+    <message>
+        <source>House</source>
+        <translation>집</translation>
+    </message>
+    <message>
+        <source>Bookmark</source>
+        <translation>책갈피</translation>
+    </message>
+    <message>
+        <source>Question mark</source>
+        <translation>물음표</translation>
+    </message>
+</context>
+<context>
+    <name>MarkPage</name>
+    <message>
+        <source>&amp;Marks</source>
+        <translation>표시(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Marks</source>
+        <translation>표시</translation>
+    </message>
+    <message>
+        <source>F2 renames (an empty name gives a built-in mark its own back), Alt+Up and Alt+Down move, Delete deletes.</source>
+        <translation>F2는 이름 바꾸기(비우면 기본 표시는 원래 이름으로), Alt+위·Alt+아래는 순서 바꾸기, Delete는 지우기입니다.</translation>
+    </message>
+    <message>
+        <source>&amp;New…</source>
+        <translation>새로 만들기(&amp;N)…</translation>
+    </message>
+    <message>
+        <source>&amp;Rename</source>
+        <translation>이름 바꾸기(&amp;R)</translation>
+    </message>
+    <message>
+        <source>&amp;Icon</source>
+        <translation>아이콘(&amp;I)</translation>
+    </message>
+    <message>
+        <source>Move &amp;up</source>
+        <translation>위로(&amp;U)</translation>
+    </message>
+    <message>
+        <source>Move do&amp;wn</source>
+        <translation>아래로(&amp;W)</translation>
+    </message>
+    <message>
+        <source>&amp;Delete…</source>
+        <translation>지우기(&amp;D)…</translation>
+    </message>
+    <message>
+        <source>There is already a mark with this name, or none was given.</source>
+        <translation>같은 이름의 표시가 이미 있거나, 이름이 비어 있습니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n note(s) will lose the mark “%1”. This cannot be undone. The notes themselves stay as they are.</source>
+        <translation>
+            <numerusform>메모 %n개에서 ‘%1’ 표시가 빠집니다. 이 작업은 되돌릴 수 없습니다. 메모 내용은 그대로 남습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete the mark “%1”? No note has it.</source>
+        <translation>‘%1’ 표시를 지울까요? 이 표시가 붙은 메모는 없습니다.</translation>
+    </message>
+</context>
+<context>
     <name>MarksBadge</name>
     <message>
         <source>Marks: %1</source>
@@ -273,6 +396,25 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>There is already a category with this name.</source>
         <translation>같은 이름의 카테고리가 이미 있습니다.</translation>
+    </message>
+</context>
+<context>
+    <name>NewMarkDialog</name>
+    <message>
+        <source>New mark</source>
+        <translation>새 표시</translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation>이름(&amp;N):</translation>
+    </message>
+    <message>
+        <source>&amp;Icon:</source>
+        <translation>아이콘(&amp;I):</translation>
+    </message>
+    <message>
+        <source>There is already a mark with this name.</source>
+        <translation>같은 이름의 표시가 이미 있습니다.</translation>
     </message>
 </context>
 <context>
@@ -1012,10 +1154,6 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
         <translation>모든 메모를 잠시 숨겼습니다. 다시 보이면 있던 그대로 돌아옵니다.</translation>
     </message>
     <message>
-        <source>Manage &amp;categories…</source>
-        <translation>카테고리 관리(&amp;C)…</translation>
-    </message>
-    <message>
         <source>&amp;Start Stickle when I log in</source>
         <translation>로그인할 때 Stickle 시작(&amp;S)</translation>
     </message>
@@ -1034,6 +1172,10 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
     <message>
         <source>Restore the note just deleted</source>
         <translation>방금 지운 메모 되살리기</translation>
+    </message>
+    <message>
+        <source>Manage &amp;categories and marks…</source>
+        <translation>카테고리·표시 관리(&amp;C)…</translation>
     </message>
     <message>
         <source>Restore the note just deleted: %1</source>
