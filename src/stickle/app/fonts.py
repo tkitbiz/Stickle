@@ -9,7 +9,7 @@ always ship Korean fonts.
 
 from pathlib import Path
 
-from PySide6.QtGui import QFontDatabase, QFontInfo, QGuiApplication, QTextLayout
+from PySide6.QtGui import QFont, QFontDatabase, QFontMetricsF, QGuiApplication, QTextLayout
 
 FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
 FALLBACK_FONT = FONTS_DIR / "NotoSansCJKkr-Regular.otf"
@@ -50,6 +50,14 @@ CODE_FONT = FONTS_DIR / "NotoSansMono-Regular.ttf"
 _code_family: str | None = None
 
 
+def lines_up(font: QFont) -> bool:
+    """Whether narrow and wide letters take the same width, as code needs. (Not
+    the font's fixed-pitch flag: FreeType clears it for a monospaced font that
+    also has some double-width glyphs, as Noto Sans Mono does.)"""
+    metrics = QFontMetricsF(font)
+    return metrics.horizontalAdvance("iiii") == metrics.horizontalAdvance("MMMM")
+
+
 def code_family(bundled: Path = CODE_FONT) -> str:
     """The family that draws code: the system's fixed-pitch font, or where it has
     none (a minimal Linux install), the bundled Noto Sans Mono. Korean in code
@@ -58,7 +66,7 @@ def code_family(bundled: Path = CODE_FONT) -> str:
     if _code_family is None:
         fixed = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         _code_family = fixed.family()
-        if not QFontInfo(fixed).fixedPitch() and bundled.exists():
+        if not lines_up(fixed) and bundled.exists():
             families = QFontDatabase.applicationFontFamilies(
                 QFontDatabase.addApplicationFont(str(bundled))
             )

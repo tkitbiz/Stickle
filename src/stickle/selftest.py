@@ -155,11 +155,12 @@ def font_checks() -> list[tuple[str, str]]:
         _app = QApplication.instance() or QApplication([])
         bundled = ensure_korean_font()
         drawable = korean_is_drawable()
-        from PySide6.QtGui import QFont, QFontInfo
+        from PySide6.QtGui import QFont
 
-        from stickle.app.fonts import CODE_FONT, code_family
+        from stickle.app.fonts import CODE_FONT, code_family, lines_up
 
-        code = QFontInfo(QFont(code_family()))
+        family = code_family()
+        aligned = lines_up(QFont(family))
     except Exception as error:
         return [("FAIL", f"Korean font check could not run ({type(error).__name__}: {error})")]
     source = f"the bundled {bundled}" if bundled else "a system font"
@@ -167,8 +168,8 @@ def font_checks() -> list[tuple[str, str]]:
         ("PASS" if drawable else "FAIL", "Korean text has a font"),
         ("INFO", f"Korean drawn with {source}"),
         (
-            "PASS" if code.fixedPitch() else "FAIL" if CODE_FONT.exists() else "UNAVAILABLE",
-            f"code has a fixed-pitch font ({code.family()})",  # builds bring one
+            "PASS" if aligned else "FAIL" if CODE_FONT.exists() else "UNAVAILABLE",
+            f"code has a fixed-pitch font ({family})",  # builds bring one
         ),
     ]
 
