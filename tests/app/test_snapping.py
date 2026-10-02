@@ -10,7 +10,8 @@ from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QRect
 from PySide6.QtGui import QGuiApplication
 from pytestqt.qtbot import QtBot
 
-from stickle.app.note_window import NoteWindow
+from stickle.app import note_window
+from stickle.app.note_window import SETTLE_MS, NoteWindow
 from stickle.app.notes import NoteManager
 from stickle.core.snap import GAP
 from stickle.data.layouts import LayoutRepository
@@ -78,6 +79,23 @@ def test_dropped_beside_a_note_it_lines_up(qtbot: QtBot, app: App) -> None:
     target = a.pos() + QPoint(a.width() + GAP, 0)
     qtbot.waitUntil(lambda: b.pos() == target, timeout=1000)
     qtbot.waitUntil(lambda: not b.moved_by_user, timeout=1000)  # where it went is remembered
+
+
+def test_held_still_in_the_middle_of_a_drag_it_is_not_dropped_yet(
+    qtbot: QtBot, app: App, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a = app.note("a", 0, 0)
+    b = app.note("b", 600, 0)
+    held = [True]
+    monkeypatch.setattr(note_window, "_main_button_down", lambda: held[0])
+    b.title_bar.drag_started.emit(False)
+    b.move(app.origin + QPoint(a.width() + 10, 5))
+    qtbot.wait(SETTLE_MS + 300)
+    assert b.dragging and b.pos() == app.origin + QPoint(a.width() + 10, 5)
+
+    held[0] = False  # let go
+    target = a.pos() + QPoint(a.width() + GAP, 0)
+    qtbot.waitUntil(lambda: b.pos() == target, timeout=SETTLE_MS + 1000)
 
 
 def test_far_from_everything_it_stays(qtbot: QtBot, app: App) -> None:

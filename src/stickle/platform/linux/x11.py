@@ -64,6 +64,26 @@ class _ScreenIterator(ctypes.Structure):
     ]
 
 
+class _QueryPointerReply(ctypes.Structure):
+    _fields_ = [
+        ("response_type", ctypes.c_uint8),
+        ("same_screen", ctypes.c_uint8),
+        ("sequence", ctypes.c_uint16),
+        ("length", ctypes.c_uint32),
+        ("root", ctypes.c_uint32),
+        ("child", ctypes.c_uint32),
+        ("root_x", ctypes.c_int16),
+        ("root_y", ctypes.c_int16),
+        ("win_x", ctypes.c_int16),
+        ("win_y", ctypes.c_int16),
+        ("mask", ctypes.c_uint16),
+        ("pad0", ctypes.c_uint8 * 2),
+    ]
+
+
+BUTTON_1 = 1 << 8  # in a pointer's mask: the main button is held
+
+
 class _ClientMessage(ctypes.Structure):
     _fields_ = [
         ("response_type", ctypes.c_uint8),
@@ -118,6 +138,10 @@ class _Xcb:
             ctypes.c_uint32,
             ctypes.c_void_p,
         ]
+        xcb.xcb_query_pointer.restype = cookie
+        xcb.xcb_query_pointer.argtypes = [pointer, ctypes.c_uint32]
+        xcb.xcb_query_pointer_reply.restype = ctypes.POINTER(_QueryPointerReply)
+        xcb.xcb_query_pointer_reply.argtypes = [pointer, cookie, pointer]
         xcb.xcb_get_setup.restype = pointer
         xcb.xcb_get_setup.argtypes = [pointer]
         xcb.xcb_setup_roots_iterator.restype = _ScreenIterator
@@ -185,6 +209,17 @@ class _Xcb:
         # is refused when another program had the user's attention last.
         self._send(window, self._atom(b"_NET_ACTIVE_WINDOW"), [SOURCE_PAGER, 0, 0, 0, 0])
 
+    def buttons(self) -> int:
+        """The pointer's button and modifier mask, as the server has it now."""
+        cookie = self._xcb.xcb_query_pointer(self._connection, self.root)
+        reply = self._xcb.xcb_query_pointer_reply(self._connection, cookie, None)
+        if not reply:
+            return 0
+        try:
+            return reply.contents.mask
+        finally:
+            self._free(reply)
+
     def _send(self, window: int, message_type: int, data: list[int]) -> None:
         message = _ClientMessage(CLIENT_MESSAGE, 32, 0, window, message_type)
         message.data[:] = data
@@ -225,6 +260,13 @@ def activate(window: int) -> None:
     server = _server()
     if server is not None:
         server.activate(window)
+
+
+def main_button_down() -> bool | None:
+    """Whether the main mouse button is held right now; None if the server cannot
+    be asked. Button 1 is the main one, whichever hand the buttons are set for."""
+    server = _server()
+    return None if server is None else bool(server.buttons() & BUTTON_1)
 
 
 def _server() -> _Xcb | None:

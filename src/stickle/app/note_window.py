@@ -135,6 +135,22 @@ def open_link(href: str) -> bool:
     return open_url(url)
 
 
+def _main_button_down() -> bool:
+    """Whether the mouse button a drag is made with is still held. Asked of the
+    system: Qt's own idea of it is stale while the window system moves a window."""
+    if sys.platform == "win32":
+        from stickle.platform.windows.pointer import main_button_down
+
+        return main_button_down()
+    if QGuiApplication.platformName() == "xcb":
+        from stickle.platform.linux.x11 import main_button_down
+
+        held = main_button_down()
+        if held is not None:
+            return held
+    return bool(QGuiApplication.mouseButtons() & Qt.MouseButton.LeftButton)
+
+
 def drawn_icon(
     draw: Callable[[QPainter, float], None], color: QColor, quiet: QColor | None = None
 ) -> QIcon:
@@ -498,7 +514,7 @@ class NoteWindow(QWidget):
         self._settle = QTimer(self)
         self._settle.setSingleShot(True)
         self._settle.setInterval(SETTLE_MS)
-        self._settle.timeout.connect(self.geometry_settled)
+        self._settle.timeout.connect(self._settled)
 
         self.color = color
         self.colors = note_colors(color)
@@ -1007,6 +1023,12 @@ class NoteWindow(QWidget):
             self.alt_at_drop = bool(alt)
         if self.isVisible():
             self._settle.start()
+
+    def _settled(self) -> None:
+        if self.dragging and _main_button_down():
+            self._settle.start()  # held still in the middle of a drag: not dropped yet
+            return
+        self.geometry_settled.emit()
 
     def _drag_started(self, group: bool) -> None:
         self.dragging = True
