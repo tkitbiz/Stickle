@@ -202,6 +202,7 @@ class CategoryPage(QWidget):
         )
         if dialog.created is not None:
             self.refresh(keep=dialog.created.id)
+            self.list.setFocus(Qt.FocusReason.OtherFocusReason)  # on with the keyboard
 
     def _rename(self) -> None:
         row = self.list.currentRow()
@@ -419,6 +420,7 @@ class MarkPage(QWidget):
         dialog = new_mark_dialog(self, self._notes.create_mark)
         if dialog.created is not None:
             self.refresh(keep=dialog.created.id)
+            self.list.setFocus(Qt.FocusReason.OtherFocusReason)  # on with the keyboard
 
     def _rename(self) -> None:
         row = self.list.currentRow()

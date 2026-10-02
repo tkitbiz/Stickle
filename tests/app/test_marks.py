@@ -86,11 +86,16 @@ def test_a_new_mark_is_made_and_offered_in_the_note_menu(
         return dialog
 
     monkeypatch.setattr(label_manager, "new_mark_dialog", answer)
+    app.dialog.tabs.setCurrentWidget(app.page)
+    app.dialog.show()
+    app.page.new_button.setFocus()
     app.page.new_mark()
     window = app.note("Plan")
     window.menu.aboutToShow.emit()
 
     assert app.names()[-1] == "전화"
+    assert app.page.list.currentItem().text() == "전화"
+    assert app.dialog.focusWidget() is app.page.list  # on with the keyboard
     assert [a.text() for a in window.marks_menu.actions()][-1] == "전화"
     assert app.labels.marks()[-1].icon == "person"
 
