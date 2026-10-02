@@ -249,6 +249,8 @@ class TitleBar(QWidget):
 
     menu_requested = Signal(QPoint)  # where, on the screen
     double_clicked = Signal()
+    drag_started = Signal(bool)  # True: with Shift, the notes beside it along
+    dragged_by = Signal(QPoint)  # moved by Stickle itself, this far
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
@@ -375,13 +377,21 @@ class TitleBar(QWidget):
                 return
             start = self._press
             self._press = None
-            # Let the window system move the window: the only way that also works on Wayland.
-            if not self.window().windowHandle().startSystemMove():
+            # Shift: the notes beside it come along, so Stickle moves them all
+            # itself (not possible under Wayland, where only the system moves windows).
+            group = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier) and (
+                QGuiApplication.platformName() != "wayland"
+            )
+            self.drag_started.emit(group)
+            # Otherwise the window system moves it: the only way that also works on Wayland.
+            if group or not self.window().windowHandle().startSystemMove():
                 self._drag_offset = start - self.window().pos()
         if self._drag_offset is None:
             super().mouseMoveEvent(event)
             return
+        before = self.window().pos()
         self.window().move(point - self._drag_offset)
+        self.dragged_by.emit(self.window().pos() - before)
         event.accept()
 
     @override
@@ -427,6 +437,8 @@ class NoteWindow(QWidget):
     new_category_requested = Signal()
     mark_requested = Signal(str, bool)  # a mark id; True: put it on
     guide_requested = Signal()  # the keys at a glance
+    drag_started = Signal(bool)  # by its title bar; True: with Shift, the notes beside it along
+    dragged_by = Signal(QPoint)  # moved by Stickle itself (with Shift), this far
     switch_requested = Signal(int)  # 1: to the next note on screen, -1: the one before
     geometry_settled = Signal()  # moved or resized, and then left alone for a moment
 
@@ -490,6 +502,11 @@ class NoteWindow(QWidget):
         self.title_bar = TitleBar(self)
         self.title_bar.close_button.clicked.connect(self.hide_requested)
         self.title_bar.menu_requested.connect(self.open_menu_at)
+        # Dragged by its title bar: its owner may line it up where it is dropped.
+        self.dragging = False
+        self.alt_at_drop = False  # Alt held as it was let go: left where it is
+        self.title_bar.drag_started.connect(self._drag_started)
+        self.title_bar.dragged_by.connect(self.dragged_by)
         self.title_bar.double_clicked.connect(
             lambda: self.collapse_requested.emit(not self.collapsed)
         )
@@ -981,8 +998,16 @@ class NoteWindow(QWidget):
     @override
     def moveEvent(self, event: QMoveEvent) -> None:
         super().moveEvent(event)
+        if self.dragging:
+            alt = QGuiApplication.queryKeyboardModifiers() & Qt.KeyboardModifier.AltModifier
+            self.alt_at_drop = bool(alt)
         if self.isVisible():
             self._settle.start()
+
+    def _drag_started(self, group: bool) -> None:
+        self.dragging = True
+        self.alt_at_drop = False
+        self.drag_started.emit(group)
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:

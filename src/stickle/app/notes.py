@@ -27,7 +27,7 @@ from dataclasses import replace
 from typing import override
 
 import apsw
-from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, QPropertyAnimation, QRect, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -38,6 +38,7 @@ from stickle.app.placement import MonitorWatch, can_place_windows, monitors, qre
 from stickle.core.labels import Category, Mark
 from stickle.core.layout import MAIN, Place, fit, monitor_at, remember, restore
 from stickle.core.note import DEFAULT_COLOR, Note
+from stickle.core.snap import snapped, together
 from stickle.data.labels import LabelRepository
 from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
@@ -59,6 +60,8 @@ log = logging.getLogger(__name__)
 
 # The view of the notes with no category (not an id: no category is stored with it).
 NO_CATEGORY = "*none*"
+# A note lined up where it was dropped slides there this quickly.
+SNAP_SLIDE_MS = 100
 
 
 def clipboard_text() -> str:
@@ -168,6 +171,7 @@ class NoteManager(QObject):
         self._view: str | None = None  # see view
         self._out_of_view: list[NoteWindow] = []
         self._find_among: list[NoteWindow] | None = None  # while finding on the desktop
+        self._groups: dict[NoteWindow, list[NoteWindow]] = {}  # moving with Shift
         self._created = 0
         self._quitting = False
 
@@ -324,7 +328,17 @@ class NoteManager(QObject):
         window.editing_finished.connect(autosave.save_now)
         window.retry_requested.connect(autosave.save_now)
         window.closed.connect(lambda: self._forget(window))
-        window.geometry_settled.connect(lambda: self.save_layout(window))
+        window.geometry_settled.connect(lambda: self._settled(window))
+
+        def drag_started(group: bool) -> None:
+            self._drag_started(window, group)
+
+        window.drag_started.connect(drag_started)
+
+        def dragged_by(delta: QPoint) -> None:
+            self._drag_group(window, delta)
+
+        window.dragged_by.connect(dragged_by)
         self._windows.append(window)
 
         if not self._restore_place(window):
@@ -438,6 +452,57 @@ class NoteManager(QObject):
             log.error("could not store where a note is: %s", type(error).__name__)
             return
         window.mark_placed()
+
+    # Lining up where a note is dropped, and notes side by side moving together
+
+    def _drag_started(self, window: NoteWindow, group: bool) -> None:
+        """Dragged by its title bar; with Shift, the notes touching it (and those
+        touching them) come along. Locked notes stay where they are."""
+        self._groups.pop(window, None)
+        if not group:
+            return
+        free = {
+            other: rect(other.geometry())
+            for other in self._windows
+            if other.isVisible() and (other is window or not other.locked)
+        }
+        self._groups[window] = [other for other in together(window, free) if other is not window]
+
+    def _drag_group(self, window: NoteWindow, delta: QPoint) -> None:
+        for other in self._groups.get(window, []):
+            other.move(other.pos() + delta)
+
+    def _settled(self, window: NoteWindow) -> None:
+        """Moved or resized, then left alone: remembered. Just dropped after a drag,
+        it is lined up first with the notes and the edge of the screen near it,
+        unless Alt was held (or the window system places windows itself)."""
+        if not window.dragging:
+            self.save_layout(window)
+            return
+        window.dragging = False
+        group = self._groups.pop(window, [])
+        moving = [window, *group]
+        delta = QPoint()
+        if not window.alt_at_drop and can_place_windows():
+            others = [
+                rect(other.geometry())
+                for other in self._windows
+                if other.isVisible() and other not in moving
+            ]
+            areas = [monitor.available for monitor in monitors()]
+            now = rect(window.geometry())
+            target = snapped(now, others, areas)
+            delta = QPoint(target.x - now.x, target.y - now.y)
+        if delta.isNull():
+            for moved in moving:
+                self.save_layout(moved)
+            return
+        for moved in moving:
+            slide = QPropertyAnimation(moved, b"pos", self)
+            slide.setDuration(SNAP_SLIDE_MS)
+            slide.setEndValue(moved.pos() + delta)
+            slide.finished.connect(lambda moved=moved: self.save_layout(moved))
+            slide.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
 
     def place_all(self) -> None:
         """Monitors were connected, removed or changed: put every note where it belongs."""
