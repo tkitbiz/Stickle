@@ -63,12 +63,12 @@ GTK_MODIFIERS = {
 def readable_keys(described: str) -> str:
     """Keys as the desktop described them, written as Stickle writes keys.
 
-    GNOME says "Press <Control><Alt>n"; that becomes "Ctrl+Alt+N". A
-    description in any other form is shown as the desktop wrote it.
+    GNOME says "Press <Control><Alt>n" (in the desktop's language: "<Control><Alt>n
+    키를 누르십시오" in Korean); that becomes "Ctrl+Alt+N". A description in any
+    other form is shown as the desktop wrote it.
     """
-    text = described.removeprefix("Press ").strip()
-    match = re.fullmatch(r"((?:<\w+>)*)(\S+)", text)
-    if match is None or not match.group(1):
+    match = re.search(r"((?:<\w+>)+)([^\s<>]+)", described)
+    if match is None:
         return described
     names = re.findall(r"<(\w+)>", match.group(1))
     if any(name not in GTK_MODIFIERS for name in names):

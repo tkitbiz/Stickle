@@ -368,6 +368,8 @@ def test_the_window_shows_the_desktops_keys_and_leads_to_its_settings(
     ("described", "shown"),
     [
         ("Press <Control><Alt>n", "Ctrl+Alt+N"),
+        ("<Control><Alt>n 키를 누르십시오", "Ctrl+Alt+N"),  # GNOME in Korean
+        ("Drücken Sie <Control><Alt>n", "Ctrl+Alt+N"),
         ("<Super><Shift>F7", "Super+Shift+F7"),
         ("Ctrl+Alt+N", "Ctrl+Alt+N"),  # already readable: as it is
         ("", ""),
