@@ -139,3 +139,116 @@ def test_marks_stay_in_the_trash_and_go_when_it_is_emptied(
     notes.purge(note.id)
 
     assert db.execute("SELECT count(*) FROM note_marks").fetchall() == [(0,)]
+
+
+# Managing categories
+
+
+def test_a_category_is_renamed_and_keeps_its_notes(
+    labels: LabelRepository, notes: NoteRepository
+) -> None:
+    work = labels.create_category("Work", "blue")
+    note = notes.set_category(notes.create("Plan").id, work.id)
+
+    renamed = labels.rename_category(work.id, " 업무 ")
+
+    assert renamed.name == "업무" and renamed.id == work.id
+    assert notes.get(note.id) == note  # the note itself is untouched
+
+
+def test_a_rename_to_a_name_taken_is_refused(labels: LabelRepository) -> None:
+    work = labels.create_category("Work", "blue")
+    labels.create_category("Home", "green")
+    with pytest.raises(CategoryNameError):
+        labels.rename_category(work.id, "home")
+    with pytest.raises(CategoryNameError):
+        labels.rename_category(work.id, "  ")
+    assert labels.rename_category(work.id, "WORK").name == "WORK"  # its own name, recased
+
+
+def test_a_category_colour_changes(labels: LabelRepository) -> None:
+    work = labels.create_category("Work", "blue")
+    assert labels.set_category_color(work.id, "coral").color == "coral"
+    with pytest.raises(ValueError):
+        labels.set_category_color(work.id, "red")
+
+
+def test_categories_move_in_the_order_but_not_past_its_ends(labels: LabelRepository) -> None:
+    a, b, c = (labels.create_category(name, "blue") for name in "ABC")
+
+    assert [x.id for x in labels.move_category(c.id, -1)] == [a.id, c.id, b.id]
+    assert [x.id for x in labels.move_category(a.id, -1)] == [a.id, c.id, b.id]
+    assert [x.id for x in labels.move_category(a.id, 1)] == [c.id, a.id, b.id]
+    assert [x.id for x in labels.move_category(b.id, 1)] == [c.id, a.id, b.id]
+
+
+def test_removing_a_category_takes_it_off_its_notes(
+    labels: LabelRepository, notes: NoteRepository
+) -> None:
+    work = labels.create_category("Work", "blue")
+    kept = notes.create("회의록")
+    ids = [notes.set_category(notes.create(text).id, work.id).id for text in ("a", "b")]
+    notes.set_hidden(ids[1], True)
+
+    removed = notes.remove_category(work.id, with_notes=False)
+
+    assert sorted(removed) == sorted(ids)
+    assert labels.categories() == []
+    for note_id, body in zip(ids, ("a", "b"), strict=True):
+        note = notes.get(note_id)
+        assert note is not None and note.label is None and not note.deleted and note.body == body
+    assert notes.get(kept.id) == kept
+
+
+def test_removing_a_category_with_its_notes_puts_them_in_the_trash_together(
+    labels: LabelRepository, notes: NoteRepository
+) -> None:
+    work = labels.create_category("Work", "blue")
+    ids = [notes.set_category(notes.create(text).id, work.id).id for text in ("a", "b")]
+    notes.set_locked(ids[0], True)
+    other = notes.create("other")
+
+    notes.remove_category(work.id, with_notes=True)
+
+    trash = notes.deleted()
+    assert sorted(n.id for n in trash) == sorted(ids)
+    assert {n.label for n in trash} == {work.id}  # kept, to come back with them
+    assert len({n.deleted_at for n in trash}) == 1
+    assert sorted(n.id for n in notes.deleted_with(ids[0])) == sorted(ids)
+    assert not notes.get(other.id).deleted  # pyright: ignore[reportOptionalMemberAccess]
+
+
+def test_a_note_back_from_the_trash_brings_its_category_back(
+    labels: LabelRepository, notes: NoteRepository
+) -> None:
+    work = labels.create_category("Work", "blue")
+    note = notes.set_category(notes.create("a").id, work.id)
+    notes.remove_category(work.id, with_notes=True)
+
+    back = notes.restore(note.id)
+
+    assert back.label == work.id and not back.deleted
+    assert [c.id for c in labels.categories()] == [work.id]
+
+
+def test_back_from_the_trash_into_a_category_of_the_same_name_made_since(
+    labels: LabelRepository, notes: NoteRepository
+) -> None:
+    work = labels.create_category("Work", "blue")
+    note = notes.set_category(notes.create("a").id, work.id)
+    notes.remove_category(work.id, with_notes=True)
+    again = labels.create_category("work", "green")
+
+    back = notes.restore(note.id)
+
+    assert back.label == again.id
+    assert [c.id for c in labels.categories()] == [again.id]  # not two of one name
+
+
+def test_a_category_cannot_be_removed_twice(labels: LabelRepository, notes: NoteRepository) -> None:
+    work = labels.create_category("Work", "blue")
+    notes.remove_category(work.id, with_notes=False)
+    with pytest.raises(KeyError):
+        notes.remove_category(work.id, with_notes=False)
+    with pytest.raises(KeyError):
+        labels.rename_category(work.id, "Again")

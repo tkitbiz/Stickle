@@ -9,6 +9,78 @@
     </message>
 </context>
 <context>
+    <name>CategoryManager</name>
+    <message>
+        <source>Categories</source>
+        <translation>카테고리</translation>
+    </message>
+    <message>
+        <source>&amp;Categories</source>
+        <translation>카테고리(&amp;C)</translation>
+    </message>
+    <message>
+        <source>F2 renames, Alt+Up and Alt+Down move, Delete deletes.</source>
+        <translation>F2는 이름 바꾸기, Alt+위·Alt+아래는 순서 바꾸기, Delete는 지우기입니다.</translation>
+    </message>
+    <message>
+        <source>&amp;New…</source>
+        <translation>새로 만들기(&amp;N)…</translation>
+    </message>
+    <message>
+        <source>&amp;Rename</source>
+        <translation>이름 바꾸기(&amp;R)</translation>
+    </message>
+    <message>
+        <source>C&amp;olor</source>
+        <translation>색(&amp;O)</translation>
+    </message>
+    <message>
+        <source>Move &amp;up</source>
+        <translation>위로(&amp;U)</translation>
+    </message>
+    <message>
+        <source>Move do&amp;wn</source>
+        <translation>아래로(&amp;W)</translation>
+    </message>
+    <message>
+        <source>&amp;Delete…</source>
+        <translation>지우기(&amp;D)…</translation>
+    </message>
+    <message>
+        <source>There is already a category with this name.</source>
+        <translation>같은 이름의 카테고리가 이미 있습니다.</translation>
+    </message>
+    <message>
+        <source>Delete the category “%1”? No note has it.</source>
+        <translation>‘%1’ 카테고리를 지울까요? 이 카테고리가 붙은 메모는 없습니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n note(s) will lose the category “%1”. This cannot be undone. The notes themselves stay as they are.</source>
+        <translation>
+            <numerusform>메모 %n개에서 ‘%1’ 카테고리가 빠집니다. 이 작업은 되돌릴 수 없습니다. 메모 내용은 그대로 남습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Delete the category only</source>
+        <translation>카테고리만 지우기</translation>
+    </message>
+    <message>
+        <source>Move the notes to the trash too…</source>
+        <translation>메모도 휴지통으로…</translation>
+    </message>
+    <message numerus="yes">
+        <source>Move %n note(s) to the trash with the category “%1”? They can be brought back from the trash for a year.</source>
+        <translation>
+            <numerusform>‘%1’ 카테고리와 함께 메모 %n개를 휴지통으로 옮길까요? 휴지통에서 1년 동안 되살릴 수 있습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Among them: %1 hidden, %2 locked.</source>
+        <comment>numbers of notes</comment>
+        <translation>숨긴 메모 %1개, 잠긴 메모 %2개가 포함됩니다.</translation>
+    </message>
+</context>
+<context>
     <name>CategoryTag</name>
     <message>
         <source>Category: %1</source>
@@ -289,6 +361,18 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <translation>휴지통</translation>
     </message>
     <message>
+        <source>Category</source>
+        <translation>카테고리</translation>
+    </message>
+    <message>
+        <source>Ctrl+1 to Ctrl+9 choose a category, Ctrl+0 every note.</source>
+        <translation>Ctrl+1부터 Ctrl+9로 카테고리를 고르고, Ctrl+0으로 모든 메모를 봅니다.</translation>
+    </message>
+    <message>
+        <source>Mark</source>
+        <translation>표시</translation>
+    </message>
+    <message>
         <source>Search notes</source>
         <translation>메모 검색</translation>
     </message>
@@ -299,6 +383,18 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>Empty the trash…</source>
         <translation>휴지통 비우기…</translation>
+    </message>
+    <message>
+        <source>All categories</source>
+        <translation>모든 카테고리</translation>
+    </message>
+    <message>
+        <source>No category</source>
+        <translation>카테고리 없음</translation>
+    </message>
+    <message>
+        <source>All marks</source>
+        <translation>모든 표시</translation>
     </message>
     <message>
         <source>(empty note)</source>
@@ -914,6 +1010,10 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
     <message>
         <source>All notes are out of sight for now. They come back as they were.</source>
         <translation>모든 메모를 잠시 숨겼습니다. 다시 보이면 있던 그대로 돌아옵니다.</translation>
+    </message>
+    <message>
+        <source>Manage &amp;categories…</source>
+        <translation>카테고리 관리(&amp;C)…</translation>
     </message>
     <message>
         <source>&amp;Start Stickle when I log in</source>

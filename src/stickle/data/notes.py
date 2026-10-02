@@ -236,10 +236,79 @@ class NoteRepository:
         return self._change(note_id, {"deleted_at": self._clock()})
 
     def restore(self, note_id: str) -> Note:
+        """Out of the trash, with its category if that was deleted since (see
+        _category_back)."""
         note = self._require(note_id)
         if not note.deleted:
             return note
-        return self._change(note_id, {"deleted_at": None})
+        with self._db:
+            changes: dict[str, object] = {"deleted_at": None}
+            category_id = self._category_back(note.label)
+            if category_id != note.label:
+                changes["label"] = category_id
+            self._change(note_id, changes)
+        return self._require(note_id)
+
+    def _category_back(self, category_id: str | None) -> str | None:
+        """The category a note coming back from the trash goes into: its own, brought
+        back too if it was deleted, or another of the same name made since."""
+        if category_id is None:
+            return None
+        rows = self._db.execute(
+            "SELECT name, deleted_at FROM categories WHERE id = ?", (category_id,)
+        ).fetchall()
+        if not rows:
+            return None
+        name, deleted = rows[0]
+        if deleted is None:
+            return category_id
+        folded = str(name).casefold()
+        live = self._db.execute(
+            "SELECT id, name FROM categories WHERE deleted_at IS NULL ORDER BY position"
+        ).fetchall()
+        same = next((str(i) for i, n in live if str(n).casefold() == folded), None)
+        if same is not None:
+            return same
+        self._db.execute(
+            "UPDATE categories SET deleted_at = NULL, updated_at = ?,"
+            " position = (SELECT coalesce(max(position), 0) + 1 FROM categories) WHERE id = ?",
+            (self._clock(), category_id),
+        )
+        return category_id
+
+    def remove_category(self, category_id: str, with_notes: bool) -> list[str]:
+        """Delete a category. Its notes lose it, or (with_notes) go into the trash
+        together, all at one moment, so that they come back together. The ids of
+        those notes."""
+        ids: list[str] = []
+        with self._db:
+            rows = self._db.execute(
+                "SELECT deleted_at FROM categories WHERE id = ?", (category_id,)
+            ).fetchall()
+            if not rows or rows[0][0] is not None:
+                raise KeyError(category_id)
+            now = self._clock()
+            self._db.execute(
+                "UPDATE categories SET deleted_at = ?, updated_at = ? WHERE id = ?",
+                (now, now, category_id),
+            )
+            ids = [
+                str(row[0])
+                for row in self._db.execute(
+                    "SELECT id FROM notes WHERE label = ? AND deleted_at IS NULL", (category_id,)
+                ).fetchall()
+            ]
+            for note_id in ids:
+                # A deleted note keeps its category, which comes back with it.
+                self._change(note_id, {"deleted_at": now} if with_notes else {"label": None})
+        return ids
+
+    def deleted_with(self, note_id: str) -> list[Note]:
+        """The notes put into the trash at the same moment as this one, it too."""
+        note = self._require(note_id)
+        if note.deleted_at is None:
+            return []
+        return self._list("deleted_at = ?", "seq", (note.deleted_at,))
 
     def _list(self, where: str, order: str, params: tuple[str, ...] = ()) -> list[Note]:
         rows = self._db.execute(

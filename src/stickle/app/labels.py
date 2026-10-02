@@ -12,7 +12,16 @@ from collections.abc import Callable
 from typing import override
 
 from PySide6.QtCore import QCoreApplication, QLocale, QPointF, QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPaintEvent, QPen, QPolygonF
+from PySide6.QtGui import (
+    QColor,
+    QFontMetrics,
+    QIcon,
+    QPainter,
+    QPaintEvent,
+    QPen,
+    QPixmap,
+    QPolygonF,
+)
 from PySide6.QtWidgets import QSizePolicy, QToolButton, QWidget
 
 from stickle.app.palette import qcolor
@@ -25,6 +34,29 @@ HEIGHT = 20  # as the title bar's buttons
 GAP = 3
 DOT = 8
 PADDING = 2
+
+
+def dot_color(key: str) -> QColor:
+    """A category's dot: its palette colour's deeper shade, which shows on pastel notes."""
+    return qcolor(colors_for(PALETTE.get(key, PALETTE["blue"])).border)
+
+
+def dot_icon(key: str) -> QIcon:
+    """A category's dot for lists and menus, at 1x and 2x."""
+    icon = QIcon()
+    for scale in (1, 2):
+        size = 14 * scale
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(dot_color(key).darker(130), scale))
+        painter.setBrush(dot_color(key))
+        inset = 3 * scale
+        painter.drawEllipse(QRectF(inset, inset, size - 2 * inset, size - 2 * inset))
+        painter.end()
+        icon.addPixmap(pixmap)
+    return icon
 
 
 def mark_name(mark: Mark) -> str:
@@ -177,10 +209,8 @@ class CategoryTag(_TitleBarPart):
             return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        # The palette's deeper shade: its pastel would hardly show on a pastel note.
-        colors = colors_for(PALETTE.get(self.category.color, PALETTE["blue"]))
-        painter.setPen(QPen(qcolor(colors.border).darker(130), 1))
-        painter.setBrush(qcolor(colors.border))
+        painter.setPen(QPen(dot_color(self.category.color).darker(130), 1))
+        painter.setBrush(dot_color(self.category.color))
         top = (self.height() - DOT) / 2
         painter.drawEllipse(QRectF(PADDING + 0.5, top + 0.5, DOT - 1, DOT - 1))
         painter.setPen(self.color)

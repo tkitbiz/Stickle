@@ -29,6 +29,7 @@ from typing import override
 import apsw
 from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QWidget
 
 from stickle.app.category_dialog import NewCategoryDialog, next_dot_color
 from stickle.app.note_window import NoteWindow
@@ -109,7 +110,7 @@ class AutoSave(QObject):
 
 
 def _ask_for_category(
-    parent: NoteWindow, create: Callable[[str, str], Category], color: str
+    parent: QWidget, create: Callable[[str, str], Category], color: str
 ) -> NewCategoryDialog:
     dialog = NewCategoryDialog(parent, create, color)
     dialog.exec()
@@ -117,9 +118,9 @@ def _ask_for_category(
 
 
 # Asks, and returns once answered: the dialog's created is the new category, if any.
-new_category_dialog: Callable[
-    [NoteWindow, Callable[[str, str], Category], str], NewCategoryDialog
-] = _ask_for_category  # replaced in tests
+new_category_dialog: Callable[[QWidget, Callable[[str, str], Category], str], NewCategoryDialog] = (
+    _ask_for_category  # replaced in tests
+)
 
 
 class NoteManager(QObject):
@@ -614,13 +615,93 @@ class NoteManager(QObject):
         self._show_labels(window, category_id, marks)
         self.changed.emit()
 
+    def refresh_labels(self) -> None:
+        """Categories changed (renamed, recoloured, reordered, deleted): every open
+        note shows its own as stored now."""
+        for window in self._windows:
+            note = (
+                self._repository.get(window.note_id)
+                if self._repository is not None and window.note_id is not None
+                else None
+            )
+            if note is not None:
+                self._show_labels(window, note.label, note.marks)
+            elif window.category is not None or window.marks:
+                category_id = window.category.id if window.category is not None else None
+                self._show_labels(window, category_id, (mark.id for mark in window.marks))
+        self.changed.emit()
+
+    def create_category(self, name: str, color: str) -> Category:
+        """Raises CategoryNameError for a name empty or taken."""
+        if self._labels is None:
+            raise RuntimeError("no notes database")
+        category = self._labels.create_category(name, color)
+        self.changed.emit()
+        return category
+
+    def rename_category(self, category_id: str, name: str) -> None:
+        """Raises CategoryNameError for a name empty or taken."""
+        if self._labels is None:
+            return
+        self._labels.rename_category(category_id, name)
+        self.refresh_labels()
+
+    def set_category_color(self, category_id: str, color: str) -> None:
+        if self._labels is None:
+            return
+        try:
+            self._labels.set_category_color(category_id, color)
+        except apsw.Error as error:
+            log.error("could not store a category's colour: %s", type(error).__name__)
+            return
+        self.refresh_labels()
+
+    def move_category(self, category_id: str, step: int) -> None:
+        if self._labels is None:
+            return
+        try:
+            self._labels.move_category(category_id, step)
+        except apsw.Error as error:
+            log.error("could not store the order of categories: %s", type(error).__name__)
+            return
+        self.changed.emit()
+
+    def notes_in_category(self, category_id: str) -> list[Note]:
+        """The notes not deleted that have the category, shown or hidden."""
+        return [note for note in self.listed_notes() if note.label == category_id]
+
+    def remove_category(self, category_id: str, with_notes: bool) -> None:
+        """Delete a category: its notes lose it, or (with_notes, as the user chose)
+        go into the trash together, open ones saved first."""
+        if self._repository is None:
+            return
+        windows = [
+            window
+            for note in self.notes_in_category(category_id)
+            if (window := self.window_for(note.id)) is not None
+        ]
+        if with_notes:
+            for window in windows:
+                self.flush(window, closing=True)
+        try:
+            removed = self._repository.remove_category(category_id, with_notes)
+        except (apsw.Error, KeyError) as error:
+            log.error("could not delete a category: %s", type(error).__name__)
+            return
+        log.info("a category was deleted, %d notes %s", len(removed),
+                 "into the trash" if with_notes else "kept")  # fmt: skip
+        if with_notes:
+            for window in windows:
+                self._autosaves[window].stop()
+                window.release()
+        self.refresh_labels()
+
     def new_category(self, window: NoteWindow) -> None:
         """Ask for a new category's name and colour, and give it to the note."""
         if self._labels is None:
             return
-        labels = self._labels
         dialog = new_category_dialog(
-            window, labels.create_category, next_dot_color(len(self.label_choices()[0]))
+            window, self.create_category, next_dot_color(len(self.label_choices()[0]))
         )
         if dialog.created is not None:
             self.set_category(window, dialog.created.id)
@@ -780,9 +861,17 @@ class NoteManager(QObject):
         self.changed.emit()
 
     def restore_last_deleted(self) -> None:
+        """The note deleted last, with any deleted together with it (a category's)."""
         note = self.last_deleted()
-        if note is not None:
-            self.restore_note(note.id)
+        if note is None or self._repository is None:
+            return
+        try:
+            together = self._repository.deleted_with(note.id)
+        except apsw.Error as error:
+            log.error("could not read the trash: %s", type(error).__name__)
+            return
+        for other in together:
+            self.restore_note(other.id)
 
     # The trash
 

@@ -26,14 +26,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from stickle.app.labels import mark_name
 from stickle.app.notes import NoteManager
 from stickle.app.palette import swatch_icon
 from stickle.core.colors import DEFAULT_COLOR, PALETTE
+from stickle.core.labels import Category, Mark
 from stickle.core.markdown import note_title
 from stickle.core.note import Note
 
 NOTE_ID = Qt.ItemDataRole.UserRole
 ALL, SHOWN, HIDDEN, TRASH = "all", "shown", "hidden", "trash"
+# Not ids: no category or mark is stored with these.
+ANY, NONE = "*any*", "*none*"
 # A note's text is stored a second after typing stops; the list follows a moment later.
 REFRESH_DELAY_MS = 300
 # Typing on narrows the list once the keys pause, not on every letter.
@@ -64,11 +68,25 @@ class NoteList(QWidget):
     def __init__(self, notes: NoteManager, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._notes = notes
+        self._categories: list[Category] = []
+        self._marks: list[Mark] = []
         self.label = QLabel(self)
         self.filter_box = QComboBox(self)
         for key in (ALL, SHOWN, HIDDEN, TRASH):
             self.filter_box.addItem("", key)
         self.filter_box.currentIndexChanged.connect(self.refresh)
+        # What the notes are about, and how they are marked: filled from what exists.
+        self.category_box = QComboBox(self)
+        self.category_box.currentIndexChanged.connect(self.refresh)
+        self.mark_box = QComboBox(self)
+        self.mark_box.currentIndexChanged.connect(self.refresh)
+        # Ctrl+1 to Ctrl+9: a category, in their order; Ctrl+0: every note again.
+        self.category_shortcuts: list[QShortcut] = []
+        for digit in range(10):
+            shortcut = QShortcut(QKeySequence(f"Ctrl+{digit}"), self)
+            shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+            shortcut.activated.connect(lambda digit=digit: self.choose_category(digit))
+            self.category_shortcuts.append(shortcut)
         # Text being composed by an input method is not searched until it is
         # committed: results would flicker with every jamo of a Korean syllable.
         self.search_box = QLineEdit(self)
@@ -101,9 +119,13 @@ class NoteList(QWidget):
         top = QHBoxLayout()
         top.addWidget(self.label, 1)
         top.addWidget(self.filter_box)
+        narrow = QHBoxLayout()
+        narrow.addWidget(self.category_box, 1)
+        narrow.addWidget(self.mark_box, 1)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(top)
+        layout.addLayout(narrow)
         layout.addWidget(self.search_box)
         layout.addWidget(self.list, 1)
         layout.addWidget(self.empty_button)
@@ -111,7 +133,14 @@ class NoteList(QWidget):
 
     def tab_order(self) -> list[QWidget]:
         """Its parts as they read, for the window's Tab order."""
-        return [self.filter_box, self.search_box, self.list, self.empty_button]
+        return [
+            self.filter_box,
+            self.category_box,
+            self.mark_box,
+            self.search_box,
+            self.list,
+            self.empty_button,
+        ]
 
     @property
     def in_trash(self) -> bool:
@@ -125,6 +154,11 @@ class NoteList(QWidget):
         self.filter_box.setItemText(1, self.tr("Notes on screen"))
         self.filter_box.setItemText(2, self.tr("Hidden notes"))
         self.filter_box.setItemText(3, self.tr("Trash"))
+        self.category_box.setAccessibleName(self.tr("Category"))
+        self.category_box.setAccessibleDescription(
+            self.tr("Ctrl+1 to Ctrl+9 choose a category, Ctrl+0 every note.")
+        )
+        self.mark_box.setAccessibleName(self.tr("Mark"))
         self.search_box.setPlaceholderText(self.tr("Search notes"))
         self.search_box.setAccessibleName(self.tr("Search notes"))
         self.search_box.setAccessibleDescription(
@@ -133,15 +167,63 @@ class NoteList(QWidget):
         self.empty_button.setText(self.tr("Empty the trash…"))
         self.refresh()
 
+    def _fill_filters(self) -> None:
+        """The categories and marks there are now, keeping what was chosen if it
+        still exists."""
+        self._categories, self._marks = self._notes.label_choices()
+        boxes = (
+            (
+                self.category_box,
+                [(ANY, self.tr("All categories")), (NONE, self.tr("No category"))]
+                + [(c.id, c.name) for c in self._categories],
+            ),
+            (
+                self.mark_box,
+                [(ANY, self.tr("All marks"))] + [(m.id, mark_name(m)) for m in self._marks],
+            ),
+        )
+        for box, choices in boxes:
+            chosen = box.currentData()
+            box.blockSignals(True)
+            box.clear()
+            for key, text in choices:
+                box.addItem(text, key)
+            box.setCurrentIndex(max(0, box.findData(chosen)))
+            box.blockSignals(False)
+
+    def choose_category(self, digit: int) -> None:
+        """Ctrl+digit: the digit-th category (if there is one), or every note for 0."""
+        if digit == 0:
+            self.category_box.setCurrentIndex(0)
+        elif digit <= len(self._categories):
+            index = self.category_box.findData(self._categories[digit - 1].id)
+            self.category_box.setCurrentIndex(index)
+
     def _wanted(self, note: Note) -> bool:
         shown = self.filter_box.currentData()
-        return shown == ALL or (note.hidden if shown == HIDDEN else not note.hidden)
+        category = self.category_box.currentData()
+        mark = self.mark_box.currentData()
+        if category == NONE and note.label is not None:
+            return False
+        if category not in (ANY, NONE) and note.label != category:
+            return False
+        if mark != ANY and mark not in note.marks:
+            return False
+        if shown in (ALL, TRASH):
+            return True
+        return note.hidden if shown == HIDDEN else not note.hidden
+
+    def _labels(self, note: Note) -> list[str]:
+        """The note's category and marks, by name."""
+        names = [c.name for c in self._categories if c.id == note.label]
+        return names + [mark_name(m) for m in self._marks if m.id in note.marks]
 
     def _text(self, note: Note) -> str:
         title = note_title(note.body) or self.tr("(empty note)")
         if self.in_trash:
-            return " · ".join([title, self.tr("deleted %1").replace("%1", deleted_on(note))])
-        states: list[str] = []
+            deleted = self.tr("deleted %1").replace("%1", deleted_on(note))
+            return " · ".join([title, *self._labels(note), deleted])
+        states: list[str] = self._labels(note)
         if note.hidden:
             states.append(self.tr("hidden"))
         if not note.always_on_top:
@@ -161,10 +243,12 @@ class NoteList(QWidget):
     def refresh(self) -> None:
         """Show the notes as they are stored now, keeping the one selected."""
         self._search_soon.stop()
+        self._fill_filters()
         selected = self.selected_id()
         self.list.clear()
         if self.in_trash:
-            trash = notes = self._notes.trash_notes()
+            trash = self._notes.trash_notes()
+            notes = [note for note in trash if self._wanted(note)]
             self.list.setAccessibleDescription(
                 self.tr("Enter brings the note back; Delete empties it from the trash for good.")
             )

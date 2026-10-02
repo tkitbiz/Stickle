@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 )
 
 from stickle.app.app_list import switch_app_list
+from stickle.app.category_manager import CategoryManager
 from stickle.app.first_run import LoginNote
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.note_list import NoteList
@@ -173,6 +174,9 @@ class StickleWindow(QWidget):
         self.show_all_button.clicked.connect(notes.show_all_hidden)
         self.restore_button = QPushButton(self)
         self.restore_button.clicked.connect(notes.restore_last_deleted)
+        self.categories_button = QPushButton(self)
+        self.categories_button.clicked.connect(self.manage_categories)
+        self.category_manager: CategoryManager | None = None
 
         self.language_label = QLabel(self)
         self.language_box = QComboBox(self)
@@ -209,6 +213,7 @@ class StickleWindow(QWidget):
         layout.addWidget(self.note_list, 1)
         layout.addWidget(self.show_all_button)
         layout.addWidget(self.restore_button)
+        layout.addWidget(self.categories_button)
         layout.addLayout(language)
         layout.addWidget(self.autostart_box)
         layout.addWidget(self.login_note)
@@ -223,6 +228,14 @@ class StickleWindow(QWidget):
         translations.changed.connect(self.retranslate)
         self.retranslate()
 
+    def manage_categories(self) -> None:
+        """The window for categories, one at a time, brought forward if already open."""
+        if self.category_manager is None:
+            self.category_manager = CategoryManager(self._notes, self)
+        self.category_manager.show()
+        self.category_manager.raise_()
+        self.category_manager.activateWindow()
+
     def _set_tab_order(self) -> None:
         """Tab goes as the window reads, top to bottom, not in the order its parts
         were made (hidden and disabled ones are passed over by Qt)."""
@@ -236,6 +249,7 @@ class StickleWindow(QWidget):
             *self.note_list.tab_order(),
             self.show_all_button,
             self.restore_button,
+            self.categories_button,
             self.language_box,
             self.autostart_box,
             self.app_list_box,
@@ -272,6 +286,7 @@ class StickleWindow(QWidget):
         self.refresh_set_aside()
         self.note_list.retranslate()
         self.show_all_button.setText(self.tr("Show all hidden notes"))
+        self.categories_button.setText(self.tr("Manage &categories…"))
         self.language_label.setText(self.tr("&Language"))
         self.language_box.setAccessibleName(self.tr("Language"))
         self.language_box.setItemText(0, self.tr("System language"))

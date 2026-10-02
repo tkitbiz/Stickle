@@ -60,16 +60,30 @@ class LabelRepository:
         ).fetchall()
         return _category(rows[0]) if rows else None
 
-    def create_category(self, name: str, color: str) -> Category:
-        """A new category, last in the order."""
+    def _free_name(self, name: str, renaming: str | None = None) -> str:
+        """The name as kept, if no other category has it (case aside)."""
         name = clean_name(name)
         if not name:
             raise CategoryNameError("empty")
+        folded = name.casefold()
+        if any(
+            category.name.casefold() == folded and category.id != renaming
+            for category in self.categories()
+        ):
+            raise CategoryNameError("taken")
+        return name
+
+    def _require(self, category_id: str) -> Category:
+        category = self.category(category_id)
+        if category is None or category.deleted:
+            raise KeyError(category_id)
+        return category
+
+    def create_category(self, name: str, color: str) -> Category:
+        """A new category, last in the order."""
+        name = self._free_name(name)
         if color not in PALETTE:
             raise ValueError(f"colour {color}")
-        folded = name.casefold()
-        if any(category.name.casefold() == folded for category in self.categories()):
-            raise CategoryNameError("taken")
         category_id = str(uuid.uuid4())
         now = self._clock()
         with self._db:
@@ -82,6 +96,48 @@ class LabelRepository:
         category = self.category(category_id)
         assert category is not None
         return category
+
+    def rename_category(self, category_id: str, name: str) -> Category:
+        self._require(category_id)
+        name = self._free_name(name, renaming=category_id)
+        with self._db:
+            self._db.execute(
+                "UPDATE categories SET name = ?, updated_at = ? WHERE id = ?",
+                (name, self._clock(), category_id),
+            )
+        return self._require(category_id)
+
+    def set_category_color(self, category_id: str, color: str) -> Category:
+        self._require(category_id)
+        if color not in PALETTE:
+            raise ValueError(f"colour {color}")
+        with self._db:
+            self._db.execute(
+                "UPDATE categories SET color = ?, updated_at = ? WHERE id = ?",
+                (color, self._clock(), category_id),
+            )
+        return self._require(category_id)
+
+    def move_category(self, category_id: str, step: int) -> list[Category]:
+        """Earlier (step -1) or later (1) in the order; the categories as they then are.
+        At either end it stays where it is."""
+        order = self.categories()
+        index = next(i for i, c in enumerate(order) if c.id == self._require(category_id).id)
+        target = index + step
+        if not 0 <= target < len(order):
+            return order
+        order.insert(target, order.pop(index))
+        now = self._clock()
+        with self._db:
+            # Numbered afresh: deleted categories keep theirs, which only orders them
+            # among themselves if they come back.
+            for position, category in enumerate(order, start=1):
+                if category.position != position:
+                    self._db.execute(
+                        "UPDATE categories SET position = ?, updated_at = ? WHERE id = ?",
+                        (position, now, category.id),
+                    )
+        return self.categories()
 
     def marks(self) -> list[Mark]:
         """Marks not deleted, in their order."""
