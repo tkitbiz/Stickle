@@ -222,6 +222,10 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
         <source>Hide all notes for now, or show them again</source>
         <translation>모든 메모 잠시 숨기기 또는 다시 보이기</translation>
     </message>
+    <message>
+        <source>Show only the notes of the next category</source>
+        <translation>다음 카테고리 메모만 보기</translation>
+    </message>
 </context>
 <context>
     <name>LabelManager</name>
@@ -601,6 +605,17 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>Delete</source>
         <translation>지우기</translation>
+    </message>
+</context>
+<context>
+    <name>NoteManager</name>
+    <message>
+        <source>All notes</source>
+        <translation>모든 메모</translation>
+    </message>
+    <message>
+        <source>Notes with no category</source>
+        <translation>카테고리 없는 메모</translation>
     </message>
 </context>
 <context>
@@ -1059,8 +1074,8 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
         <translation>포터블 Stickle은 이 데스크톱의 설정에 아무것도 남기지 않으므로, 여기서는 어디서나 쓰는 단축키를 등록하지 않습니다. 메모 안에서는 Ctrl+N으로 새 메모를 만들 수 있습니다.</translation>
     </message>
     <message>
-        <source>Stickle cannot set shortcuts on this desktop. In your keyboard settings, give a shortcut to Stickle started with --new-note, --show or --hide-all.</source>
-        <translation>이 데스크톱에서는 Stickle이 단축키를 직접 등록할 수 없습니다. 키보드 설정에서 Stickle을 --new-note, --show, --hide-all과 함께 실행하도록 단축키를 지정하세요.</translation>
+        <source>Stickle cannot set shortcuts on this desktop. In your keyboard settings, give a shortcut to Stickle started with --new-note, --show, --hide-all or --next-category.</source>
+        <translation>이 데스크톱에서는 Stickle이 단축키를 직접 등록할 수 없습니다. 키보드 설정에서 Stickle을 --new-note, --show, --hide-all, --next-category와 함께 실행하도록 단축키를 지정하세요.</translation>
     </message>
     <message>
         <source>New not&amp;e:</source>
@@ -1073,6 +1088,10 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
     <message>
         <source>&amp;Hide all notes for now:</source>
         <translation>모든 메모 잠시 숨기기(&amp;H):</translation>
+    </message>
+    <message>
+        <source>Next categor&amp;y only:</source>
+        <translation>다음 카테고리만 보기(&amp;Y):</translation>
     </message>
     <message>
         <source>Change them in the desktop&apos;s settings…</source>
@@ -1154,6 +1173,18 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
         <translation>모든 메모를 잠시 숨겼습니다. 다시 보이면 있던 그대로 돌아옵니다.</translation>
     </message>
     <message>
+        <source>On the &amp;desktop:</source>
+        <translation>바탕화면에(&amp;D):</translation>
+    </message>
+    <message>
+        <source>Show all</source>
+        <translation>전체 보기</translation>
+    </message>
+    <message>
+        <source>Show all notes on the desktop</source>
+        <translation>바탕화면에 모든 메모 보기</translation>
+    </message>
+    <message>
         <source>&amp;Start Stickle when I log in</source>
         <translation>로그인할 때 Stickle 시작(&amp;S)</translation>
     </message>
@@ -1180,6 +1211,10 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
     <message>
         <source>Restore the note just deleted: %1</source>
         <translation>방금 지운 메모 되살리기: %1</translation>
+    </message>
+    <message>
+        <source>Only “%1” is on the desktop. The other notes come back with Show all.</source>
+        <translation>바탕화면에 ‘%1’ 메모만 보이는 중입니다. 다른 메모는 [전체 보기]로 돌아옵니다.</translation>
     </message>
     <message>
         <source>Show the notes again</source>
@@ -1247,6 +1282,14 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
     <message>
         <source>Hide all notes for now</source>
         <translation>모든 메모 잠시 숨기기</translation>
+    </message>
+    <message>
+        <source>Show on the desktop</source>
+        <translation>바탕화면에 보기</translation>
+    </message>
+    <message>
+        <source>Stickle: only “%1” on the desktop</source>
+        <translation>Stickle: 바탕화면에 ‘%1’만 보는 중</translation>
     </message>
     <message>
         <source>Language</source>

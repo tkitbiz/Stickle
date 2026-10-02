@@ -72,7 +72,9 @@ def test_the_defaults_are_registered_at_start(settings: Settings) -> None:
     shortcuts = GlobalShortcuts(settings, system)
 
     assert system.registered == ["Ctrl+Alt+H", "Ctrl+Alt+N", "Ctrl+Alt+S"]
-    assert all(shortcuts.state(action) == State.ON for action in DEFAULTS)
+    on = [action for action in DEFAULTS if DEFAULTS[action]]
+    assert all(shortcuts.state(action) == State.ON for action in on)
+    assert shortcuts.state("next-category") == State.OFF  # no keys until chosen
 
 
 def test_pressing_one_asks_for_what_the_command_line_would(settings: Settings) -> None:
@@ -283,7 +285,12 @@ def test_the_desktop_is_offered_the_shortcuts_once_stickle_is_up(settings: Setti
     shortcuts.start()
 
     offered = {action: keys for action, _, keys in portal.offered}
-    assert offered == {"new-note": "CTRL+ALT+n", "show": "CTRL+ALT+s", "hide-all": ""}
+    assert offered == {
+        "new-note": "CTRL+ALT+n",
+        "show": "CTRL+ALT+s",
+        "hide-all": "",
+        "next-category": "",
+    }
     assert all(description for _, description, _ in portal.offered)
 
 

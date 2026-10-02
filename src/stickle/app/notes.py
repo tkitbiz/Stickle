@@ -56,6 +56,9 @@ RETRY_MAX_MS = 30_000
 
 log = logging.getLogger(__name__)
 
+# The view of the notes with no category (not an id: no category is stored with it).
+NO_CATEGORY = "*none*"
+
 
 def clipboard_text() -> str:
     """The clipboard's plain text, as a note can hold it; empty if it holds none.
@@ -135,6 +138,8 @@ class NoteManager(QObject):
     note_saved = Signal()
     # Every note was put out of sight for a while, or brought back.
     set_aside_changed = Signal()
+    # The desktop shows another category's notes, or every note again.
+    view_changed = Signal()
 
     def __init__(
         self,
@@ -157,6 +162,8 @@ class NoteManager(QObject):
         self._windows: list[NoteWindow] = []
         self._autosaves: dict[NoteWindow, AutoSave] = {}
         self._set_aside: list[NoteWindow] = []
+        self._view: str | None = None  # see view
+        self._out_of_view: list[NoteWindow] = []
         self._created = 0
         self._quitting = False
 
@@ -296,6 +303,9 @@ class NoteManager(QObject):
         window.mark_requested.connect(mark_requested)
         if note is not None:
             self._show_labels(window, note.label, note.marks)
+        elif self._view is not None and self._view != NO_CATEGORY:
+            # Made while one category is in view: of it, so that it stays in sight.
+            self._show_labels(window, self._view, ())
 
         def switch_requested(step: int) -> None:
             self.switch_note(window, step)
@@ -499,11 +509,80 @@ class NoteManager(QObject):
         self.set_aside_changed.emit()
 
     def _take_back(self, window: NoteWindow) -> None:
-        """One note is no longer set aside (shown on its own, or closed)."""
+        """One note is no longer set aside or out of view (shown on its own, or closed)."""
+        if window in self._out_of_view:
+            self._out_of_view.remove(window)
         if window in self._set_aside:
             self._set_aside.remove(window)
             if not self._set_aside:
                 self.set_aside_changed.emit()
+
+    # On the desktop, the notes of one category only
+
+    @property
+    def view(self) -> str | None:
+        """The category whose notes alone are on the desktop, NO_CATEGORY for the
+        notes with none, or None for every note."""
+        return self._view
+
+    def _in_view(self, window: NoteWindow) -> bool:
+        if self._view is None:
+            return True
+        category = window.category.id if window.category is not None else None
+        return category is None if self._view == NO_CATEGORY else category == self._view
+
+    def set_view(self, view: str | None) -> None:
+        """Show on the desktop only the notes of a category (see view).
+
+        Nothing is stored: a note out of view is taken out of sight as when set
+        aside, saved first, and the next start shows every note. Notes set aside
+        stay so, and come back in this view. A note given another category while
+        in view stays until the view changes, rather than vanish under the hand.
+        """
+        known = {c.id for c in self.label_choices()[0]}
+        if view is not None and view != NO_CATEGORY and view not in known:
+            view = None  # deleted meanwhile
+        back, self._out_of_view = self._out_of_view, []
+        self._view = view
+        for window in back:
+            if self._set_aside:
+                self._set_aside.append(window)  # back when the rest come back
+            else:
+                window.show()
+        for window in self._windows:
+            if self._in_view(window):
+                continue
+            if window in self._set_aside:
+                self._set_aside.remove(window)
+            elif window.isVisible():
+                self.flush(window, closing=True)
+                window.hide()
+            else:
+                continue
+            self._out_of_view.append(window)
+        log.info("view: %s, %d notes out of view",
+                 "all" if view is None else "one category", len(self._out_of_view))  # fmt: skip
+        self.view_changed.emit()
+        self.set_aside_changed.emit()
+
+    def view_choices(self) -> list[tuple[str | None, str]]:
+        """(view, name) for each view there is: every note, the notes with no
+        category, then each category in its order."""
+        return [
+            (None, self.tr("All notes")),
+            (NO_CATEGORY, self.tr("Notes with no category")),
+            *((c.id, c.name) for c in self.label_choices()[0]),
+        ]
+
+    def view_name(self) -> str:
+        """The name of the view on the desktop."""
+        return dict(self.view_choices()).get(self._view, "")
+
+    def next_view(self) -> None:
+        """Every note, then each category in its order, then every note again."""
+        order: list[str | None] = [None, *(c.id for c in self.label_choices()[0])]
+        current = order.index(self._view) if self._view in order else 0
+        self.set_view(order[(current + 1) % len(order)])
 
     def switch_set_aside(self) -> None:
         """The shortcut's way: set every note aside, or bring them back if they are."""
@@ -696,6 +775,8 @@ class NoteManager(QObject):
                 self._autosaves[window].stop()
                 window.release()
         self.refresh_labels()
+        if self._view == category_id:
+            self.set_view(None)
 
     def create_mark(self, name: str, icon: str) -> Mark:
         """Raises MarkNameError for a name empty or taken (as shown, translated)."""

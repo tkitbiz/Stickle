@@ -37,7 +37,7 @@ from stickle.data.settings import RECOVERY_KEY_KEPT, Settings
 from stickle.data.startup import StartupSettings
 from stickle.platform.autostart import Autostart, this_computers_autostart
 from stickle.platform.hotkeys import Portal, desktop_portal
-from stickle.platform.instance import NEW_NOTE, SET_ASIDE
+from stickle.platform.instance import NEW_NOTE, NEXT_VIEW, SET_ASIDE
 from stickle.platform.linux.appimage import (
     AppMenuEntry,
     mounted_appdir,
@@ -144,6 +144,8 @@ def answer_request(asked: bytes, manager: NoteManager, window: StickleWindow) ->
         manager.quick_note()
     elif asked == SET_ASIDE:
         manager.switch_set_aside()
+    elif asked == NEXT_VIEW:
+        manager.next_view()
     else:
         window.open()
 

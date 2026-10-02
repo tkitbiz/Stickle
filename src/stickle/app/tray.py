@@ -88,10 +88,15 @@ class Tray(QSystemTrayIcon):
         self.raise_action.triggered.connect(self._raise_all)
         self.set_aside_action = self._menu.addAction("")
         self.set_aside_action.setVisible(notes is not None)
+        # On the desktop, one category's notes only: filled as the menu opens.
+        self.view_menu = self._menu.addMenu("")
+        self.view_menu.menuAction().setVisible(notes is not None)
+        self.view_menu.aboutToShow.connect(self._fill_views)
         if notes is not None:
             self.clipboard_action.triggered.connect(notes.note_from_clipboard)
             self.set_aside_action.triggered.connect(notes.switch_set_aside)
             notes.set_aside_changed.connect(self.retranslate)
+            notes.view_changed.connect(self.retranslate)
         self._menu.aboutToShow.connect(self._refresh_clipboard)
         self._menu.addSeparator()
 
@@ -184,6 +189,19 @@ class Tray(QSystemTrayIcon):
     def _refresh_clipboard(self) -> None:
         self.clipboard_action.setEnabled(bool(clipboard_text()))
 
+    def _fill_views(self) -> None:
+        self.view_menu.clear()
+        if self._notes is None:
+            return
+        notes = self._notes
+        group = QActionGroup(self.view_menu)
+        for view, name in notes.view_choices():
+            action = self.view_menu.addAction(name)
+            action.setCheckable(True)
+            action.setChecked(view == notes.view)
+            action.triggered.connect(lambda _=False, view=view: notes.set_view(view))
+            group.addAction(action)
+
     def _raise_all(self) -> None:
         if self._notes:
             self._notes.raise_all()
@@ -198,6 +216,14 @@ class Tray(QSystemTrayIcon):
             self.set_aside_action.setText(self.tr("Show the notes again"))
         else:
             self.set_aside_action.setText(self.tr("Hide all notes for now"))
+        self.view_menu.setTitle(self.tr("Show on the desktop"))
+        if self._notes is not None and self._notes.view is not None:
+            # Always in sight, so that notes out of view are not thought lost.
+            self.setToolTip(
+                self.tr("Stickle: only “%1” on the desktop").replace("%1", self._notes.view_name())
+            )
+        else:
+            self.setToolTip("Stickle")
         self.refresh_notes()
         self.language_menu.setTitle(self.tr("Language"))
         self.language_actions[None].setText(self.tr("System language"))

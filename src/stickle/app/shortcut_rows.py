@@ -95,13 +95,15 @@ class ShortcutRows(QWidget):
         else:
             unavailable = self.tr(
                 "Stickle cannot set shortcuts on this desktop. In your keyboard settings, "
-                "give a shortcut to Stickle started with --new-note, --show or --hide-all."
+                "give a shortcut to Stickle started with --new-note, --show, --hide-all "
+                "or --next-category."
             )
         self.unavailable.setText(unavailable)
         names = {
             "new-note": self.tr("New not&e:"),  # N is the list of notes'
             "show": self.tr("Stickle &window:"),
             "hide-all": self.tr("&Hide all notes for now:"),
+            "next-category": self.tr("Next categor&y only:"),
         }
         for action, text in names.items():
             self.names[action].setText(text)

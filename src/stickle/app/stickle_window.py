@@ -161,6 +161,16 @@ class StickleWindow(QWidget):
         self.set_aside_label = QLabel(self)
         self.set_aside_label.setWordWrap(True)
         notes.set_aside_changed.connect(self.refresh_set_aside)
+        # On the desktop, one category's notes only; said for as long as it holds.
+        self.view_label = QLabel(self)
+        self.view_box = QComboBox(self)
+        self.view_label.setBuddy(self.view_box)
+        self.view_box.activated.connect(self._choose_view)
+        self.all_notes_button = QPushButton(self)
+        self.all_notes_button.clicked.connect(lambda: notes.set_view(None))
+        self.view_status = QLabel(self)
+        self.view_status.setWordWrap(True)
+        notes.view_changed.connect(self.refresh_view)
         # Portable: where the notes are, said for as long as it lasts.
         self._portable_folder = portable_folder
         self.portable_label = QLabel(self)
@@ -198,6 +208,10 @@ class StickleWindow(QWidget):
         more_buttons = QHBoxLayout()
         more_buttons.addWidget(self.clipboard_button)
         more_buttons.addWidget(self.set_aside_button)
+        view = QHBoxLayout()
+        view.addWidget(self.view_label)
+        view.addWidget(self.view_box, 1)
+        view.addWidget(self.all_notes_button)
         language = QHBoxLayout()
         language.addWidget(self.language_label)
         language.addWidget(self.language_box, 1)
@@ -208,8 +222,10 @@ class StickleWindow(QWidget):
         layout.addItem(self._after_notice)
         layout.addWidget(self.portable_label)
         layout.addWidget(self.set_aside_label)
+        layout.addWidget(self.view_status)
         layout.addLayout(buttons)
         layout.addLayout(more_buttons)
+        layout.addLayout(view)
         layout.addWidget(self.note_list, 1)
         layout.addWidget(self.show_all_button)
         layout.addWidget(self.restore_button)
@@ -246,6 +262,8 @@ class StickleWindow(QWidget):
             self.raise_button,
             self.clipboard_button,
             self.set_aside_button,
+            self.view_box,
+            self.all_notes_button,
             *self.note_list.tab_order(),
             self.show_all_button,
             self.restore_button,
@@ -284,6 +302,10 @@ class StickleWindow(QWidget):
             self.tr("All notes are out of sight for now. They come back as they were.")
         )
         self.refresh_set_aside()
+        self.view_label.setText(self.tr("On the &desktop:"))
+        self.all_notes_button.setText(self.tr("Show all"))
+        self.all_notes_button.setAccessibleName(self.tr("Show all notes on the desktop"))
+        self.refresh_view()
         self.note_list.retranslate()
         self.show_all_button.setText(self.tr("Show all hidden notes"))
         self.labels_button.setText(self.tr("Manage &categories and marks…"))
@@ -306,6 +328,7 @@ class StickleWindow(QWidget):
         """Show the notes, the note just deleted and the language as they are now."""
         self.note_list.refresh()
         self.show_all_button.setEnabled(bool(self._notes.hidden_notes()))
+        self.refresh_view()  # categories may have been made, renamed or deleted
 
         deleted = self._notes.last_deleted()
         self.restore_button.setEnabled(deleted is not None)
@@ -321,6 +344,26 @@ class StickleWindow(QWidget):
         )
         self.refresh_switches()
         self.refresh_clipboard()
+
+    def refresh_view(self) -> None:
+        """The views there are, the one on the desktop chosen and said."""
+        self.view_box.clear()
+        for view, name in self._notes.view_choices():
+            self.view_box.addItem(name, view)
+        self.view_box.setCurrentIndex(max(0, self.view_box.findData(self._notes.view)))
+        one = self._notes.view is not None
+        self.all_notes_button.setVisible(one)
+        self.view_status.setVisible(one)
+        if one:
+            self.view_status.setText(
+                self.tr(
+                    "Only “%1” is on the desktop. The other notes come back with Show all."
+                ).replace("%1", self._notes.view_name())
+            )
+
+    def _choose_view(self, index: int) -> None:
+        view = self.view_box.itemData(index)
+        self._notes.set_view(view if isinstance(view, str) else None)
 
     def refresh_set_aside(self) -> None:
         aside = self._notes.set_aside
