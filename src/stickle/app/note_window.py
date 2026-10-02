@@ -250,12 +250,13 @@ class TitleBar(QWidget):
     menu_requested = Signal(QPoint)  # where, on the screen
     double_clicked = Signal()
     drag_started = Signal(bool)  # True: with Shift, the notes beside it along
-    dragged_by = Signal(QPoint)  # moved by Stickle itself, this far
+    dragged_by = Signal(QPoint)  # moved by Stickle itself, this far from where it started
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.setFixedHeight(TITLE_BAR_HEIGHT)
         self._drag_offset: QPoint | None = None
+        self._drag_from = QPoint()  # where the window was as Stickle began moving it
         self._press: QPoint | None = None  # a press that may yet become a drag
 
         self.title = QLabel(self)
@@ -385,13 +386,16 @@ class TitleBar(QWidget):
             self.drag_started.emit(group)
             # Otherwise the window system moves it: the only way that also works on Wayland.
             if group or not self.window().windowHandle().startSystemMove():
-                self._drag_offset = start - self.window().pos()
+                self._drag_from = self.window().pos()
+                self._drag_offset = start - self._drag_from
         if self._drag_offset is None:
             super().mouseMoveEvent(event)
             return
-        before = self.window().pos()
-        self.window().move(point - self._drag_offset)
-        self.dragged_by.emit(self.window().pos() - before)
+        # From where it started rather than from pos(): under X11 pos() changes
+        # only once the window system has moved the window.
+        target = point - self._drag_offset
+        self.window().move(target)
+        self.dragged_by.emit(target - self._drag_from)
         event.accept()
 
     @override
@@ -438,7 +442,7 @@ class NoteWindow(QWidget):
     mark_requested = Signal(str, bool)  # a mark id; True: put it on
     guide_requested = Signal()  # the keys at a glance
     drag_started = Signal(bool)  # by its title bar; True: with Shift, the notes beside it along
-    dragged_by = Signal(QPoint)  # moved by Stickle itself (with Shift), this far
+    dragged_by = Signal(QPoint)  # moved by Stickle itself (with Shift), this far from the start
     switch_requested = Signal(int)  # 1: to the next note on screen, -1: the one before
     geometry_settled = Signal()  # moved or resized, and then left alone for a moment
 

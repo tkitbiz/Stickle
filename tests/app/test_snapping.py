@@ -50,7 +50,10 @@ class App:
         before = window.pos()
         window.move(self.origin + at)
         if shift:
-            window.title_bar.dragged_by.emit(window.pos() - before)
+            # Each step says how far from the start, as the window's own pos() lags under X11.
+            distance = window.pos() - before
+            window.title_bar.dragged_by.emit(QPoint(distance.x() // 2, distance.y() // 2))
+            window.title_bar.dragged_by.emit(distance)
         window.alt_at_drop = alt
         window.geometry_settled.emit()
 

@@ -171,7 +171,8 @@ class NoteManager(QObject):
         self._view: str | None = None  # see view
         self._out_of_view: list[NoteWindow] = []
         self._find_among: list[NoteWindow] | None = None  # while finding on the desktop
-        self._groups: dict[NoteWindow, list[NoteWindow]] = {}  # moving with Shift
+        # Moving with Shift: the notes that come along, and where each started.
+        self._groups: dict[NoteWindow, list[tuple[NoteWindow, QPoint]]] = {}
         self._created = 0
         self._quitting = False
 
@@ -466,11 +467,13 @@ class NoteManager(QObject):
             for other in self._windows
             if other.isVisible() and (other is window or not other.locked)
         }
-        self._groups[window] = [other for other in together(window, free) if other is not window]
+        self._groups[window] = [
+            (other, other.pos()) for other in together(window, free) if other is not window
+        ]
 
-    def _drag_group(self, window: NoteWindow, delta: QPoint) -> None:
-        for other in self._groups.get(window, []):
-            other.move(other.pos() + delta)
+    def _drag_group(self, window: NoteWindow, distance: QPoint) -> None:
+        for other, start in self._groups.get(window, []):
+            other.move(start + distance)
 
     def _settled(self, window: NoteWindow) -> None:
         """Moved or resized, then left alone: remembered. Just dropped after a drag,
@@ -480,8 +483,7 @@ class NoteManager(QObject):
             self.save_layout(window)
             return
         window.dragging = False
-        group = self._groups.pop(window, [])
-        moving = [window, *group]
+        moving = [window, *(other for other, _start in self._groups.pop(window, []))]
         delta = QPoint()
         if not window.alt_at_drop and can_place_windows():
             others = [
