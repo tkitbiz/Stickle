@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 
 from stickle.app.shortcuts import GlobalShortcuts, State
 from stickle.data.settings import SHORTCUT_ACTIONS
+from stickle.platform.linux.x11 import activate
 
 KEYS = ("F1", "Ctrl+/")  # open and close the guide
 MARGIN = 18
@@ -237,7 +238,11 @@ class ShortcutGuide(QWidget):
         came_from, self._came_from = self._came_from, None
         super().closeEvent(event)
         if came_from is not None and came_from.isVisible():
-            came_from.window().activateWindow()
+            window = came_from.window()
+            window.activateWindow()
+            if QGuiApplication.platformName() == "xcb":
+                # As a taskbar asks: the window manager refuses the app's own request.
+                activate(int(window.winId()))
             came_from.setFocus()
 
     @override
