@@ -6,7 +6,8 @@ They work on text, not on any editor, so every case can be tried in tests.
 
 - Enter at the end of (or within) a list item starts another item like it:
   the next number, an empty checkbox for a checkbox. On an item with nothing
-  in it, Enter moves it out a level, or ends the list at the outermost one.
+  in it, Enter moves it out a level, or ends the list at the outermost one,
+  with a blank line after it.
 - Tab and Shift+Tab move a list item in or out a level, by as much as Markdown
   needs to nest it under the item above.
 - Typing "]" after "[" makes a checkbox: "- []" becomes "- [ ]", and "[]" at
@@ -116,7 +117,9 @@ def on_enter(lines_before: list[str], line: str, column: int) -> Change | None:
                 rest = f"{_next_marker(joined)}{line[len(found.indent) + len(found.marker) :]}"
             outdented = indent + rest
             return Change(outdented, len(outdented))
-        return Change("", 0)  # the list ends here
+        # The list ends here, with a blank line after it: a line right below an
+        # item would be read as more of that item.
+        return Change("\n", 1)
     box = "[ ] " if found.box else ""
     space = found.space or " "
     prefix = f"{found.indent}{_next_marker(found)}{space}{box}"

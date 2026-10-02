@@ -39,7 +39,7 @@ def type_in(note: NoteWindow, text: str) -> None:
 
 def test_enter_continues_a_checklist_and_ends_it(note: NoteWindow) -> None:
     type_in(note, "- [ ] 우유\n두부\n\n끝")
-    assert note.text == "- [ ] 우유\n- [ ] 두부\n끝"
+    assert note.text == "- [ ] 우유\n- [ ] 두부\n\n끝"
 
 
 def test_tab_nests_and_shift_tab_brings_it_back(note: NoteWindow) -> None:
@@ -53,7 +53,7 @@ def test_an_empty_nested_item_moves_out_first(note: NoteWindow) -> None:
     type_in(note, "1. a\n\tb\n\n")
     assert note.text == "1. a\n   2. b\n2. "  # out a level, numbering on
     QTest.keyClick(note.editor, Qt.Key.Key_Return)
-    assert note.text == "1. a\n   2. b\n"
+    assert note.text == "1. a\n   2. b\n\n"
 
 
 def test_brackets_make_a_checkbox(note: NoteWindow) -> None:

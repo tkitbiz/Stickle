@@ -32,9 +32,10 @@ def test_enter_within_an_item_moves_the_rest_to_a_new_one() -> None:
 
 
 def test_enter_on_an_empty_item_ends_the_list() -> None:
-    assert enter("- ") == Change("", 0)
-    assert enter("- [ ] ") == Change("", 0)
-    assert enter("2. ") == Change("", 0)
+    # A blank line after the list: a line right below an item would join it.
+    assert enter("- ") == Change("\n", 1)
+    assert enter("- [ ] ") == Change("\n", 1)
+    assert enter("2. ") == Change("\n", 1)
 
 
 def test_enter_on_an_empty_nested_item_moves_it_out() -> None:
