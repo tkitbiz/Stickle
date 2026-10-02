@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
 )
 
 from stickle.app.app_list import switch_app_list
+from stickle.app.finder import DesktopFinder
 from stickle.app.first_run import LoginNote
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.label_manager import LabelManager
@@ -196,6 +197,8 @@ class StickleWindow(QWidget):
         self.guide_button = QPushButton(self)
         self.guide_button.clicked.connect(self.guide.toggle)
         notes.guide_requested.connect(self.guide.toggle)
+        # Finding notes on the desktop; what it also finds hidden or deleted is here.
+        self.finder = DesktopFinder(notes, self.search_for)
         for keys in GUIDE_KEYS:
             shortcut = QShortcut(QKeySequence(keys), self)
             shortcut.activated.connect(self.guide.toggle)
@@ -258,6 +261,15 @@ class StickleWindow(QWidget):
         notes.changed.connect(self.refresh)
         translations.changed.connect(self.retranslate)
         self.retranslate()
+
+    def search_for(self, term: str) -> None:
+        """Open, listing every note (hidden ones and the trash's too) with term."""
+        self.open()
+        note_list = self.note_list
+        note_list.filter_box.setCurrentIndex(0)  # all notes
+        note_list.search_box.setText(term)
+        note_list.refresh()
+        note_list.search_box.setFocus()
 
     def manage_labels(self) -> None:
         """The window for categories and marks, one at a time, brought forward if open."""

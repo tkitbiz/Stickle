@@ -167,6 +167,7 @@ class NoteManager(QObject):
         self._set_aside: list[NoteWindow] = []
         self._view: str | None = None  # see view
         self._out_of_view: list[NoteWindow] = []
+        self._find_among: list[NoteWindow] | None = None  # while finding on the desktop
         self._created = 0
         self._quitting = False
 
@@ -576,6 +577,61 @@ class NoteManager(QObject):
             chosen_in.activateWindow()
             if QGuiApplication.platformName() == "xcb":
                 activate(int(chosen_in.winId()))
+
+    # Finding notes on the desktop by their text
+
+    @property
+    def finding(self) -> bool:
+        return self._find_among is not None
+
+    def begin_find(self) -> None:
+        """Start finding among the notes on the desktop now (in the view, if one),
+        saved first so that what was just typed is found too."""
+        if self._find_among is not None:
+            return
+        self._find_among = [w for w in self._windows if w.isVisible()]
+        for window in self._find_among:
+            self.flush(window)
+
+    def find(self, term: str) -> list[NoteWindow]:
+        """Leave in sight only the notes found for term (all of them for none), as
+        aside: nothing stored. The notes found, most recently changed first."""
+        among = self._find_among or []
+        term = term.strip()
+        found_ids = self.matching(term) if term else None
+        order = {note.id: i for i, note in enumerate(self.listed_notes())}
+        found: list[NoteWindow] = []
+        for window in among:
+            hit = found_ids is None or window.note_id in found_ids
+            window.set_found(False)
+            if hit:
+                found.append(window)
+                window.show()
+            else:
+                window.hide()
+        found.sort(key=lambda w: order.get(w.note_id or "", -1))
+        return found
+
+    def found_elsewhere(self, term: str) -> tuple[int, int]:
+        """How many hidden notes and notes in the trash term is also found in."""
+        term = term.strip()
+        if not term:
+            return 0, 0
+        ids = self.matching(term)
+        hidden = sum(note.id in ids for note in self.hidden_notes())
+        trashed = sum(note.id in ids for note in self.trash_notes())
+        return hidden, trashed
+
+    def end_find(self, chosen: NoteWindow | None = None) -> None:
+        """Every note found among back in sight, where it was; chosen to the front
+        with the keyboard."""
+        among, self._find_among = self._find_among or [], None
+        for window in among:
+            window.set_found(False)
+            if window in self._windows:
+                window.show()
+        if chosen is not None and chosen in self._windows:
+            chosen.bring_to_front()
 
     def view_choices(self) -> list[tuple[str | None, str]]:
         """(view, name) for each view there is: every note, the notes with no

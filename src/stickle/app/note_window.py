@@ -102,6 +102,7 @@ RAISE_AGAIN_MS = 150
 # Moving and resizing with the keyboard: how far each arrow press goes (Shift: 1 pixel).
 MOVE, RESIZE = "move", "resize"
 KEYBOARD_STEP = 10
+FOUND_BORDER = 3  # the border of a note chosen among those found
 ARROWS: dict[int, tuple[int, int]] = {
     Qt.Key.Key_Left.value: (-1, 0),
     Qt.Key.Key_Right.value: (1, 0),
@@ -468,6 +469,7 @@ class NoteWindow(QWidget):
         self._ended_unfinished: tuple[str, float, int] | None = None
         # Still being edited while the shortcuts it asked for are shown over it.
         self._keep_editing = False
+        self.found = False  # chosen among the notes found on the desktop
 
         # Where the app last put the note; anything else is the user's doing.
         self._placed: QRect | None = None
@@ -1025,8 +1027,19 @@ class NoteWindow(QWidget):
         painter.setClipPath(shape)
         painter.fillRect(0, 0, self.width(), self.title_bar.height(), qcolor(self.colors.title_bar))
         painter.setClipping(False)
-        painter.setPen(QPen(qcolor(self.colors.border), 1))
-        painter.drawPath(shape)
+        if self.found:
+            # Chosen among the notes found on the desktop: a border that stands out.
+            painter.setPen(QPen(self.palette().highlight().color(), FOUND_BORDER))
+            inner = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
+            painter.drawRoundedRect(inner, CORNER_RADIUS, CORNER_RADIUS)
+        else:
+            painter.setPen(QPen(qcolor(self.colors.border), 1))
+            painter.drawPath(shape)
+
+    def set_found(self, found: bool) -> None:
+        """Mark the note as the one chosen among those found (see the desktop finder)."""
+        self.found = found
+        self.update()
 
     @property
     def text(self) -> str:

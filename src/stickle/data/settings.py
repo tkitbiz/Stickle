@@ -64,7 +64,7 @@ def _size_or_none(value: object) -> TypeGuard[list[int] | None]:
     )
 
 
-SHORTCUT_ACTIONS = ("new-note", "show", "hide-all", "next-category")
+SHORTCUT_ACTIONS = ("new-note", "show", "hide-all", "next-category", "find")
 
 
 def _shortcuts(value: object) -> TypeGuard[dict[str, str]]:

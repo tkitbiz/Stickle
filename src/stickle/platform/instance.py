@@ -25,7 +25,8 @@ SHOW = b"show\n"  # the Stickle window
 NEW_NOTE = b"new-note\n"  # a note to type in at once
 SET_ASIDE = b"hide-all\n"  # every note out of sight, or back again
 NEXT_VIEW = b"next-category\n"  # on the desktop, only the notes of the next category
-REQUESTS = (SHOW, NEW_NOTE, SET_ASIDE, NEXT_VIEW)
+FIND = b"find\n"  # a box to find notes on the desktop by their text
+REQUESTS = (SHOW, NEW_NOTE, SET_ASIDE, NEXT_VIEW, FIND)
 CONNECT_FOR_S = 5.0  # the running app may itself still be starting
 RETRY_S = 0.1
 

@@ -75,6 +75,7 @@ def test_the_defaults_are_registered_at_start(settings: Settings) -> None:
     on = [action for action in DEFAULTS if DEFAULTS[action]]
     assert all(shortcuts.state(action) == State.ON for action in on)
     assert shortcuts.state("next-category") == State.OFF  # no keys until chosen
+    assert shortcuts.state("find") == State.OFF
 
 
 def test_pressing_one_asks_for_what_the_command_line_would(settings: Settings) -> None:
@@ -290,6 +291,7 @@ def test_the_desktop_is_offered_the_shortcuts_once_stickle_is_up(settings: Setti
         "show": "CTRL+ALT+s",
         "hide-all": "",
         "next-category": "",
+        "find": "",
     }
     assert all(description for _, description, _ in portal.offered)
 

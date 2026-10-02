@@ -37,7 +37,7 @@ from stickle.data.settings import RECOVERY_KEY_KEPT, Settings
 from stickle.data.startup import StartupSettings
 from stickle.platform.autostart import Autostart, this_computers_autostart
 from stickle.platform.hotkeys import Portal, desktop_portal
-from stickle.platform.instance import NEW_NOTE, NEXT_VIEW, SET_ASIDE
+from stickle.platform.instance import FIND, NEW_NOTE, NEXT_VIEW, SET_ASIDE
 from stickle.platform.linux.appimage import (
     AppMenuEntry,
     mounted_appdir,
@@ -116,6 +116,7 @@ def connect_stickle_window(
         tray.activated.connect(tray_clicked)
         tray.open_window_action.triggered.connect(lambda: window.open())
         tray.guide_action.triggered.connect(window.guide.open)
+        tray.find_action.triggered.connect(window.finder.open)
         # Switched from the tray while the window is open: it shows the change.
         tray.autostart_action.triggered.connect(lambda: window.refresh())
         tray.app_list_action.triggered.connect(lambda: window.refresh())
@@ -145,6 +146,8 @@ def answer_request(asked: bytes, manager: NoteManager, window: StickleWindow) ->
         manager.quick_note()
     elif asked == SET_ASIDE:
         manager.switch_set_aside()
+    elif asked == FIND:
+        window.finder.open()
     elif asked == NEXT_VIEW:
         manager.next_view()
     else:

@@ -30,6 +30,9 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="show only the notes of the next category, or all of them again",
     )
+    requests.add_argument(
+        "--find", action="store_true", help="find notes on the desktop by their text"
+    )
     # Unknown options are left for Qt (for example -platform).
     options, _ = parser.parse_known_args(args[1:])
     if options.self_test:
@@ -68,13 +71,22 @@ def main(argv: list[str] | None = None) -> int:
 
         return tell_not_writable(args, folder)
     warnings = ensure_private_dir(folder)
-    from stickle.platform.instance import NEW_NOTE, NEXT_VIEW, SET_ASIDE, SHOW, InstanceLock, ask
+    from stickle.platform.instance import (
+        FIND,
+        NEW_NOTE,
+        NEXT_VIEW,
+        SET_ASIDE,
+        SHOW,
+        InstanceLock,
+        ask,
+    )
 
     chosen = (
         (options.new_note, NEW_NOTE),
         (options.show, SHOW),
         (options.hide_all, SET_ASIDE),
         (options.next_category, NEXT_VIEW),
+        (options.find, FIND),
     )
     request = next((asked for on, asked in chosen if on), None)
     # Before anything else touches the data folder: one Stickle per user and folder.

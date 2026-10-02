@@ -49,6 +49,7 @@ def _global_names() -> dict[str, str]:
         "next-category": QCoreApplication.translate(
             "ShortcutGuide", "Show only the notes of the next category"
         ),
+        "find": QCoreApplication.translate("ShortcutGuide", "Find notes on the desktop"),
     }
 
 

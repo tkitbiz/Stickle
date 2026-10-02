@@ -23,19 +23,26 @@ from PySide6.QtWidgets import QWidget
 
 from stickle.data.settings import SHORTCUT_ACTIONS, SHORTCUTS, Settings
 from stickle.platform.hotkeys import Combo, Hotkeys, Portal, system_hotkeys
-from stickle.platform.instance import NEW_NOTE, NEXT_VIEW, SET_ASIDE, SHOW
+from stickle.platform.instance import FIND, NEW_NOTE, NEXT_VIEW, SET_ASIDE, SHOW
 
 log = logging.getLogger(__name__)
 
 # Each action is also a request of stickle.platform.instance, under its setting key.
-REQUESTS = {"new-note": NEW_NOTE, "show": SHOW, "hide-all": SET_ASIDE, "next-category": NEXT_VIEW}
-# No keys for the next category at first: it would take one from other apps for
-# something not everyone uses.
+REQUESTS = {
+    "new-note": NEW_NOTE,
+    "show": SHOW,
+    "hide-all": SET_ASIDE,
+    "next-category": NEXT_VIEW,
+    "find": FIND,
+}
+# No keys for the next category or finding at first: they would take keys from
+# other apps for things not everyone uses.
 DEFAULTS = {
     "new-note": "Ctrl+Alt+N",
     "show": "Ctrl+Alt+S",
     "hide-all": "Ctrl+Alt+H",
     "next-category": "",
+    "find": "",
 }
 assert tuple(REQUESTS) == tuple(DEFAULTS) == SHORTCUT_ACTIONS
 
@@ -134,6 +141,7 @@ class GlobalShortcuts(QObject):
             "show": self.tr("Open the Stickle window"),
             "hide-all": self.tr("Hide all notes for now, or show them again"),
             "next-category": self.tr("Show only the notes of the next category"),
+            "find": self.tr("Find notes on the desktop"),
         }
         wanted: list[tuple[str, str, str]] = []
         for action in SHORTCUT_ACTIONS:

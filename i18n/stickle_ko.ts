@@ -88,6 +88,39 @@
     </message>
 </context>
 <context>
+    <name>DesktopFinder</name>
+    <message>
+        <source>Find on the desktop</source>
+        <translation>바탕화면에서 찾기</translation>
+    </message>
+    <message>
+        <source>Find notes on the desktop</source>
+        <translation>바탕화면에서 메모 찾기</translation>
+    </message>
+    <message>
+        <source>Up and Down go from one note found to the next, Enter goes to it, Esc shows every note again.</source>
+        <translation>위·아래 화살표로 찾은 메모 사이를 옮기고, Enter로 그 메모로 가며, Esc로 모든 메모를 다시 보입니다.</translation>
+    </message>
+    <message>
+        <source>Type to find notes on the desktop.</source>
+        <translation>글자를 치면 바탕화면의 메모를 찾습니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n note(s)</source>
+        <translation>
+            <numerusform>메모 %n개</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>No note on the desktop matches.</source>
+        <translation>맞는 메모가 바탕화면에 없습니다.</translation>
+    </message>
+    <message>
+        <source>Also in %1 hidden note(s) and %2 in the trash: Ctrl+Enter shows them in the Stickle window.</source>
+        <translation>숨긴 메모 %1개, 휴지통 %2개에도 있습니다. Ctrl+Enter로 Stickle 창에서 봅니다.</translation>
+    </message>
+</context>
+<context>
     <name>EnterRecoveryKeyDialog</name>
     <message>
         <source>Open with the recovery key</source>
@@ -225,6 +258,10 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     <message>
         <source>Show only the notes of the next category</source>
         <translation>다음 카테고리 메모만 보기</translation>
+    </message>
+    <message>
+        <source>Find notes on the desktop</source>
+        <translation>바탕화면에서 메모 찾기</translation>
     </message>
 </context>
 <context>
@@ -1101,6 +1138,10 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
         <translation>다음 카테고리 메모만 보기</translation>
     </message>
     <message>
+        <source>Find notes on the desktop</source>
+        <translation>바탕화면에서 메모 찾기</translation>
+    </message>
+    <message>
         <source>In a note</source>
         <translation>메모에서</translation>
     </message>
@@ -1217,8 +1258,8 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
         <translation>포터블 Stickle은 이 데스크톱의 설정에 아무것도 남기지 않으므로, 여기서는 어디서나 쓰는 단축키를 등록하지 않습니다. 메모 안에서는 Ctrl+N으로 새 메모를 만들 수 있습니다.</translation>
     </message>
     <message>
-        <source>Stickle cannot set shortcuts on this desktop. In your keyboard settings, give a shortcut to Stickle started with --new-note, --show, --hide-all or --next-category.</source>
-        <translation>이 데스크톱에서는 Stickle이 단축키를 직접 등록할 수 없습니다. 키보드 설정에서 Stickle을 --new-note, --show, --hide-all, --next-category와 함께 실행하도록 단축키를 지정하세요.</translation>
+        <source>Stickle cannot set shortcuts on this desktop. In your keyboard settings, give a shortcut to Stickle started with --new-note, --show, --hide-all, --next-category or --find.</source>
+        <translation>이 데스크톱에서는 Stickle이 단축키를 직접 등록할 수 없습니다. 키보드 설정에서 Stickle을 --new-note, --show, --hide-all, --next-category, --find와 함께 실행하도록 단축키를 지정하세요.</translation>
     </message>
     <message>
         <source>New not&amp;e:</source>
@@ -1235,6 +1276,10 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
     <message>
         <source>Next categor&amp;y only:</source>
         <translation>다음 카테고리만 보기(&amp;Y):</translation>
+    </message>
+    <message>
+        <source>&amp;Find on the desktop:</source>
+        <translation>바탕화면에서 찾기(&amp;F):</translation>
     </message>
     <message>
         <source>Change them in the desktop&apos;s settings…</source>
@@ -1442,6 +1487,10 @@ It may be on a stick that is locked or read-only, or in a folder only an adminis
     <message>
         <source>Keyboard shortcuts</source>
         <translation>단축키</translation>
+    </message>
+    <message>
+        <source>Find on the desktop</source>
+        <translation>바탕화면에서 찾기</translation>
     </message>
     <message>
         <source>Stickle: only “%1” on the desktop</source>
