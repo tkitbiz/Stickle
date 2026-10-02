@@ -9,7 +9,7 @@ always ship Korean fonts.
 
 from pathlib import Path
 
-from PySide6.QtGui import QFontDatabase, QGuiApplication, QTextLayout
+from PySide6.QtGui import QFontDatabase, QFontInfo, QGuiApplication, QTextLayout
 
 FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
 FALLBACK_FONT = FONTS_DIR / "NotoSansCJKkr-Regular.otf"
@@ -44,3 +44,24 @@ def ensure_korean_font(fallback: Path = FALLBACK_FONT) -> str | None:
     font.setFamilies([*current, *families])
     QGuiApplication.setFont(font)
     return families[0]
+
+
+CODE_FONT = FONTS_DIR / "NotoSansMono-Regular.ttf"
+_code_family: str | None = None
+
+
+def code_family(bundled: Path = CODE_FONT) -> str:
+    """The family that draws code: the system's fixed-pitch font, or where it has
+    none (a minimal Linux install), the bundled Noto Sans Mono. Korean in code
+    still comes from the Korean font, through Qt's fallbacks."""
+    global _code_family
+    if _code_family is None:
+        fixed = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        _code_family = fixed.family()
+        if not QFontInfo(fixed).fixedPitch() and bundled.exists():
+            families = QFontDatabase.applicationFontFamilies(
+                QFontDatabase.addApplicationFont(str(bundled))
+            )
+            if families:
+                _code_family = families[0]
+    return _code_family

@@ -27,6 +27,7 @@ ICON_FILE = BUILD_DIR / "stickle.ico"
 # Fallback font for Linux systems without a Korean font (SIL Open Font License,
 # which must ship next to it). Pinned release, checked against its digest.
 NOTO_CJK = "https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004"
+NOTO = "https://raw.githubusercontent.com/notofonts/notofonts.github.io/e3ff34c3178cb4012124c9e6390b9a3535ff2c3f"
 LINUX_FONT_FILES = [
     (
         f"{NOTO_CJK}/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf",
@@ -37,6 +38,17 @@ LINUX_FONT_FILES = [
         f"{NOTO_CJK}/LICENSE",
         "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
         "NotoSansCJK-OFL.txt",
+    ),
+    # For code blocks, on systems with no fixed-pitch font (a minimal Fedora).
+    (
+        f"{NOTO}/fonts/NotoSansMono/hinted/ttf/NotoSansMono-Regular.ttf",
+        "65b5e2b2c4a1fba9ae8be1f026cb35b03dcb8886d9b2a4147054fde12f7e767d",
+        "NotoSansMono-Regular.ttf",
+    ),
+    (
+        f"{NOTO}/fonts/LICENSE",
+        "f2095b08bed08b23a6fe26112fcd679a2bee3f002eef077eb05d215ed1051bd8",
+        "NotoSansMono-OFL.txt",
     ),
 ]
 

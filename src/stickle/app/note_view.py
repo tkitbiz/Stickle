@@ -17,7 +17,6 @@ from markdown_it.tree import SyntaxTreeNode
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import (
     QFont,
-    QFontDatabase,
     QGuiApplication,
     QKeyEvent,
     QMouseEvent,
@@ -33,6 +32,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QApplication, QTextEdit, QToolButton, QToolTip, QWidget
 
+from stickle.app.fonts import code_family
 from stickle.app.palette import qcolor
 from stickle.core.colors import DEFAULT_COLOR, NoteColors, note_colors
 from stickle.core.markdown import LINE_SEPARATOR, parse, source_position
@@ -114,7 +114,6 @@ class _Builder:
         self._struck = 0
         self._code = False
         self._links: list[str] = []
-        self._fixed_family: str | None = None
 
     # Blocks
 
@@ -291,10 +290,7 @@ class _Builder:
         if self._italic:
             char.setFontItalic(True)
         if self._code:
-            if self._fixed_family is None:
-                fixed = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-                self._fixed_family = fixed.family()
-            char.setFontFamilies([self._fixed_family])
+            char.setFontFamilies([code_family()])
             # A code block has the background on the whole block already.
             if not self._cursor.blockFormat().hasProperty(QTextFormat.Property.BackgroundBrush):
                 char.setBackground(self._code_color)
