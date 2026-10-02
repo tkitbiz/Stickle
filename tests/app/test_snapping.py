@@ -98,6 +98,25 @@ def test_held_still_in_the_middle_of_a_drag_it_is_not_dropped_yet(
     qtbot.waitUntil(lambda: b.pos() == target, timeout=SETTLE_MS + 1000)
 
 
+def test_alt_told_of_only_just_after_the_button_is_up_still_counts(
+    qtbot: QtBot, app: App, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # As under Wayland through XWayland: the desktop keeps the keys while it moves the window.
+    a = app.note("a", 0, 0)
+    b = app.note("b", 600, 0)
+    held, alt = [True], [False]
+    monkeypatch.setattr(note_window, "_main_button_down", lambda: held[0])
+    monkeypatch.setattr(note_window, "_alt_held", lambda: alt[0])
+    b.title_bar.drag_started.emit(False)
+    b.move(app.origin + QPoint(a.width() + 10, 5))
+    qtbot.wait(100)
+    held[0] = False
+    qtbot.wait(2 * note_window.DRAG_WATCH_MS)
+    alt[0] = True
+    qtbot.wait(SETTLE_MS + 300)
+    assert b.pos() == app.origin + QPoint(a.width() + 10, 5)
+
+
 def test_far_from_everything_it_stays(qtbot: QtBot, app: App) -> None:
     app.note("a", 0, 0)
     b = app.note("b", 600, 0)

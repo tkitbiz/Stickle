@@ -97,6 +97,8 @@ DROPPING_INPUT_METHODS = sys.platform.startswith("linux")
 JUST_DROPPED_S = 0.3
 # Moving and resizing report a stream of positions: the place is kept once they stop.
 SETTLE_MS = 500
+DRAG_WATCH_MS = 30  # how often the button and Alt are looked at during a drag
+AFTER_DROP_MS = 300  # and for how long Alt still counts once the button is up
 # Brought forward on X11: raised again this long after, once the keyboard is there.
 RAISE_AGAIN_MS = 150
 # Moving and resizing with the keyboard: how far each arrow press goes (Shift: 1 pixel).
@@ -149,6 +151,10 @@ def _main_button_down() -> bool:
         if held is not None:
             return held
     return bool(QGuiApplication.mouseButtons() & Qt.MouseButton.LeftButton)
+
+
+def _alt_held() -> bool:
+    return bool(QGuiApplication.queryKeyboardModifiers() & Qt.KeyboardModifier.AltModifier)
 
 
 def drawn_icon(
@@ -525,6 +531,10 @@ class NoteWindow(QWidget):
         # Dragged by its title bar: its owner may line it up where it is dropped.
         self.dragging = False
         self.alt_at_drop = False  # Alt held as it was let go: left where it is
+        self._after_drop = 0  # looks for Alt since the button went up
+        self._drag_watch = QTimer(self)
+        self._drag_watch.setInterval(DRAG_WATCH_MS)
+        self._drag_watch.timeout.connect(self._watch_drag)
         self.title_bar.drag_started.connect(self._drag_started)
         self.title_bar.dragged_by.connect(self.dragged_by)
         self.title_bar.double_clicked.connect(
@@ -1018,14 +1028,11 @@ class NoteWindow(QWidget):
     @override
     def moveEvent(self, event: QMoveEvent) -> None:
         super().moveEvent(event)
-        if self.dragging:
-            alt = QGuiApplication.queryKeyboardModifiers() & Qt.KeyboardModifier.AltModifier
-            self.alt_at_drop = bool(alt)
         if self.isVisible():
             self._settle.start()
 
     def _settled(self) -> None:
-        if self.dragging and _main_button_down():
+        if self.dragging and (_main_button_down() or self._drag_watch.isActive()):
             self._settle.start()  # held still in the middle of a drag: not dropped yet
             return
         self.geometry_settled.emit()
@@ -1033,7 +1040,22 @@ class NoteWindow(QWidget):
     def _drag_started(self, group: bool) -> None:
         self.dragging = True
         self.alt_at_drop = False
+        self._after_drop = 0
+        self._drag_watch.start()
         self.drag_started.emit(group)
+
+    def _watch_drag(self) -> None:
+        """Whether Alt is held as the note is let go. While the desktop moves a
+        window under Wayland (through XWayland) it keeps the keys to itself, and
+        tells of Alt only once the button is up: so a few looks after that too."""
+        alt = _alt_held()
+        if _main_button_down():
+            self.alt_at_drop = alt
+            return
+        self.alt_at_drop = self.alt_at_drop or alt
+        self._after_drop += 1
+        if self._after_drop * DRAG_WATCH_MS >= AFTER_DROP_MS:
+            self._drag_watch.stop()
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
