@@ -6,7 +6,8 @@ from pathlib import Path
 
 import apsw
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
+from PySide6.QtTest import QTest
 from pytestqt.qtbot import QtBot
 
 from stickle.app.application import answer_request
@@ -173,3 +174,16 @@ def test_the_stickle_window_and_the_tray_offer_the_views(qtbot: QtBot, app: App)
     app.window.all_notes_button.click()
     assert tray.toolTip() == "Stickle" and app.shown() == ALL
     tray.hide()
+
+
+def test_the_view_is_chosen_and_undone_by_keyboard(qtbot: QtBot, app: App) -> None:
+    app.window.show()
+    qtbot.waitExposed(app.window)
+    box = app.window.view_box
+    box.setFocus()
+    QTest.keyClick(box, Qt.Key.Key_Down)
+    QTest.keyClick(box, Qt.Key.Key_Down)
+    assert app.manager.view == app.work.id
+    QTest.keyClick(box, Qt.Key.Key_Up)
+    QTest.keyClick(box, Qt.Key.Key_Up)
+    assert app.manager.view is None and app.shown() == ALL

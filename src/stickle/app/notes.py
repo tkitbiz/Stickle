@@ -29,7 +29,7 @@ from typing import override
 import apsw
 from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QApplication, QWidget
 
 from stickle.app.category_dialog import NewCategoryDialog, next_dot_color
 from stickle.app.labels import mark_name
@@ -42,6 +42,7 @@ from stickle.data.labels import LabelRepository
 from stickle.data.layouts import LayoutRepository
 from stickle.data.notes import NoteRepository
 from stickle.data.settings import DEFAULT_NOTE_COLOR, Settings
+from stickle.platform.linux.x11 import activate
 
 # New notes cascade from the top-left of the screen so they never land exactly on top of each other.
 CASCADE_ORIGIN = 80
@@ -539,6 +540,8 @@ class NoteManager(QObject):
         stay so, and come back in this view. A note given another category while
         in view stays until the view changes, rather than vanish under the hand.
         """
+        # The window the view was chosen in (the Stickle window, as a rule).
+        chosen_in = QApplication.activeWindow()
         known = {c.id for c in self.label_choices()[0]}
         if view is not None and view != NO_CATEGORY and view not in known:
             view = None  # deleted meanwhile
@@ -564,6 +567,12 @@ class NoteManager(QObject):
                  "all" if view is None else "one category", len(self._out_of_view))  # fmt: skip
         self.view_changed.emit()
         self.set_aside_changed.emit()
+        if chosen_in is not None and chosen_in.isVisible():
+            # A window manager gives the keyboard to a note left in sight when
+            # others go: back to where the user was choosing.
+            chosen_in.activateWindow()
+            if QGuiApplication.platformName() == "xcb":
+                activate(int(chosen_in.winId()))
 
     def view_choices(self) -> list[tuple[str | None, str]]:
         """(view, name) for each view there is: every note, the notes with no
