@@ -104,7 +104,6 @@ class DesktopFinder(QWidget):
         self.found = []
         self.chosen = 0
         self.search()
-        self.adjustSize()
         self.resize(WIDTH, self.sizeHint().height())
         screen = QGuiApplication.screenAt(QCursor.pos()) or QGuiApplication.primaryScreen()
         area = screen.availableGeometry()
@@ -140,7 +139,7 @@ class DesktopFinder(QWidget):
                 .replace("%1", str(hidden))
                 .replace("%2", str(trashed))
             )
-        self.adjustSize()
+        self.resize(WIDTH, self.sizeHint().height())  # as wide as ever, as tall as needed
 
     def move_choice(self, step: int) -> None:
         if not self.found:

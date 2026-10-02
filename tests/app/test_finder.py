@@ -154,3 +154,12 @@ def test_the_command_line_opens_it(app: App) -> None:
     answer_request(FIND, app.manager, app.window)
     assert app.finder.isVisible()
     app.finder.end()
+
+
+def test_the_box_keeps_its_width(app: App) -> None:
+    app.finder.open()
+    width = app.finder.width()
+    app.type("회의")
+    app.type("없는말")
+    assert app.finder.width() == width >= 400
+    app.finder.end()
