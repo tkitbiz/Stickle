@@ -65,10 +65,11 @@ from shiboken6 import Shiboken
 
 from stickle.app.labels import CategoryTag, MarksBadge, mark_name
 from stickle.app.note_highlight import MarkdownHighlighter
-from stickle.app.note_view import NoteView, utf16_length
+from stickle.app.note_view import NoteView, from_utf16, utf16_length
 from stickle.app.palette import color_name, qcolor, swatch_icon
 from stickle.app.window_flags import keep_stays_on_top, set_stays_on_top, stays_on_top
 from stickle.core.colors import DARK_TEXT, DEFAULT_COLOR, PALETTE, note_colors
+from stickle.core.editing import on_close_bracket, on_enter, on_tab
 from stickle.core.labels import Category, Mark
 from stickle.core.markdown import note_title, task_box
 from stickle.platform.linux.x11 import activate, keep_off_taskbar
@@ -1178,6 +1179,13 @@ class NoteWindow(QWidget):
             self.finish_composition(closing=True)
             self.show_formatted()
             return True
+        if (
+            watched is self.editor
+            and isinstance(event, QKeyEvent)
+            and event.type() == QEvent.Type.KeyPress
+            and self._help_with_lists(event)
+        ):
+            return True
         if watched is self.editor and isinstance(event, QInputMethodEvent):
             previous = self._preedit
             self._preedit = event.preeditString()
@@ -1189,6 +1197,42 @@ class NoteWindow(QWidget):
             elif previous and not self._preedit:
                 self._ended_unfinished = (previous, time.monotonic(), self._commits)
         return super().eventFilter(watched, event)
+
+    def _help_with_lists(self, event: QKeyEvent) -> bool:
+        """Enter, Tab, Shift+Tab and "]" on a list line (see stickle.core.editing);
+        whether the key was dealt with. Shift+Enter is an ordinary new line, and a
+        character still being composed is left to the input method and the editor."""
+        editor = self.editor
+        if editor.isReadOnly() or self.composing or editor.textCursor().hasSelection():
+            return False
+        key, modifiers = event.key(), event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+        plain = modifiers == Qt.KeyboardModifier.NoModifier
+        cursor = editor.textCursor()
+        block = cursor.block()
+        line = block.text()
+        column = from_utf16(line, cursor.positionInBlock())
+        lines_before = editor.toPlainText().split("\n")[: block.blockNumber()]
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and plain:
+            change = on_enter(lines_before, line, column)
+        elif key == Qt.Key.Key_Tab and plain:
+            change = on_tab(lines_before, line, column, back=False)
+        elif key == Qt.Key.Key_Backtab:
+            change = on_tab(lines_before, line, column, back=True)
+        elif event.text() == "]":
+            change = on_close_bracket(lines_before, line, column)
+        else:
+            return False
+        if change is None:
+            return False
+        # One step to undo: the key as it was before the help.
+        edit = QTextCursor(block)
+        edit.beginEditBlock()
+        edit.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
+        edit.insertText(change.text)
+        edit.endEditBlock()
+        cursor.setPosition(block.position() + utf16_length(change.text[: change.cursor]))
+        editor.setTextCursor(cursor)
+        return True
 
     def _watch_for_drop(self, preedit: str, commits: int) -> None:
         """Keep the character being composed if the input method drops it on focus loss.
