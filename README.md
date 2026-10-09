@@ -38,7 +38,7 @@
 | Version | What you get |
 | --- | --- |
 | 0.1 *(preview out)* | Everyday sticky notes on a single computer: colours, formatting, notes that remember where they were, always on top, tray icon, start with your computer |
-| 0.2 *(preview out)* | Search, a trash that keeps notes for a year, shortcuts from anywhere, see-through and locked notes, full keyboard use, portable mode; coming to the Microsoft Store |
+| 0.2 *(preview out)* | Search, a trash that keeps notes for a year, shortcuts from anywhere, see-through and locked notes, full keyboard use, portable mode; on the [Microsoft Store](https://apps.microsoft.com/detail/9MZ6BHN3JKFR) |
 | 1.0 | Sync between your computers through a synced folder; packages for Linux (Flathub, AppImage, deb) and macOS (Homebrew) |
 | Later | WebDAV and S3 storage, what-you-see-is-what-you-get editing, tags, shared notes and a browser extension, a read-only viewer for phones |
 
@@ -47,8 +47,14 @@
 Previews are under [Releases](https://github.com/tkitbiz/Stickle/releases), marked
 *pre-release*. macOS builds are on the way.
 
-- **Windows** (10 or 11): download the zip for your computer (`x64`, or `arm64` for ARM
-  laptops), unzip it anywhere and run `stickle.exe`. The program is not signed yet, so Windows
+- **Windows** (10 or 11): get Stickle from the
+  [Microsoft Store](https://apps.microsoft.com/detail/9MZ6BHN3JKFR). Microsoft signs it, so
+  Windows installs it without a warning and keeps it up to date. The Store version and the zip
+  below keep notes in the same folder (`%APPDATA%\Stickle`), so moving from one to the other
+  keeps your notes.
+
+  Or download the zip for your computer (`x64`, or `arm64` for ARM
+  laptops), unzip it anywhere and run `stickle.exe`. The zip is not signed yet, so Windows
   may say it protected your PC: choose **More info → Run anyway**. When **Start Stickle
   when I log in** is on, Microsoft Defender has been seen to block it as
   `Trojan:Win32/Bearfoos.A!ml`: its machine learning takes an unsigned program that starts

@@ -36,7 +36,7 @@
 | 버전 | 할 수 있게 되는 것 |
 | --- | --- |
 | 0.1 *(시험판 나옴)* | 단일 컴퓨터에서 매일 쓰는 포스트잇: 색상, 서식, 있던 자리 기억, 항상 위, 트레이 아이콘, 컴퓨터와 함께 시작 |
-| 0.2 *(시험판 나옴)* | 검색, 1년 보관하는 휴지통, 어디서나 쓰는 단축키, 반투명·잠금 메모, 키보드만으로 조작, 포터블 모드. Microsoft Store 배포 준비 중 |
+| 0.2 *(시험판 나옴)* | 검색, 1년 보관하는 휴지통, 어디서나 쓰는 단축키, 반투명·잠금 메모, 키보드만으로 조작, 포터블 모드. [Microsoft Store](https://apps.microsoft.com/detail/9MZ6BHN3JKFR)에서 받기 |
 | 1.0 | 동기화 폴더를 통한 컴퓨터 간 동기화, 리눅스(Flathub·AppImage·deb)·macOS(Homebrew) 배포 |
 | 이후 | WebDAV·S3 저장소, 보이는 대로 편집, 태그, 메모 공유와 브라우저 확장, 휴대폰용 읽기 전용 뷰어 |
 
@@ -45,8 +45,13 @@
 시험판은 [Releases](https://github.com/tkitbiz/Stickle/releases)에 *pre-release*로
 올라옵니다. macOS용은 준비 중입니다.
 
-- **윈도우**(10·11): 내 컴퓨터에 맞는 zip(`x64`, ARM 노트북이면 `arm64`)을 받아 아무 곳에나
-  압축을 풀고 `stickle.exe`를 실행합니다. 아직 코드 서명이 없어서 윈도우가 "PC 보호" 창을
+- **윈도우**(10·11): [Microsoft Store](https://apps.microsoft.com/detail/9MZ6BHN3JKFR)에서
+  받으세요. Microsoft가 서명하므로 경고 없이 설치되고 업데이트도 알아서 됩니다. Store판과 아래
+  zip판은 같은 폴더(`%APPDATA%\Stickle`)에 메모를 두므로, 한쪽에서 다른 쪽으로 옮겨도 메모가
+  그대로 이어집니다.
+
+  또는 내 컴퓨터에 맞는 zip(`x64`, ARM 노트북이면 `arm64`)을 받아 아무 곳에나
+  압축을 풀고 `stickle.exe`를 실행합니다. zip판은 아직 코드 서명이 없어서 윈도우가 "PC 보호" 창을
   띄울 수 있습니다. **추가 정보 → 실행**을 누르세요. **로그인할 때
   Stickle 시작**을 켜 두면 Microsoft Defender가 `Trojan:Win32/Bearfoos.A!ml`로 막는 경우를
   확인했습니다. 서명 없는 프로그램이 로그인 때 스스로 켜지도록 등록하면 기계학습이 트로이 목마로
