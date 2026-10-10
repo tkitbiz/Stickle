@@ -91,7 +91,7 @@ def write_logos(folder: Path) -> None:
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QGuiApplication
 
-    from stickle.app.tray import make_icon
+    from stickle.app.app_icon import make_icon
 
     app = QGuiApplication.instance() or QGuiApplication(["package_msix", "-platform", "offscreen"])
     folder.mkdir(parents=True, exist_ok=True)

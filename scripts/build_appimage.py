@@ -55,7 +55,7 @@ def write_icon(path: Path) -> None:
     """Render the application icon in a separate process (needs a Qt application)."""
     code = (
         "import sys; from PySide6.QtGui import QGuiApplication; "
-        "from stickle.app.tray import make_icon; "
+        "from stickle.app.app_icon import make_icon; "
         "app = QGuiApplication(sys.argv); "
         f"sys.exit(0 if make_icon().pixmap(256, 256).save({str(path)!r}) else 1)"
     )

@@ -71,7 +71,7 @@ def write_icon() -> None:
 ICON_SCRIPT = """
 import sys
 from PySide6.QtWidgets import QApplication
-from stickle.app.tray import make_icon
+from stickle.app.app_icon import make_icon
 app = QApplication([])
 icon = make_icon()
 if not icon.pixmap(256, 256).save(sys.argv[1], "ICO"):

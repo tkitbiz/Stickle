@@ -3,10 +3,10 @@
 import logging
 from collections.abc import Callable
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from stickle.app.app_icon import make_icon
 from stickle.app.app_list import switch_app_list
 from stickle.app.i18n import LANGUAGES, Translations
 from stickle.app.notes import HIDDEN_LISTED, NoteManager, clipboard_text
@@ -16,7 +16,6 @@ from stickle.platform.autostart import Autostart
 from stickle.platform.linux.appimage import AppMenuEntry
 
 log = logging.getLogger(__name__)
-ICON_SIZE = 64
 TITLE_LENGTH = 40
 
 
@@ -39,19 +38,6 @@ def menu_title(note: Note) -> str:
     if len(title) > TITLE_LENGTH:
         title = title[: TITLE_LENGTH - 1] + "…"
     return title.replace("&", "&&")
-
-
-def make_icon() -> QIcon:
-    """Placeholder icon drawn in code until the real artwork exists."""
-    pixmap = QPixmap(ICON_SIZE, ICON_SIZE)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(QPen(QColor(150, 120, 20), 4))
-    painter.setBrush(QColor(255, 220, 90))
-    painter.drawRoundedRect(QRectF(6, 6, ICON_SIZE - 12, ICON_SIZE - 12), 8, 8)
-    painter.end()
-    return QIcon(pixmap)
 
 
 class Tray(QSystemTrayIcon):

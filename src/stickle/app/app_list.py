@@ -14,7 +14,7 @@ ICON_PIXELS = 256
 
 def icon_png() -> bytes:
     """The app icon as a PNG, for the application list."""
-    from stickle.app.tray import make_icon
+    from stickle.app.app_icon import make_icon
 
     pixmap = make_icon().pixmap(ICON_PIXELS, ICON_PIXELS)
     data = QByteArray()
