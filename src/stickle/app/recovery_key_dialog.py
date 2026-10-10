@@ -204,6 +204,8 @@ class RecoveryKeyDialog(QDialog):
         self.later_button = self.buttons.addButton("", QDialogButtonBox.ButtonRole.RejectRole)
         self.done_button.setEnabled(False)
         self.panel.kept.toggled.connect(self.done_button.setEnabled)
+        # Kept: Enter is Done, wherever the desktop puts Done and Later.
+        self.panel.kept.toggled.connect(self.done_button.setDefault)
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         layout = QVBoxLayout(self)

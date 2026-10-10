@@ -82,6 +82,8 @@ def go_through(kept: bool, several: bool = False) -> Callable[[FirstRunDialog], 
         assert not dialog.done_button.isEnabled()  # not before it is kept
         if kept:
             dialog.recovery.kept.setChecked(True)
+            # Enter is Done once it is kept, whatever order the desktop gives the buttons.
+            assert dialog.done_button.isDefault() and not dialog.next_button.isDefault()
             dialog.done_button.click()
         else:
             dialog.later_button.click()

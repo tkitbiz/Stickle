@@ -4,8 +4,10 @@ import logging
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QDialog, QMessageBox
 from pytestqt.qtbot import QtBot
 from test_startup_dialogs import (
     FAST,
@@ -311,3 +313,15 @@ def test_the_recovery_key_window_waits_until_it_is_kept(qtbot: QtBot) -> None:
     assert dialog.done_button.isEnabled()
     assert dialog.panel.key.text() == recovery_key
     assert dialog.panel.key.accessibleName()
+
+
+def test_once_kept_enter_is_done_wherever_the_buttons_are(qtbot: QtBot) -> None:
+    dialog = RecoveryKeyDialog(generate())
+    qtbot.addWidget(dialog)
+    dialog.show()
+    qtbot.waitExposed(dialog)
+    dialog.panel.kept.setChecked(True)
+    assert dialog.done_button.isDefault()
+    dialog.panel.kept.setFocus()
+    QTest.keyClick(dialog.panel.kept, Qt.Key.Key_Return)
+    assert dialog.result() == QDialog.DialogCode.Accepted

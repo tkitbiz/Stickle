@@ -189,6 +189,8 @@ class FirstRunDialog(QDialog):
         self.later_button.hide()
         self.done_button.setEnabled(False)
         self.recovery.kept.toggled.connect(self.done_button.setEnabled)
+        # Kept: Enter is Done, wherever the desktop puts Done and Later.
+        self.recovery.kept.toggled.connect(self.done_button.setDefault)
         self.done_button.clicked.connect(self.accept)
         self.later_button.clicked.connect(self.reject)
 
@@ -246,6 +248,7 @@ class FirstRunDialog(QDialog):
             return
         self.pages.setCurrentIndex(1)
         self.next_button.hide()
+        self.next_button.setDefault(False)
         self.done_button.show()
         self.later_button.show()
         self.recovery.kept.setFocus()
