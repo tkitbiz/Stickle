@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import override
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication
+from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication, QKeyEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -110,6 +110,30 @@ class EnterRecoveryKeyDialog(QDialog):
         super().accept()
 
 
+class KeptBox(QCheckBox):
+    """ "I have kept it": Space ticks it, Enter goes on to the window's Done.
+
+    Some desktops (GNOME) have Enter tick a check box too: ticked with its key
+    and then Enter, it would be unticked again instead of finishing.
+    """
+
+    ENTER_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+
+    @override
+    def keyPressEvent(self, e: QKeyEvent) -> None:
+        if e.key() in self.ENTER_KEYS:
+            e.ignore()  # on to the window, whose default button is Done once ticked
+            return
+        super().keyPressEvent(e)
+
+    @override
+    def keyReleaseEvent(self, e: QKeyEvent) -> None:
+        if e.key() in self.ENTER_KEYS:
+            e.ignore()
+            return
+        super().keyReleaseEvent(e)
+
+
 class RecoveryKeyPanel(QWidget):
     """A new recovery key, with ways to keep it; used in its own window and at first start."""
 
@@ -131,7 +155,7 @@ class RecoveryKeyPanel(QWidget):
         self.save_button.clicked.connect(self._save)
         self.status = QLabel()
         self.status.setWordWrap(True)
-        self.kept = QCheckBox()
+        self.kept = KeptBox()
 
         actions = QHBoxLayout()
         actions.addWidget(self.copy_button)

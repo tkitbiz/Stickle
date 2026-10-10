@@ -4,8 +4,8 @@ import logging
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QGuiApplication, QKeyEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QDialog, QMessageBox
 from pytestqt.qtbot import QtBot
@@ -25,7 +25,7 @@ from stickle.app.i18n import Translations
 from stickle.app.notes import NoteManager
 from stickle.app.password_dialog import PasswordDialog
 from stickle.app.recovery_dialog import Choice, RecoveryDialog
-from stickle.app.recovery_key_dialog import EnterRecoveryKeyDialog, RecoveryKeyDialog
+from stickle.app.recovery_key_dialog import EnterRecoveryKeyDialog, KeptBox, RecoveryKeyDialog
 from stickle.app.startup import open_notes
 from stickle.app.stickle_window import RecoveryKeys, StickleWindow
 from stickle.crypto.recovery import generate
@@ -325,3 +325,17 @@ def test_once_kept_enter_is_done_wherever_the_buttons_are(qtbot: QtBot) -> None:
     dialog.panel.kept.setFocus()
     QTest.keyClick(dialog.panel.kept, Qt.Key.Key_Return)
     assert dialog.result() == QDialog.DialogCode.Accepted
+
+
+def test_enter_on_the_kept_box_never_unticks_it(qtbot: QtBot) -> None:
+    # Some desktops have Enter tick a check box: here Enter goes on to the window.
+    box = KeptBox()
+    qtbot.addWidget(box)
+    box.setChecked(True)
+    for key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+        press = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier)
+        release = QKeyEvent(QEvent.Type.KeyRelease, key, Qt.KeyboardModifier.NoModifier)
+        box.keyPressEvent(press)
+        box.keyReleaseEvent(release)
+        assert not press.isAccepted() and not release.isAccepted()
+    assert box.isChecked()
