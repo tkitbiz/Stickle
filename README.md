@@ -5,9 +5,9 @@
 [한국어](README.ko.md) · [Website](https://stickle.linkro.co) ·
 [Microsoft Store](https://apps.microsoft.com/detail/9MZ6BHN3JKFR)
 
-> **Status: preview.** The 0.2 preview is out: sticky notes on one computer, for Windows and
-> Linux, now with search, a trash, keyboard shortcuts and a portable mode. Syncing between
-> computers is not there yet — see [Try the preview](#try-the-preview).
+> **Status: preview.** The 0.3 preview is out: notes on one computer, for Windows and Linux,
+> now with categories and marks, notes that line up, find on the desktop, and easier lists and
+> code. Syncing between computers is not there yet — see [Try the preview](#try-the-preview).
 > To hear about new versions, click **Watch → Custom → Releases** at the top of this page.
 > A star tells us you are interested, but does not notify you.
 
@@ -40,6 +40,7 @@
 | --- | --- |
 | 0.1 *(preview out)* | Everyday sticky notes on a single computer: colours, formatting, notes that remember where they were, always on top, tray icon, start with your computer |
 | 0.2 *(preview out)* | Search, a trash that keeps notes for a year, shortcuts from anywhere, see-through and locked notes, full keyboard use, portable mode; on the [Microsoft Store](https://apps.microsoft.com/detail/9MZ6BHN3JKFR) |
+| 0.3 *(preview out)* | Categories and marks, one category on the desktop, find on the desktop, notes that line up (Shift moves them together), easier lists and code blocks, the shortcuts at a glance, a new icon |
 | 1.0 | Sync between your computers through a synced folder; packages for Linux (Flathub, AppImage, deb) and macOS (Homebrew) |
 | Later | WebDAV and S3 storage, what-you-see-is-what-you-get editing, tags, shared notes and a browser extension, a read-only viewer for phones |
 
@@ -72,21 +73,24 @@ Previews are under [Releases](https://github.com/linkro-app/Stickle/releases), m
   away from this computer: it opens your notes if the key stored on this computer is ever lost.
 - Downloads can be checked against `SHA256SUMS.txt` in the same release.
 
-New in 0.2:
+New in 0.3:
 
-- **Search** every note from the Stickle window (`Ctrl+F`), Korean included.
-- **Trash**: deleted notes stay there for a year and can be put back.
-- **Shortcuts from anywhere**: `Ctrl+Alt+N` a new note, `Ctrl+Alt+S` the Stickle window,
-  `Ctrl+Alt+H` every note out of sight for a moment (and back). They can be changed in the
-  Stickle window. On Wayland the desktop asks once whether to allow them.
-- A new note from the **clipboard**, from the Stickle window.
-- **See-through** notes while you work elsewhere, and **locked** notes that cannot be moved
-  or edited by accident (in each note's `⋯` menu).
-- **Keyboard only**: move between notes with `Ctrl+Tab`, tick boxes and open links from the
-  keyboard, move and resize a note with the arrow keys.
-- Notes made with the 0.1.2 preview open as they were: just replace the program. A copy of
-  the notes from before is kept in the `backups` folder where the notes are
+- **Categories and marks**: give a note one category (at the left of its title bar) and marks
+  such as *To do*, *Urgent*, *Important* or *Waiting* (at the right), from its `⋯` menu.
+  Manage and filter them in the Stickle window (`Ctrl+1`…`Ctrl+9`, `Ctrl+0` for all).
+- **One category on the desktop**, from the Stickle window or the tray, or a shortcut you set.
+- **Find on the desktop**: a shortcut you set opens a search box; only the matching notes stay.
+- **Notes that line up**: drop a note near another, or near the edge of the screen, and it
+  settles beside it. Hold `Alt` as you let go to leave it where it is; drag with `Shift` to
+  move the notes beside it along.
+- **Easier lists** (`Enter` continues, `Tab` nests) and **code blocks** with a copy button.
+- **The shortcuts at a glance**: `F1` or `Ctrl+/`.
+- Notes made with the 0.2 or 0.1.2 preview open as they were: just replace the program. A copy
+  of the notes from before is kept in the `backups` folder where the notes are
   (`%APPDATA%\Stickle\backups` on Windows, `~/.local/share/stickle/backups` on Linux).
+
+0.2 brought search, a trash, shortcuts from anywhere (`Ctrl+Alt+N`, `Ctrl+Alt+S`,
+`Ctrl+Alt+H`), see-through and locked notes, full keyboard use and the portable mode below.
 
 ### Portable use
 
