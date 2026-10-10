@@ -20,6 +20,11 @@ dependencies = [
     "winrt-windows-foundation>=3.2 ; sys_platform == 'win32'",
 ]
 
+[project.urls]
+Homepage = "https://stickle.linkro.co"
+Source = "https://github.com/linkro-app/Stickle"
+Issues = "https://github.com/linkro-app/Stickle/issues"
+
 [project.scripts]
 stickle = "stickle.__main__:main"
 

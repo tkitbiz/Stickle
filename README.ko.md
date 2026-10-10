@@ -2,7 +2,8 @@
 
 **윈도우·리눅스·맥 바탕화면에 붙이는 메모 — 내 클라우드로 어느 컴퓨터에서나 같은 메모를.**
 
-[English](README.md)
+[English](README.md) · [홈페이지](https://stickle.linkro.co) ·
+[Microsoft Store](https://apps.microsoft.com/detail/9MZ6BHN3JKFR)
 
 > **현재 상태: 시험판.** 0.2 시험판이 나왔습니다. 윈도우와 리눅스에서 한 컴퓨터 안의
 > 메모로 쓸 수 있고, 검색·휴지통·단축키·포터블 모드가 더해졌습니다. 컴퓨터 간 동기화는

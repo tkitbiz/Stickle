@@ -2,7 +2,8 @@
 
 **Sticky notes for your desktop — the same notes on every computer, Windows, Linux or macOS, through your own cloud.**
 
-[한국어](README.ko.md)
+[한국어](README.ko.md) · [Website](https://stickle.linkro.co) ·
+[Microsoft Store](https://apps.microsoft.com/detail/9MZ6BHN3JKFR)
 
 > **Status: preview.** The 0.2 preview is out: sticky notes on one computer, for Windows and
 > Linux, now with search, a trash, keyboard shortcuts and a portable mode. Syncing between
