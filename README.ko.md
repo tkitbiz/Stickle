@@ -42,7 +42,7 @@
 
 ## 시험판 써 보기
 
-시험판은 [Releases](https://github.com/tkitbiz/Stickle/releases)에 *pre-release*로
+시험판은 [Releases](https://github.com/linkro-app/Stickle/releases)에 *pre-release*로
 올라옵니다. macOS용은 준비 중입니다.
 
 - **윈도우**(10·11): [Microsoft Store](https://apps.microsoft.com/detail/9MZ6BHN3JKFR)에서
@@ -57,7 +57,7 @@
   확인했습니다. 서명 없는 프로그램이 로그인 때 스스로 켜지도록 등록하면 기계학습이 트로이 목마로
   추정하는 것으로, 잘못된 탐지이며 Microsoft에 신고하고 있습니다. 코드 서명한 빌드를 준비하고
   있으며, 그때까지 Windows에서는 이 항목이 꺼진 채로 시작합니다. Defender가 Stickle을 막았다면
-  [이슈](https://github.com/tkitbiz/Stickle/issues/new)로 알려 주세요.
+  [이슈](https://github.com/linkro-app/Stickle/issues/new)로 알려 주세요.
 - **리눅스**: AppImage를 받아 실행 권한을 준 뒤(`chmod +x Stickle-x86_64.AppImage` 또는 파일
   속성에서) 실행합니다. Stickle이 앱 목록에 자신을 추가할지 묻습니다.
   자동 로그인을 쓰면 데스크톱의 키 모음이 잠긴 채로 남아서, Stickle이 로그인과 함께 켜질 때
@@ -105,7 +105,7 @@ USB 메모리에 Stickle과 메모를 함께 들고 다니려면, 윈도우에�
 
 지금 가장 도움이 되는 것은 실제 컴퓨터에서의 보고입니다. 특히 macOS, KDE, 흔하지
 않은 리눅스 배포판, 여러 입력기, 다중 모니터·고해상도 환경의 보고를 기다립니다.
-[이슈를 열어](https://github.com/tkitbiz/Stickle/issues/new) 아래 내용을 적어 주세요.
+[이슈를 열어](https://github.com/linkro-app/Stickle/issues/new) 아래 내용을 적어 주세요.
 
 - 운영체제와 버전, 리눅스라면 데스크톱(GNOME, KDE 등)과 입력기
 - 무엇을 했고, 무엇을 기대했고, 실제로 어떻게 되었는지

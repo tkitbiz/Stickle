@@ -44,7 +44,7 @@
 
 ## Try the preview
 
-Previews are under [Releases](https://github.com/tkitbiz/Stickle/releases), marked
+Previews are under [Releases](https://github.com/linkro-app/Stickle/releases), marked
 *pre-release*. macOS builds are on the way.
 
 - **Windows** (10 or 11): get Stickle from the
@@ -61,7 +61,7 @@ Previews are under [Releases](https://github.com/tkitbiz/Stickle/releases), mark
   itself at login for a trojan. This is a false positive, which we are reporting to
   Microsoft; signed builds are planned. Until then that option starts off on Windows. If
   Defender blocks Stickle for you, please
-  [open an issue](https://github.com/tkitbiz/Stickle/issues/new) so we know.
+  [open an issue](https://github.com/linkro-app/Stickle/issues/new) so we know.
 - **Linux**: download the AppImage, make it executable (`chmod +x Stickle-x86_64.AppImage`,
   or in its file properties) and run it. Stickle offers to add itself to your application list.
   With automatic login, the desktop's keyring stays locked, so when Stickle starts with you it
@@ -110,7 +110,7 @@ What a preview is, and is not:
 
 Reports from real computers are the most useful help right now, especially from macOS,
 KDE, less common Linux distributions, input methods, and multi-monitor or high-DPI setups.
-[Open an issue](https://github.com/tkitbiz/Stickle/issues/new) and include:
+[Open an issue](https://github.com/linkro-app/Stickle/issues/new) and include:
 
 - your operating system and version, and on Linux your desktop (GNOME, KDE, …) and input method;
 - what you did, what you expected, and what happened instead;
