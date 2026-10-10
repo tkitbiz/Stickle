@@ -206,7 +206,7 @@ The **X** hides a note: bring it back from the Stickle icon. **Ctrl+N** makes a 
     </message>
     <message>
         <source>Stickle keeps sticky notes on your desktop. They are saved as you type, encrypted on this computer, and nothing is sent anywhere.</source>
-        <translation>Stickle은 바탕화면에 포스트잇 메모를 띄웁니다. 메모는 입력하는 대로 저장되고, 이 컴퓨터 안에서 암호화되며, 어디로도 보내지지 않습니다.</translation>
+        <translation>Stickle은 바탕화면에 메모를 붙여 둡니다. 메모는 입력하는 대로 저장되고, 이 컴퓨터 안에서 암호화되며, 어디로도 보내지지 않습니다.</translation>
     </message>
     <message>
         <source>Where will you use your notes?</source>
